@@ -8,8 +8,24 @@ function normalizeError(err, code = "UNKNOWN_ERROR", details) {
   const message =
     err instanceof Error ? err.message : String(err || "unknown error");
   const out = { code, message };
-  if (details) out.details = details;
+  const errDetails =
+    details ||
+    (err && typeof err === "object" && "details" in err
+      ? err.details
+      : undefined);
+  if (errDetails) out.details = errDetails;
   return out;
+}
+
+function createProviderHttpError(provider, status, body) {
+  const providerLabel = provider === "openai" ? "OpenAI" : "Supabase";
+  const err = new Error(`${providerLabel} request failed (${status}).`);
+  err.details = {
+    provider,
+    http_status: status,
+    body: String(body || "").slice(0, 1000),
+  };
+  return err;
 }
 
 async function fetchWithTimeout(
@@ -424,7 +440,7 @@ async function callOpenAIInviteGeneration({
 
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
-    throw new Error(`OpenAI error ${res.status}: ${txt || res.statusText}`);
+    throw createProviderHttpError("openai", res.status, txt || res.statusText);
   }
 
   debug("GENERATE_INVITE profile summary:", {
@@ -502,7 +518,7 @@ async function callOpenAIFirstMessage({ apiKey, model, prompt, profile }) {
 
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
-    throw new Error(`OpenAI error ${res.status}: ${txt || res.statusText}`);
+    throw createProviderHttpError("openai", res.status, txt || res.statusText);
   }
 
   const data = await res.json();
@@ -556,7 +572,7 @@ async function supabaseUpsertInvitation(row) {
 
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
-    throw new Error(`Supabase upsert failed ${res.status}: ${txt}`);
+    throw createProviderHttpError("supabase", res.status, txt);
   }
 }
 
@@ -590,7 +606,7 @@ async function supabaseUpdateFirstMessage({
 
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
-    throw new Error(`Supabase update failed ${res.status}: ${txt}`);
+    throw createProviderHttpError("supabase", res.status, txt);
   }
 }
 
@@ -623,7 +639,7 @@ async function supabaseMarkStatus({ linkedin_url, status }) {
 
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
-    throw new Error(`Supabase update failed ${res.status}: ${txt}`);
+    throw createProviderHttpError("supabase", res.status, txt);
   }
 }
 

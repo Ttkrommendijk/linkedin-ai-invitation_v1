@@ -40,7 +40,10 @@ function getErrorMessage(error) {
   if (error && typeof error === "object" && typeof error.message === "string") {
     return error.message;
   }
-  return String(error || "unknown");
+  if (error instanceof Error && typeof error.message === "string") {
+    return error.message;
+  }
+  return "Unexpected error.";
 }
 
 function renderProfileContext() {
@@ -268,7 +271,7 @@ copyBtnEl.addEventListener("click", async () => {
     await copyToClipboard(previewEl.textContent || "");
     statusEl.textContent = "Copied to clipboard.";
   } catch (e) {
-    statusEl.textContent = `Copy failed: ${String(e?.message || e)}`;
+    statusEl.textContent = `Copy failed: ${getErrorMessage(e)}`;
   }
 });
 
