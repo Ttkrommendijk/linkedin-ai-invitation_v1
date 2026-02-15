@@ -7,6 +7,31 @@ const messagePromptEl = document.getElementById("messagePrompt");
 const EMOJI_CHECK = "\u2705";
 const SYMBOL_ELLIPSIS = "\u2026";
 const DEBUG = false;
+const UI_TEXT = {
+  unexpectedError: "Unexpected error.",
+  configSaved: "Config saved.",
+  openLinkedInProfileFirst: "Open a LinkedIn profile first.",
+  missingLinkedinUrl: "Missing LinkedIn URL in profile context.",
+  markedInvited: `Marked as invited ${EMOJI_CHECK}`,
+  markedAccepted: `Marked as accepted ${EMOJI_CHECK}`,
+  dbErrorPrefix: "DB error:",
+  copiedToClipboard: "Copied to clipboard.",
+  copyFailedPrefix: "Copy failed:",
+  preparingProfile: `Preparing profile${SYMBOL_ELLIPSIS}`,
+  setApiKeyInConfig: "Please set your API key in Config.",
+  couldNotExtractProfileContext:
+    "Could not extract profile context (open a LinkedIn profile page and reopen the popup).",
+  callingOpenAI: `Calling OpenAI${SYMBOL_ELLIPSIS}`,
+  errorPrefix: "Error:",
+  generatedClickCopy: "Generated. Click Copy.",
+  noMessageGenerated: "No message generated.",
+  dbErrorAppendPrefix: " | DB error:",
+  generatingFirstMessage: `Generating first message${SYMBOL_ELLIPSIS}`,
+  messagePromptRequired: "Message prompt is required.",
+  generatedButDbErrorPrefix: "Generated, but DB error:",
+  firstMessageGenerated: `First message generated ${EMOJI_CHECK}`,
+  markedFirstMessageSent: `Marked as first message sent ${EMOJI_CHECK}`,
+};
 
 function debug(...args) {
   if (DEBUG) console.log(...args);
@@ -43,7 +68,7 @@ function getErrorMessage(error) {
   if (error instanceof Error && typeof error.message === "string") {
     return error.message;
   }
-  return "Unexpected error.";
+  return UI_TEXT.unexpectedError;
 }
 
 function renderProfileContext() {
@@ -214,8 +239,8 @@ async function saveConfig() {
   await chrome.storage.local.set({ apiKey, webhookSecret });
   await chrome.storage.sync.set({ model, strategyCore, webhookBaseUrl });
 
-  statusEl.textContent = "Config saved.";
-  messageStatusEl.textContent = "Config saved.";
+  statusEl.textContent = UI_TEXT.configSaved;
+  messageStatusEl.textContent = UI_TEXT.configSaved;
 }
 
 document.getElementById("saveConfig").addEventListener("click", async () => {
@@ -224,13 +249,13 @@ document.getElementById("saveConfig").addEventListener("click", async () => {
 
 document.getElementById("markInvited").addEventListener("click", async () => {
   if (!currentProfileContext) {
-    statusEl.textContent = "Open a LinkedIn profile first.";
+    statusEl.textContent = UI_TEXT.openLinkedInProfileFirst;
     return;
   }
 
   const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
   if (!linkedin_url) {
-    statusEl.textContent = "Missing LinkedIn URL in profile context.";
+    statusEl.textContent = UI_TEXT.missingLinkedinUrl;
     return;
   }
 
@@ -240,19 +265,19 @@ document.getElementById("markInvited").addEventListener("click", async () => {
   });
 
   statusEl.textContent = resp?.ok
-    ? `Marked as invited ${EMOJI_CHECK}`
-    : `DB error: ${getErrorMessage(resp?.error)}`;
+    ? UI_TEXT.markedInvited
+    : `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`;
 });
 
 document.getElementById("markAccepted").addEventListener("click", async () => {
   if (!currentProfileContext) {
-    statusEl.textContent = "Open a LinkedIn profile first.";
+    statusEl.textContent = UI_TEXT.openLinkedInProfileFirst;
     return;
   }
 
   const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
   if (!linkedin_url) {
-    statusEl.textContent = "Missing LinkedIn URL in profile context.";
+    statusEl.textContent = UI_TEXT.missingLinkedinUrl;
     return;
   }
 
@@ -262,21 +287,21 @@ document.getElementById("markAccepted").addEventListener("click", async () => {
   });
 
   statusEl.textContent = resp?.ok
-    ? `Marked as accepted ${EMOJI_CHECK}`
-    : `DB error: ${getErrorMessage(resp?.error)}`;
+    ? UI_TEXT.markedAccepted
+    : `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`;
 });
 
 copyBtnEl.addEventListener("click", async () => {
   try {
     await copyToClipboard(previewEl.textContent || "");
-    statusEl.textContent = "Copied to clipboard.";
+    statusEl.textContent = UI_TEXT.copiedToClipboard;
   } catch (e) {
-    statusEl.textContent = `Copy failed: ${getErrorMessage(e)}`;
+    statusEl.textContent = `${UI_TEXT.copyFailedPrefix} ${getErrorMessage(e)}`;
   }
 });
 
 document.getElementById("generate").addEventListener("click", async () => {
-  statusEl.textContent = `Preparing profile${SYMBOL_ELLIPSIS}`;
+  statusEl.textContent = UI_TEXT.preparingProfile;
   previewEl.textContent = "";
   setCopyButtonEnabled(false);
 
@@ -302,14 +327,13 @@ document.getElementById("generate").addEventListener("click", async () => {
   }
 
   if (!apiKey) {
-    statusEl.textContent = "Please set your API key in Config.";
+    statusEl.textContent = UI_TEXT.setApiKeyInConfig;
     setActiveTab("config");
     return;
   }
 
   if (!currentProfileContext) {
-    statusEl.textContent =
-      "Could not extract profile context (open a LinkedIn profile page and reopen the popup).";
+    statusEl.textContent = UI_TEXT.couldNotExtractProfileContext;
     return;
   }
 
@@ -318,7 +342,7 @@ document.getElementById("generate").addEventListener("click", async () => {
   lastProfileContextEnriched = null;
   renderProfileContext();
 
-  statusEl.textContent = `Calling OpenAI${SYMBOL_ELLIPSIS}`;
+  statusEl.textContent = UI_TEXT.callingOpenAI;
 
   debug("Sending minimized profile context to invitation generation.");
   const resp = await chrome.runtime.sendMessage({
@@ -334,7 +358,7 @@ document.getElementById("generate").addEventListener("click", async () => {
   });
 
   if (!resp?.ok) {
-    statusEl.textContent = `Error: ${getErrorMessage(resp?.error)}`;
+    statusEl.textContent = `${UI_TEXT.errorPrefix} ${getErrorMessage(resp?.error)}`;
     return;
   }
 
@@ -361,8 +385,8 @@ document.getElementById("generate").addEventListener("click", async () => {
   previewEl.textContent = inviteText;
   setCopyButtonEnabled(Boolean(inviteText));
   statusEl.textContent = inviteText
-    ? "Generated. Click Copy."
-    : "No message generated.";
+    ? UI_TEXT.generatedClickCopy
+    : UI_TEXT.noMessageGenerated;
 
   const upsertCompany = llmCompany || currentProfileContext.company || null;
   const upsertHeadline = llmHeadline || currentProfileContext.headline || null;
@@ -400,23 +424,23 @@ document.getElementById("generate").addEventListener("click", async () => {
     })
     .then((dbResp) => {
       if (!dbResp?.ok) {
-        statusEl.textContent += ` | DB error: ${getErrorMessage(dbResp?.error)}`;
+        statusEl.textContent += `${UI_TEXT.dbErrorAppendPrefix} ${getErrorMessage(dbResp?.error)}`;
       }
     })
     .catch((e) => {
-      statusEl.textContent += ` | DB error: ${getErrorMessage(e)}`;
+      statusEl.textContent += `${UI_TEXT.dbErrorAppendPrefix} ${getErrorMessage(e)}`;
     });
 });
 
 document
   .getElementById("generateFirstMessage")
   .addEventListener("click", async () => {
-    messageStatusEl.textContent = `Generating first message${SYMBOL_ELLIPSIS}`;
+    messageStatusEl.textContent = UI_TEXT.generatingFirstMessage;
     firstMessagePreviewEl.textContent = "";
 
     const prompt = (messagePromptEl.value || "").trim();
     if (!prompt) {
-      messageStatusEl.textContent = "Message prompt is required.";
+      messageStatusEl.textContent = UI_TEXT.messagePromptRequired;
       return;
     }
 
@@ -435,14 +459,13 @@ document
     }
 
     if (!apiKey) {
-      messageStatusEl.textContent = "Please set your API key in Config.";
+      messageStatusEl.textContent = UI_TEXT.setApiKeyInConfig;
       setActiveTab("config");
       return;
     }
 
     if (!currentProfileContext) {
-      messageStatusEl.textContent =
-        "Could not extract profile context (open a LinkedIn profile page and reopen the popup).";
+      messageStatusEl.textContent = UI_TEXT.couldNotExtractProfileContext;
       return;
     }
 
@@ -461,7 +484,7 @@ document
     });
 
     if (!resp?.ok) {
-      messageStatusEl.textContent = `Error: ${getErrorMessage(resp?.error)}`;
+      messageStatusEl.textContent = `${UI_TEXT.errorPrefix} ${getErrorMessage(resp?.error)}`;
       return;
     }
 
@@ -470,7 +493,7 @@ document
 
     const linkedinUrl = getLinkedinUrlFromContext(currentProfileContext);
     if (!linkedinUrl) {
-      messageStatusEl.textContent = "Missing LinkedIn URL in profile context.";
+      messageStatusEl.textContent = UI_TEXT.missingLinkedinUrl;
       return;
     }
 
@@ -484,24 +507,24 @@ document
     });
 
     if (!dbResp?.ok) {
-      messageStatusEl.textContent = `Generated, but DB error: ${getErrorMessage(dbResp?.error)}`;
+      messageStatusEl.textContent = `${UI_TEXT.generatedButDbErrorPrefix} ${getErrorMessage(dbResp?.error)}`;
       return;
     }
 
-    messageStatusEl.textContent = `First message generated ${EMOJI_CHECK}`;
+    messageStatusEl.textContent = UI_TEXT.firstMessageGenerated;
   });
 
 document
   .getElementById("markMessageSent")
   .addEventListener("click", async () => {
     if (!currentProfileContext) {
-      messageStatusEl.textContent = "Open a LinkedIn profile first.";
+      messageStatusEl.textContent = UI_TEXT.openLinkedInProfileFirst;
       return;
     }
 
     const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
     if (!linkedin_url) {
-      messageStatusEl.textContent = "Missing LinkedIn URL in profile context.";
+      messageStatusEl.textContent = UI_TEXT.missingLinkedinUrl;
       return;
     }
 
@@ -511,6 +534,6 @@ document
     });
 
     messageStatusEl.textContent = resp?.ok
-      ? `Marked as first message sent ${EMOJI_CHECK}`
-      : `DB error: ${getErrorMessage(resp?.error)}`;
+      ? UI_TEXT.markedFirstMessageSent
+      : `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`;
   });

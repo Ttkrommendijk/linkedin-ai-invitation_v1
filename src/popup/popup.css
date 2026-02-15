@@ -1,0 +1,79 @@
+body {
+    font-family: Arial, sans-serif;
+    width: 380px;
+    margin: 12px;
+}
+input,
+textarea,
+button {
+    width: 100%;
+    box-sizing: border-box;
+}
+textarea {
+    height: 90px;
+}
+button {
+    margin-top: 8px;
+    padding: 10px;
+}
+.row {
+    margin-top: 10px;
+}
+small {
+    color: #555;
+}
+pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    background: #f6f6f6;
+    padding: 8px;
+    border-radius: 6px;
+}
+#profileContextPreview {
+    max-height: 140px;
+    overflow: auto;
+}
+#messagePrompt {
+    height: 160px;
+}
+#firstMessagePreview {
+    max-height: 180px;
+    overflow: auto;
+}
+
+.tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.tab-btn {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid #ddd;
+    background: #fafafa;
+    border-radius: 8px;
+    cursor: pointer;
+}
+.tab-btn.active {
+    background: #fff;
+    border-color: #bbb;
+    font-weight: 600;
+}
+.tab-panel {
+    display: none;
+}
+.tab-panel.active {
+    display: block;
+}
+
+#strategy {
+    height: 180px;
+}
+
+.inline {
+    display: flex;
+    gap: 8px;
+}
+.inline > * {
+    flex: 1;
+}
