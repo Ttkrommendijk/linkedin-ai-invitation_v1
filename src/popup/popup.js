@@ -3,20 +3,10 @@ const modelEl = document.getElementById("model");
 const strategyEl = document.getElementById("strategy");
 const focusEl = document.getElementById("focus");
 const messagePromptEl = document.getElementById("messagePrompt");
-const savePromptBtnEl = document.getElementById("savePromptBtn");
-const resetPromptBtnEl = document.getElementById("resetPromptBtn");
-const promptStatusEl = document.getElementById("promptStatus");
 
 const EMOJI_CHECK = "\u2705";
 const SYMBOL_ELLIPSIS = "\u2026";
 const DEBUG = true; // set DEBUG=false after diagnosis
-const STORAGE_KEY_FIRST_MESSAGE_PROMPT = "firstMessagePrompt";
-const PROMPT_SAVE_DEBOUNCE_MS = 600;
-const TEXT_PROMPT_SAVED = "Prompt saved.";
-const TEXT_PROMPT_LOADED = "Prompt loaded.";
-const TEXT_PROMPT_IDLE = "Prompt status: idle";
-const DEFAULT_FIRST_MESSAGE_PROMPT =
-  "Escreva a melhor primeira mensagem no LinkedIn apos aceitarem a conexao, em portugues. Agradeca pela conexao e cite uma referencia factual do perfil (cargo, empresa, projeto, area ou conquista), sem inventar fatos. Tom de par para par, amigavel, neutro, objetivo e sem linguagem comercial. Nao faca pitch de servicos. Objetivo: abrir uma conversa leve; reuniao pode ser sugerida apenas de forma sutil. Maximo de 2 paragrafos curtos e no maximo 1 pergunta leve. Sem emojis, sem hashtags e sem bullet points.";
 
 function debug(...args) {
   if (DEBUG) console.log(...args);
@@ -45,7 +35,6 @@ let lastProfileContextSent = {};
 let lastProfileContextEnriched = null;
 let currentProfileContext = null;
 let firstMessage = "";
-let promptSaveTimer = null;
 
 function getErrorMessage(error) {
   if (error && typeof error === "object" && typeof error.message === "string") {
@@ -173,50 +162,11 @@ function setCopyButtonEnabled(enabled) {
   copyBtnEl.disabled = !enabled;
 }
 
-function setPromptStatus(text) {
-  if (promptStatusEl) {
-    promptStatusEl.textContent = text;
-  }
-}
 
-async function saveFirstMessagePrompt(value) {
-  const raw = String(value || "");
-  const toStore = raw.trim() ? raw : DEFAULT_FIRST_MESSAGE_PROMPT;
-  await chrome.storage.sync.set({
-    [STORAGE_KEY_FIRST_MESSAGE_PROMPT]: toStore,
-  });
-  if (messagePromptEl.value !== toStore) {
-    messagePromptEl.value = toStore;
-  }
-  setPromptStatus(TEXT_PROMPT_SAVED);
-}
+    ,
 
-function schedulePromptSave() {
-  if (promptSaveTimer) {
-    clearTimeout(promptSaveTimer);
-  }
-  setPromptStatus(`Saving${SYMBOL_ELLIPSIS}`);
-  promptSaveTimer = setTimeout(() => {
-    saveFirstMessagePrompt(messagePromptEl.value).catch((e) => {
-      setPromptStatus(`Save failed: ${getErrorMessage(e)}`);
-    });
-  }, PROMPT_SAVE_DEBOUNCE_MS);
-}
-
-async function loadFirstMessagePrompt() {
-  const stored = await chrome.storage.sync.get([
-    STORAGE_KEY_FIRST_MESSAGE_PROMPT,
-  ]);
-  const saved = stored?.[STORAGE_KEY_FIRST_MESSAGE_PROMPT];
-  if (typeof saved === "string" && saved.trim()) {
-    messagePromptEl.value = saved;
-  } else {
-    messagePromptEl.value = DEFAULT_FIRST_MESSAGE_PROMPT;
-  }
-  setPromptStatus(TEXT_PROMPT_LOADED);
-}
-
-function setActiveTab(which) {
+    ,
+  function setActiveTab(which) {
   const invitationActive = which === "invitation";
   const messageActive = which === "message";
   const configActive = which === "config";
@@ -248,66 +198,10 @@ async function loadSettings() {
   if (strategyCore) strategyEl.value = strategyCore;
   if (webhookBaseUrl) webhookBaseUrlEl.value = webhookBaseUrl;
 }
-
-function initPopup() {
-  setPromptStatus(TEXT_PROMPT_IDLE);
-
-  loadSettings();
-  loadFirstMessagePrompt().catch((e) => {
-    setPromptStatus(`Load failed: ${getErrorMessage(e)}`);
-  });
-  setCopyButtonEnabled(false);
-  renderProfileContext();
-  loadProfileContextOnOpen();
-
-  messagePromptEl.addEventListener("input", () => {
-    schedulePromptSave();
-  });
-
-  messagePromptEl.addEventListener("blur", async () => {
-    if (promptSaveTimer) {
-      clearTimeout(promptSaveTimer);
-      promptSaveTimer = null;
-    }
-    try {
-      await saveFirstMessagePrompt(messagePromptEl.value);
-    } catch (e) {
-      setPromptStatus(`Save failed: ${getErrorMessage(e)}`);
-    }
-  });
-
-  savePromptBtnEl.addEventListener("click", async () => {
-    if (promptSaveTimer) {
-      clearTimeout(promptSaveTimer);
-      promptSaveTimer = null;
-    }
-    try {
-      await saveFirstMessagePrompt(messagePromptEl.value);
-    } catch (e) {
-      setPromptStatus(`Save failed: ${getErrorMessage(e)}`);
-    }
-  });
-
-  resetPromptBtnEl.addEventListener("click", async () => {
-    if (promptSaveTimer) {
-      clearTimeout(promptSaveTimer);
-      promptSaveTimer = null;
-    }
-    messagePromptEl.value = DEFAULT_FIRST_MESSAGE_PROMPT;
-    try {
-      await saveFirstMessagePrompt(messagePromptEl.value);
-      setPromptStatus("Prompt reset to default.");
-    } catch (e) {
-      setPromptStatus(`Reset failed: ${getErrorMessage(e)}`);
-    }
-  });
-}
-
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initPopup);
-} else {
-  initPopup();
-}
+loadSettings();
+setCopyButtonEnabled(false);
+renderProfileContext();
+loadProfileContextOnOpen();
 
 async function saveConfig() {
   const apiKey = (apiKeyEl.value || "").trim();
