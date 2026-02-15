@@ -6,7 +6,7 @@ const messagePromptEl = document.getElementById("messagePrompt");
 
 const EMOJI_CHECK = "\u2705";
 const SYMBOL_ELLIPSIS = "\u2026";
-const DEBUG = true; // set DEBUG=false after diagnosis
+const DEBUG = false;
 
 function debug(...args) {
   if (DEBUG) console.log(...args);
@@ -161,12 +161,7 @@ async function copyToClipboard(text) {
 function setCopyButtonEnabled(enabled) {
   copyBtnEl.disabled = !enabled;
 }
-
-
-    ,
-
-    ,
-  function setActiveTab(which) {
+function setActiveTab(which) {
   const invitationActive = which === "invitation";
   const messageActive = which === "message";
   const configActive = which === "config";

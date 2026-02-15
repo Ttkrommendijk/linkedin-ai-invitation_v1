@@ -133,7 +133,13 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       const profile = extractProfile();
       sendResponse({ ok: true, profile });
     } catch (e) {
-      sendResponse({ ok: false, error: String(e) });
+      sendResponse({
+        ok: false,
+        error: {
+          code: "EXTRACTION_FAILED",
+          message: e instanceof Error ? e.message : String(e || "unknown"),
+        },
+      });
     }
     return true;
   }

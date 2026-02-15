@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html>
     <head>
         <meta charset="UTF-8" />
@@ -140,38 +140,34 @@
             <div class="row">
                 <label><small>Message prompt</small></label>
                 <textarea id="messagePrompt">
-Escreva a melhor primeira mensagem após aceitar conexão no LinkedIn, em português.
+Escreva a melhor primeira mensagem apos aceitar conexao no LinkedIn, em portugues.
+Objetivo estrategico: abrir uma conversa com friccao minima e incentivar resposta curta.
 
-                Objetivo estratégico: abrir uma conversa com fricção mínima e incentivar resposta curta.
+Regras obrigatorias:
+1. Agradeca por aceitar a conexao.
+2. Cite uma referencia factual especifica do perfil (empresa, cargo, area de atuacao, etc).
+3. Mantenha tom peer-level, neutro, especifico e nao comercial.
+4. Nao faca pitch de servicos.
+5. Nao elogie excessivamente.
+6. Nao use adjetivos emocionais.
+7. Nunca invente fatos; use apenas profile_context e profile_excerpt_fallback.
 
-                Regras obrigatórias:
+Estrutura:
+- Maximo 2 paragrafos curtos.
+- O segundo paragrafo deve conter:
+  - Uma observacao afirmativa leve sobre o contexto profissional da pessoa.
+  - Uma pergunta simples de validacao, que possa ser respondida com sim/nao ou frase curta.
+  - Evite perguntas amplas, reflexivas ou que exijam explicacoes longas.
 
-                1. Agradeça por aceitar a conexão.
-                2. Cite uma referência factual específica do perfil (empresa, cargo, área de atuação, etc).
-                3. Mantenha tom peer-level, neutro, específico e não comercial.
-                4. Não faça pitch de serviços.
-                5. Não elogie excessivamente.
-                6. Não use adjetivos emocionais.
-                7. Nunca invente fatos; use apenas profile_context e profile_excerpt_fallback.
+Evitar completamente:
+- "quais foram os aprendizados"
+- "como voce enxerga"
+- "poderia compartilhar"
+- perguntas profundas ou conceituais
+- convite direto para reuniao
+- emojis, hashtags ou bullets
 
-                Estrutura:
-
-                - Máximo 2 parágrafos curtos.
-                - O segundo parágrafo deve conter:
-                   - Uma observação afirmativa leve sobre o contexto profissional da pessoa.
-                   - Uma pergunta simples de validação, que possa ser respondida com sim/não ou frase curta.
-                   - Evite perguntas amplas, reflexivas ou que exijam explicações longas.
-
-                Evitar completamente:
-                - “quais foram os aprendizados”
-                - “como você enxerga”
-                - “poderia compartilhar”
-                - perguntas profundas ou conceituais
-                - convite direto para reunião
-                - emojis, hashtags ou bullets
-
-                A pergunta final deve reduzir fricção e facilitar resposta rápida. Sem emojis, hashtags ou bullets. Nunca invente fatos; use somente profile_context e profile_excerpt_fallback.</textarea
-                >
+A pergunta final deve reduzir friccao e facilitar resposta rapida. Sem emojis, hashtags ou bullets. Nunca invente fatos; use somente profile_context e profile_excerpt_fallback.</textarea>
             </div>
 
             <button id="generateFirstMessage" type="button">

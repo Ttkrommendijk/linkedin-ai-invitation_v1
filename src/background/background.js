@@ -368,11 +368,8 @@ async function callOpenAIInviteGeneration({
   });
 
   const data = await res.json();
-  const rawModelText = extractRawModelText(data);
-  debug(
-    "GENERATE_INVITE raw model text (first 1200 chars):",
-    rawModelText.slice(0, 1200),
-  );
+  const rawModelTextLength = extractRawModelText(data).length;
+  debug("GENERATE_INVITE raw model text length:", rawModelTextLength);
 
   let parsedPayload;
   let parseSucceeded = false;
