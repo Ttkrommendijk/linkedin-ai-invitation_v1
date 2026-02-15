@@ -1,23 +1,75 @@
-# Conventions
+﻿# Conventions
 
-This document defines coding conventions and structure.
+This document defines coding conventions and structural guidelines for the current codebase.
 
----
-
-# Naming (D – Maintain Current Convention)
-
-We maintain current naming patterns:
-
-Functions: camelCase  
-Constants: UPPER_SNAKE_CASE  
-Message types: UPPER_SNAKE_CASE strings  
-Profile fields: snake_case  
-
-We do NOT refactor naming at this time.
+The goal is to reflect the CURRENT implementation accurately while defining optional future targets without forcing refactors.
 
 ---
 
-# Folder Structure (Current)
+## Naming (D – Maintain Current Convention)
+
+We maintain the current naming patterns and do NOT refactor at this time.
+
+Functions  
+- camelCase
+
+Constants  
+- UPPER_SNAKE_CASE
+
+Message types  
+- UPPER_SNAKE_CASE strings
+
+Profile fields (CURRENT accepted contract)
+
+- A small set of single-word keys is intentionally kept in simple lower form:
+  - url
+  - name
+  - headline
+  - company
+  - location
+  - about
+
+- Multi-word fields use snake_case:
+  - first_name
+  - recent_experience
+  - excerpt_fallback
+  - profile_url
+  - linkedin_url
+  - full_name
+
+This mixed style is the CURRENT accepted contract and does not require refactoring.
+
+Notes:
+
+- `url` represents the extracted URL from the page.
+- `profile_url` / `linkedin_url` may be used in normalized or downstream contexts.
+- Duplication of URL-style fields is acceptable under the current contract.
+
+Target (optional future upgrade, not required now):
+
+- Full normalization to all-snake_case profile keys.
+- Eliminate overlapping URL fields after schema consolidation.
+
+Compliant CURRENT example:
+
+{
+  "url": "https://www.linkedin.com/in/example-person/",
+  "name": "Example Person",
+  "first_name": "Example",
+  "headline": "Head of Operations",
+  "company": "Acme",
+  "location": "Sao Paulo, Brasil",
+  "about": "Operations and supply chain leadership.",
+  "recent_experience": "Head of Operations at Acme",
+  "excerpt_fallback": "Sanitized fallback excerpt text...",
+  "profile_url": "https://www.linkedin.com/in/example-person/",
+  "linkedin_url": "https://www.linkedin.com/in/example-person/",
+  "full_name": "Example Person"
+}
+
+---
+
+## Folder Structure (Current)
 
 Flat structure:
 
@@ -28,75 +80,81 @@ Flat structure:
 - popup.html
 - popup.css
 
+This structure is intentional for current scope.
+
 Future modularization may occur if complexity increases.
 
-No change required.
+No structural refactor required at this stage.
 
 ---
 
-# State Management (F)
+## State Management (F)
 
-## Current
+### Current
 
-Popup uses:
+Popup implementation uses:
+
 - Local variables
 - Direct DOM updates
-- No central state module
+- No centralized state module
 
-This is acceptable due to small scope.
+This is acceptable due to small scope and limited UI complexity.
 
-## Recommendation (Future)
+### Recommendation (Future)
 
-If popup logic grows:
-- Introduce single state object
-- Introduce setState() + render()
+If popup logic grows significantly:
+
+- Introduce a single state object
+- Introduce setState() + render() pattern
 - Avoid scattered DOM mutations
 
 No change required now.
 
 ---
 
-# Theming and Styles (G – Implemented)
+## Theming and Styles (G – Implemented)
 
-Inline styles have been moved to popup.css.
+All styling must be centralized in popup.css.
 
 Rules:
+
 - No inline <style> blocks
 - No inline style attributes
-- All styling centralized in popup.css
+- popup.html must link popup.css
 
-This improves maintainability without changing UI.
+This improves maintainability without changing UI behavior.
 
 ---
 
-# User-Facing Text Centralization (G – Implemented)
+## User-Facing Text Centralization (G – Implemented)
 
-User-visible strings are now stored in a single object in popup.js:
+All user-visible strings controlled by JavaScript must be stored in a single object inside popup.js.
 
 Example:
 
 const UI_TEXT = {
-configSaved: "Config saved.",
-copied: "Copied to clipboard.",
-generating: "Calling OpenAI…",
-...
-}
+  configSaved: "Config saved.",
+  copied: "Copied to clipboard.",
+  generating: "Calling OpenAI..."
+};
 
+Rules:
 
-This:
-- Reduces duplication
-- Prepares for i18n
-- Improves maintainability
+- Do not scatter user-facing string literals across logic.
+- Use UI_TEXT keys when setting statusEl.textContent or messageStatusEl.textContent.
+- HTML static labels are not affected by this rule.
 
-No text.js module required yet.
+No separate text.js module is required at this stage.
 
 ---
 
-# Complexity Threshold Rule
+## Complexity Threshold Rule
 
-We only modularize when:
+Modularization should only occur when:
+
 - A file exceeds ~800 lines
 - Logic becomes reused across modules
 - Testing surface grows significantly
+- Concurrency or architectural complexity increases
 
-Until then, simplicity prevails.
+Until then, the flat and simple structure is preferred.
