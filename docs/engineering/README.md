@@ -1,32 +1,39 @@
-# engineering docs
+# LEF LinkedIn Invite Generator – Engineering Documentation
 
-these documents define the engineering standards for this chrome mv3 extension.
+This document defines the rule hierarchy and how documentation should be interpreted.
 
-## rule hierarchy
+---
 
-if rules conflict, apply them in this order:
+## Rule Hierarchy (Highest Authority First)
 
-1. architecture contract (`architecture.md`)
-2. folder structure (`folder-structure.md`)
-3. message contracts (`messages.md`)
-4. api standards (`api-standards.md`)
-5. naming (`naming.md`)
-6. state management (`state-management.md`)
-7. text content (`text-content.md`)
-8. ui theming (`ui-theming-rules.md`)
+1. architecture.md  
+2. security-and-api.md  
+3. ui-spec.md  
+4. conventions.md  
+5. This README
 
-## how to use this in development
+If two documents conflict, the one higher in the list prevails.
 
-- before implementing a change, identify which context it touches:
-  - content script (dom extraction only)
-  - popup (ui + orchestration)
-  - background service worker (storage/network/permissions)
-- keep responsibilities separated as defined in `architecture.md`
-- if you add a new behavior that affects a contract (messages, folder structure, api), update these docs in the same change
+---
 
-## default principles
+## Current Scope
 
-- minimal surface area: prefer small, composable modules
-- structured-first extraction: prefer dom + structured data, then fallback heuristics
-- no silent failures: errors must be visible in devtools and mapped to user-friendly status text
-- privacy by default: do not log or persist secrets and do not send raw page html to llm
+Chrome Extension (Manifest v3):
+
+- Extract LinkedIn profile data (content script)
+- Generate invite via OpenAI (background)
+- Persist to Supabase (background)
+- Generate first message
+- Manage invitation lifecycle status
+- Copy invitation to clipboard via user gesture (popup)
+
+---
+
+## Implementation Status Philosophy
+
+Documentation reflects:
+
+- ✅ Current implementation (accurate)
+- 🚧 Planned improvements (clearly marked)
+
+We avoid describing aspirational architecture as if already implemented.
