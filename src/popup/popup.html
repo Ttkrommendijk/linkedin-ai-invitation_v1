@@ -1,7 +1,7 @@
 <!doctype html>
 <html>
     <head>
-        <meta charset="utf-8" />
+        <meta charset="UTF-8" />
         <style>
             body {
                 font-family: Arial, sans-serif;
@@ -34,8 +34,18 @@
                 padding: 8px;
                 border-radius: 6px;
             }
+            #profileContextPreview {
+                max-height: 140px;
+                overflow: auto;
+            }
+            #messagePrompt {
+                height: 160px;
+            }
+            #firstMessagePreview {
+                max-height: 180px;
+                overflow: auto;
+            }
 
-            /* Tabs */
             .tabs {
                 display: flex;
                 gap: 8px;
@@ -61,12 +71,10 @@
                 display: block;
             }
 
-            /* Make strategy bigger */
             #strategy {
                 height: 180px;
             }
 
-            /* Small helper row */
             .inline {
                 display: flex;
                 gap: 8px;
@@ -79,106 +87,66 @@
     <body>
         <div class="tabs">
             <button id="tabMainBtn" class="tab-btn active" type="button">
-                Main
+                Invitation
+            </button>
+            <button id="tabMessageBtn" class="tab-btn" type="button">
+                Message
             </button>
             <button id="tabConfigBtn" class="tab-btn" type="button">
                 Config
             </button>
         </div>
+        <small id="promptStatus">Prompt status: idle</small>
+      </div>
 
-        <!-- MAIN TAB -->
-        <div id="tabMain" class="tab-panel active">
-            <div class="row">
-                <label><small>Your positioning (saved)</small></label>
-                <textarea
-                    id="positioning"
-                    placeholder="1–2 lines about what you do, who you help, and your angle."
-                ></textarea>
-            </div>
+      <div class="btn-row row">
+        <button id="generateFirstMessage" type="button">
+          generate first message
+        </button>
+        <button id="markMessageSent" type="button">message sent</button>
+      </div>
 
-            <div class="row">
-                <label
-                    ><small
-                        >Specific focus for this profile (optional)</small
-                    ></label
-                >
-                <input
-                    id="focus"
-                    placeholder="e.g. S&OP + Slimstock + SAP S/4HANA go-live"
-                />
-            </div>
+      <div class="row">
+        <label>First message preview</label>
+        <pre id="firstMessagePreview"></pre>
+      </div>
 
-            <button id="generate" type="button">Generate invite</button>
+      <div class="row">
+        <small id="messageStatus"></small>
+      </div>
+    </section>
 
-            <div class="row inline">
-                <button id="markInvited" type="button">Invitation sent</button>
-                <button id="markAccepted" type="button">
-                    Invitation accepted
-                </button>
-            </div>
+    <section id="tabConfig" class="tab-pane">
+      <div class="row">
+        <label for="apiKey">OpenAI API key</label>
+        <input id="apiKey" type="password" autocomplete="off" />
+      </div>
 
-            <div class="row">
-                <small>Status</small>
-                <div id="status">Idle</div>
-            </div>
+      <div class="row">
+        <label for="model">Model</label>
+        <input id="model" type="text" value="gpt-4.1" />
+      </div>
 
-            <div class="row">
-                <small>Preview</small>
-                <pre id="preview"></pre>
-            </div>
-            <button id="copyBtn" type="button">Copy</button>
-        </div>
+      <div class="row">
+        <label for="strategy">Strategy core</label>
+        <textarea id="strategy"></textarea>
+      </div>
 
-        <!-- CONFIG TAB -->
-        <div id="tabConfig" class="tab-panel">
-            <div class="row">
-                <label><small>OpenAI API key (saved)</small></label>
-                <input id="apiKey" type="password" placeholder="sk-..." />
-            </div>
+      <div class="row">
+        <label for="webhookBaseUrl">Webhook base URL</label>
+        <input id="webhookBaseUrl" type="text" />
+      </div>
 
-            <div class="row">
-                <label><small>Model (saved)</small></label>
-                <input id="model" placeholder="gpt-4.1" />
-            </div>
+      <div class="row">
+        <label for="webhookSecret">Webhook secret</label>
+        <input id="webhookSecret" type="password" autocomplete="off" />
+      </div>
 
-            <div class="row">
-                <label><small>Strategy (saved)</small></label>
-                <textarea
-                    id="strategy"
-                    placeholder="Paste your strategy core here (saved)."
-                ></textarea>
-            </div>
+      <div class="row">
+        <button id="saveConfig" type="button">save config</button>
+      </div>
+    </section>
 
-            <div class="row">
-                <label><small>Webhook base URL (saved)</small></label>
-                <input
-                    id="webhookBaseUrl"
-                    placeholder="https://yourdomain.com"
-                />
-            </div>
-
-            <div class="row">
-                <label><small>Webhook secret (saved)</small></label>
-                <input
-                    id="webhookSecret"
-                    type="password"
-                    placeholder="shared secret"
-                />
-            </div>
-
-            <button id="saveConfig" type="button">Save config</button>
-
-            <div class="row">
-                <small>Tip</small>
-                <div>
-                    <small
-                        >Edits are saved when you click “Save config” or
-                        “Generate”.</small
-                    >
-                </div>
-            </div>
-        </div>
-
-        <script src="popup.js"></script>
-    </body>
+    <script src="./popup.js"></script>
+  </body>
 </html>
