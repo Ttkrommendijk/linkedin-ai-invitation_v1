@@ -1,0 +1,116 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body { font-family: Arial, sans-serif; width: 380px; margin: 12px; }
+      input, textarea, button { width: 100%; box-sizing: border-box; }
+      textarea { height: 90px; }
+      button { margin-top: 8px; padding: 10px; }
+      .row { margin-top: 10px; }
+      small { color: #555; }
+      pre { white-space: pre-wrap; word-wrap: break-word; background: #f6f6f6; padding: 8px; border-radius: 6px; }
+
+      /* Tabs */
+      .tabs { display: flex; gap: 8px; margin-bottom: 10px; }
+      .tab-btn {
+        flex: 1;
+        padding: 10px;
+        border: 1px solid #ddd;
+        background: #fafafa;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      .tab-btn.active { background: #fff; border-color: #bbb; font-weight: 600; }
+      .tab-panel { display: none; }
+      .tab-panel.active { display: block; }
+
+      /* Make strategy bigger */
+      #strategy { height: 180px; }
+
+      /* Small helper row */
+      .inline { display: flex; gap: 8px; }
+      .inline > * { flex: 1; }
+    </style>
+  </head>
+  <body>
+    <div class="tabs">
+      <button id="tabMainBtn" class="tab-btn active" type="button">Main</button>
+      <button id="tabConfigBtn" class="tab-btn" type="button">Config</button>
+    </div>
+
+    <!-- MAIN TAB -->
+    <div id="tabMain" class="tab-panel active">
+      <div class="row">
+        <label><small>Your positioning (saved)</small></label>
+        <textarea
+          id="positioning"
+          placeholder="1–2 lines about what you do, who you help, and your angle."
+        ></textarea>
+      </div>
+
+      <div class="row">
+        <label><small>Specific focus for this profile (optional)</small></label>
+        <input id="focus" placeholder="e.g. S&OP + Slimstock + SAP S/4HANA go-live" />
+      </div>
+
+      <button id="generate" type="button">Generate invite & copy</button>
+
+      <div class="row inline">
+        <button id="markInvited" type="button">Invitation sent</button>
+        <button id="markAccepted" type="button">Invitation accepted</button>
+      </div>
+
+      <div class="row">
+        <small>Status</small>
+        <div id="status">Idle</div>
+      </div>
+
+      <div class="row">
+        <small>Preview</small>
+        <pre id="preview"></pre>
+      </div>
+      <button id="copyBtn" type="button">Copy</button>
+    </div>
+
+    <!-- CONFIG TAB -->
+    <div id="tabConfig" class="tab-panel">
+      <div class="row">
+        <label><small>OpenAI API key (saved)</small></label>
+        <input id="apiKey" type="password" placeholder="sk-..." />
+      </div>
+
+      <div class="row">
+        <label><small>Model (saved)</small></label>
+        <input id="model" placeholder="gpt-4.1" />
+      </div>
+
+      <div class="row">
+        <label><small>Strategy (saved)</small></label>
+        <textarea
+          id="strategy"
+          placeholder="Paste your strategy core here (saved)."
+        ></textarea>
+      </div>
+
+      <div class="row">
+        <label><small>Webhook base URL (saved)</small></label>
+        <input id="webhookBaseUrl" placeholder="https://yourdomain.com" />
+      </div>
+
+      <div class="row">
+        <label><small>Webhook secret (saved)</small></label>
+        <input id="webhookSecret" type="password" placeholder="shared secret" />
+      </div>
+      
+      <button id="saveConfig" type="button">Save config</button>
+
+      <div class="row">
+        <small>Tip</small>
+        <div><small>Edits are saved when you click “Save config” or “Generate”.</small></div>
+      </div>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
