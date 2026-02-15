@@ -2,6 +2,7 @@ body {
     font-family: Arial, sans-serif;
     width: 380px;
     margin: 12px;
+    padding-bottom: 30px;
 }
 input,
 textarea,
@@ -82,4 +83,19 @@ pre {
 }
 .inline > * {
     flex: 1;
+}
+
+.lifecycle-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 25px;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    font-size: 12px;
+    border-top: 1px solid #ddd;
+    background: #f2f2f2;
+    color: #333;
 }

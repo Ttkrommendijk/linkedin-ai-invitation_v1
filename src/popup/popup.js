@@ -38,8 +38,25 @@ const UI_TEXT = {
   firstMessageGenerated: `First message generated ${EMOJI_CHECK}`,
   markedFirstMessageSent: `Marked as first message sent ${EMOJI_CHECK}`,
   promptSaved: "Prompt saved.",
+  lifecycleOpenLinkedInProfileFirst: "Open a LinkedIn profile first.",
+  lifecycleNotInDatabase: "Not in database",
+  lifecycleGenerated: "Generated",
+  lifecycleInvited: "Invited",
+  lifecycleAccepted: "Accepted",
+  lifecycleFirstMessageGenerated: "First message generated",
+  lifecycleFirstMessageSent: "First message sent",
+  lifecycleInDatabase: "In database",
 };
 const STORAGE_KEY_FIRST_MESSAGE_PROMPT = "firstMessagePrompt";
+const LIFECYCLE_STYLE_MAP = {
+  neutral: { background: "#f2f2f2", color: "#333" },
+  not_in_database: { background: "#fbeaea", color: "#8a1f1f" },
+  generated: { background: "#fff4e5", color: "#7a4a00" },
+  invited: { background: "#fff9db", color: "#6b5a00" },
+  accepted: { background: "#e8f4ff", color: "#0b4a7a" },
+  first_message_generated: { background: "#eaf7ee", color: "#1f6b2a" },
+  first_message_sent: { background: "#e6ffed", color: "#146c2e" },
+};
 
 function debug(...args) {
   if (DEBUG) console.log(...args);
@@ -58,6 +75,8 @@ const profileContextPreviewWrapEl = document.getElementById(
 const toggleProfileContextPreviewBtnEl = document.getElementById(
   "toggleProfileContextPreview",
 );
+const lifecycleBarEl = document.getElementById("lifecycleBar");
+const lifecycleBarTextEl = document.getElementById("lifecycleBarText");
 const copyBtnEl = document.getElementById("copyBtn");
 
 const tabMainBtn = document.getElementById("tabMainBtn");
@@ -76,6 +95,7 @@ let currentProfileContext = null;
 let firstMessage = "";
 let lastSavedFirstMessagePrompt = "";
 let isProfileContextCollapsed = true;
+let dbInvitationRow = null;
 
 function getErrorMessage(error) {
   if (error && typeof error === "object" && typeof error.message === "string") {
@@ -106,6 +126,70 @@ function setProfileContextPreviewCollapsed(collapsed) {
     "aria-expanded",
     collapsed ? "false" : "true",
   );
+}
+
+function setLifecycleBar(stateKey, text) {
+  const style = LIFECYCLE_STYLE_MAP[stateKey] || LIFECYCLE_STYLE_MAP.neutral;
+  lifecycleBarEl.style.backgroundColor = style.background;
+  lifecycleBarEl.style.color = style.color;
+  lifecycleBarTextEl.textContent = text;
+}
+
+function deriveLifecycleState(row) {
+  if (!row) {
+    return { key: "not_in_database", text: UI_TEXT.lifecycleNotInDatabase };
+  }
+
+  const status = (row.status || "").trim().toLowerCase();
+  if (status === "generated") {
+    return { key: "generated", text: UI_TEXT.lifecycleGenerated };
+  }
+  if (status === "invited") {
+    return { key: "invited", text: UI_TEXT.lifecycleInvited };
+  }
+  if (status === "accepted") {
+    return { key: "accepted", text: UI_TEXT.lifecycleAccepted };
+  }
+  if (status === "first message sent") {
+    return {
+      key: "first_message_sent",
+      text: UI_TEXT.lifecycleFirstMessageSent,
+    };
+  }
+  if ((row.first_message || "").trim()) {
+    return {
+      key: "first_message_generated",
+      text: UI_TEXT.lifecycleFirstMessageGenerated,
+    };
+  }
+  if (status) {
+    return { key: "neutral", text: row.status };
+  }
+  return { key: "neutral", text: UI_TEXT.lifecycleInDatabase };
+}
+
+async function refreshInvitationRowFromDb() {
+  const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
+  if (!linkedin_url) {
+    dbInvitationRow = null;
+    setLifecycleBar("neutral", UI_TEXT.lifecycleOpenLinkedInProfileFirst);
+    return;
+  }
+
+  const resp = await chrome.runtime.sendMessage({
+    type: "DB_GET_INVITATION",
+    payload: { linkedin_url },
+  });
+
+  if (!resp?.ok) {
+    dbInvitationRow = null;
+    setLifecycleBar("neutral", getErrorMessage(resp?.error));
+    return;
+  }
+
+  dbInvitationRow = resp.row || null;
+  const lifecycle = deriveLifecycleState(dbInvitationRow);
+  setLifecycleBar(lifecycle.key, lifecycle.text);
 }
 
 function hasMessageProfileUrl() {
@@ -195,12 +279,15 @@ async function loadProfileContextOnOpen() {
     lastProfileContextEnriched = null;
     renderProfileContext();
     updateMessageTabControls();
+    await refreshInvitationRowFromDb();
   } catch (_e) {
     currentProfileContext = null;
     lastProfileContextSent = {};
     lastProfileContextEnriched = null;
+    dbInvitationRow = null;
     renderProfileContext();
     updateMessageTabControls();
+    setLifecycleBar("neutral", UI_TEXT.lifecycleOpenLinkedInProfileFirst);
   }
 }
 
@@ -284,6 +371,7 @@ setCopyButtonEnabled(false);
 renderProfileContext();
 setProfileContextPreviewCollapsed(true);
 updateMessageTabControls();
+setLifecycleBar("neutral", UI_TEXT.lifecycleOpenLinkedInProfileFirst);
 loadProfileContextOnOpen();
 loadFirstMessagePrompt().catch((_e) => {
   lastSavedFirstMessagePrompt = messagePromptEl.value;
@@ -349,6 +437,10 @@ document.getElementById("markInvited").addEventListener("click", async () => {
   statusEl.textContent = resp?.ok
     ? UI_TEXT.markedInvited
     : `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`;
+
+  if (resp?.ok) {
+    await refreshInvitationRowFromDb();
+  }
 });
 
 document.getElementById("markAccepted").addEventListener("click", async () => {
@@ -371,6 +463,10 @@ document.getElementById("markAccepted").addEventListener("click", async () => {
   statusEl.textContent = resp?.ok
     ? UI_TEXT.markedAccepted
     : `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`;
+
+  if (resp?.ok) {
+    await refreshInvitationRowFromDb();
+  }
 });
 
 copyBtnEl.addEventListener("click", async () => {
@@ -507,6 +603,8 @@ document.getElementById("generate").addEventListener("click", async () => {
     .then((dbResp) => {
       if (!dbResp?.ok) {
         statusEl.textContent += `${UI_TEXT.dbErrorAppendPrefix} ${getErrorMessage(dbResp?.error)}`;
+      } else {
+        return refreshInvitationRowFromDb();
       }
     })
     .catch((e) => {
@@ -603,6 +701,7 @@ document
     }
 
     messageStatusEl.textContent = UI_TEXT.firstMessageGenerated;
+    await refreshInvitationRowFromDb();
     updateMessageTabControls();
   });
 
@@ -640,5 +739,9 @@ document
     messageStatusEl.textContent = resp?.ok
       ? UI_TEXT.markedFirstMessageSent
       : `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`;
+
+    if (resp?.ok) {
+      await refreshInvitationRowFromDb();
+    }
     updateMessageTabControls();
   });

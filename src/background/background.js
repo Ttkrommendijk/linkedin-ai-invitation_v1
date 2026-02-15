@@ -643,6 +643,35 @@ async function supabaseMarkStatus({ linkedin_url, status }) {
   }
 }
 
+async function supabaseGetInvitationByLinkedinUrl(linkedin_url) {
+  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}&select=linkedin_url,status,generated_at,invited_at,accepted_at,first_message,first_message_generated_at,first_message_sent_at,company,headline,full_name,focus,positioning`;
+
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "GET",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+        "Content-Type": "application/json",
+        Prefer: "count=exact",
+      },
+    },
+    15000,
+    "Supabase request",
+  );
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+
+  const rows = await res.json();
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  return rows[0] || null;
+}
+
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   debug("onMessage:", msg?.type);
 
@@ -722,6 +751,23 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse({
           ok: false,
           error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "DB_GET_INVITATION") {
+    (async () => {
+      try {
+        const row = await supabaseGetInvitationByLinkedinUrl(
+          msg?.payload?.linkedin_url,
+        );
+        sendResponse({ ok: true, row });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_GET_FAILED"),
         });
       }
     })();
