@@ -12,6 +12,78 @@ function normalizeError(err, code = "UNKNOWN_ERROR", details) {
   return out;
 }
 
+async function fetchWithTimeout(
+  url,
+  options,
+  timeoutMs = 15000,
+  label = "Request",
+) {
+  const controller = new AbortController();
+  const externalSignal = options?.signal;
+  let timeoutId;
+
+  const forwardExternalAbort = () => {
+    controller.abort(externalSignal?.reason);
+  };
+
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      forwardExternalAbort();
+    } else {
+      externalSignal.addEventListener("abort", forwardExternalAbort, {
+        once: true,
+      });
+    }
+  }
+
+  timeoutId = setTimeout(() => {
+    controller.abort("__timeout__");
+  }, timeoutMs);
+
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err) {
+    if (
+      controller.signal.aborted &&
+      controller.signal.reason === "__timeout__"
+    ) {
+      throw new Error(`${label} timed out.`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+    if (externalSignal) {
+      externalSignal.removeEventListener("abort", forwardExternalAbort);
+    }
+  }
+}
+
+async function fetchOpenAIWithRetry(url, options) {
+  let attempt = 0;
+  while (attempt < 2) {
+    try {
+      const res = await fetchWithTimeout(url, options, 15000, "OpenAI request");
+      if (res.status >= 500 && res.status <= 599 && attempt === 0) {
+        attempt += 1;
+        continue;
+      }
+      return res;
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e || "");
+      const isTimeout = message === "OpenAI request timed out.";
+      const isAbort = e && typeof e === "object" && e.name === "AbortError";
+      const isNetwork =
+        e instanceof TypeError || /failed to fetch|network/i.test(message);
+
+      if (!isTimeout && !isAbort && isNetwork && attempt === 0) {
+        attempt += 1;
+        continue;
+      }
+      throw e;
+    }
+  }
+}
+
 function normalizeProfileField(value) {
   if (value == null) return "";
   if (typeof value === "string") return value.trim();
@@ -296,56 +368,59 @@ async function callOpenAIInviteGeneration({
   strategyCore,
   profile,
 }) {
-  const res = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      max_output_tokens: 120,
-      text: {
-        format: {
-          type: "json_schema",
-          name: "invite_generation",
-          strict: true,
-          schema: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              invite_text: { type: "string" },
-              company: { type: "string" },
-              headline: { type: "string" },
+  const res = await fetchOpenAIWithRetry(
+    "https://api.openai.com/v1/responses",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        max_output_tokens: 120,
+        text: {
+          format: {
+            type: "json_schema",
+            name: "invite_generation",
+            strict: true,
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                invite_text: { type: "string" },
+                company: { type: "string" },
+                headline: { type: "string" },
+              },
+              required: ["invite_text", "company", "headline"],
             },
-            required: ["invite_text", "company", "headline"],
           },
         },
-      },
-      input: [
-        {
-          role: "system",
-          content: [
-            { type: "input_text", text: characterLimitInstruction(300) },
-          ],
-        },
-        {
-          role: "user",
-          content: [
-            {
-              type: "input_text",
-              text: buildInviteUserInput({
-                positioning,
-                focus,
-                profile,
-                strategyCore,
-              }),
-            },
-          ],
-        },
-      ],
-    }),
-  });
+        input: [
+          {
+            role: "system",
+            content: [
+              { type: "input_text", text: characterLimitInstruction(300) },
+            ],
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text: buildInviteUserInput({
+                  positioning,
+                  focus,
+                  profile,
+                  strategyCore,
+                }),
+              },
+            ],
+          },
+        ],
+      }),
+    },
+  );
 
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
@@ -393,32 +468,37 @@ async function callOpenAIInviteGeneration({
 }
 
 async function callOpenAIFirstMessage({ apiKey, model, prompt, profile }) {
-  const res = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
+  const res = await fetchOpenAIWithRetry(
+    "https://api.openai.com/v1/responses",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        max_output_tokens: 220,
+        input: [
+          {
+            role: "system",
+            content: [
+              { type: "input_text", text: firstMessageInstruction(600) },
+            ],
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text: buildFirstMessageUserInput({ prompt, profile }),
+              },
+            ],
+          },
+        ],
+      }),
     },
-    body: JSON.stringify({
-      model,
-      max_output_tokens: 220,
-      input: [
-        {
-          role: "system",
-          content: [{ type: "input_text", text: firstMessageInstruction(600) }],
-        },
-        {
-          role: "user",
-          content: [
-            {
-              type: "input_text",
-              text: buildFirstMessageUserInput({ prompt, profile }),
-            },
-          ],
-        },
-      ],
-    }),
-  });
+  );
 
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
@@ -458,16 +538,21 @@ async function supabaseUpsertInvitation(row) {
   const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
   const url = `${supabaseUrl}/rest/v1/linkedin_invitations?on_conflict=linkedin_url`;
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      apikey: supabaseAnonKey,
-      Authorization: `Bearer ${supabaseAnonKey}`,
-      "Content-Type": "application/json",
-      Prefer: "resolution=merge-duplicates,return=minimal",
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "POST",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+        "Content-Type": "application/json",
+        Prefer: "resolution=merge-duplicates,return=minimal",
+      },
+      body: JSON.stringify(row),
     },
-    body: JSON.stringify(row),
-  });
+    15000,
+    "Supabase request",
+  );
 
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
@@ -487,16 +572,21 @@ async function supabaseUpdateFirstMessage({
     first_message_generated_at,
   };
 
-  const res = await fetch(url, {
-    method: "PATCH",
-    headers: {
-      apikey: supabaseAnonKey,
-      Authorization: `Bearer ${supabaseAnonKey}`,
-      "Content-Type": "application/json",
-      Prefer: "return=minimal",
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify(patch),
     },
-    body: JSON.stringify(patch),
-  });
+    15000,
+    "Supabase request",
+  );
 
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
@@ -515,16 +605,21 @@ async function supabaseMarkStatus({ linkedin_url, status }) {
 
   const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}`;
 
-  const res = await fetch(url, {
-    method: "PATCH",
-    headers: {
-      apikey: supabaseAnonKey,
-      Authorization: `Bearer ${supabaseAnonKey}`,
-      "Content-Type": "application/json",
-      Prefer: "return=minimal",
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify(patch),
     },
-    body: JSON.stringify(patch),
-  });
+    15000,
+    "Supabase request",
+  );
 
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
