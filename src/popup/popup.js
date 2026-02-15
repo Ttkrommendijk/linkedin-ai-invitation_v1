@@ -3,6 +3,12 @@ const modelEl = document.getElementById("model");
 const strategyEl = document.getElementById("strategy");
 const focusEl = document.getElementById("focus");
 const messagePromptEl = document.getElementById("messagePrompt");
+const saveMessagePromptBtnEl = document.getElementById("saveMessagePrompt");
+const generateFirstMessageBtnEl = document.getElementById(
+  "generateFirstMessage",
+);
+const markMessageSentBtnEl = document.getElementById("markMessageSent");
+const copyFirstMessageBtnEl = document.getElementById("copyFirstMessage");
 
 const EMOJI_CHECK = "\u2705";
 const SYMBOL_ELLIPSIS = "\u2026";
@@ -31,7 +37,9 @@ const UI_TEXT = {
   generatedButDbErrorPrefix: "Generated, but DB error:",
   firstMessageGenerated: `First message generated ${EMOJI_CHECK}`,
   markedFirstMessageSent: `Marked as first message sent ${EMOJI_CHECK}`,
+  promptSaved: "Prompt saved.",
 };
+const STORAGE_KEY_FIRST_MESSAGE_PROMPT = "firstMessagePrompt";
 
 function debug(...args) {
   if (DEBUG) console.log(...args);
@@ -60,6 +68,7 @@ let lastProfileContextSent = {};
 let lastProfileContextEnriched = null;
 let currentProfileContext = null;
 let firstMessage = "";
+let lastSavedFirstMessagePrompt = "";
 
 function getErrorMessage(error) {
   if (error && typeof error === "object" && typeof error.message === "string") {
@@ -80,6 +89,24 @@ function renderProfileContext() {
     null,
     2,
   );
+}
+
+function hasMessageProfileUrl() {
+  return Boolean(getLinkedinUrlFromContext(currentProfileContext));
+}
+
+function updateSavePromptButtonState() {
+  saveMessagePromptBtnEl.disabled =
+    messagePromptEl.value === lastSavedFirstMessagePrompt;
+}
+
+function updateMessageTabControls() {
+  const hasProfileUrl = hasMessageProfileUrl();
+  const hasGeneratedFirstMessage = Boolean((firstMessage || "").trim());
+
+  generateFirstMessageBtnEl.disabled = !hasProfileUrl;
+  copyFirstMessageBtnEl.disabled = !hasGeneratedFirstMessage;
+  markMessageSentBtnEl.disabled = !(hasProfileUrl && hasGeneratedFirstMessage);
 }
 
 function getProfileForGeneration(profile) {
@@ -150,12 +177,26 @@ async function loadProfileContextOnOpen() {
     lastProfileContextSent = profileContext;
     lastProfileContextEnriched = null;
     renderProfileContext();
+    updateMessageTabControls();
   } catch (_e) {
     currentProfileContext = null;
     lastProfileContextSent = {};
     lastProfileContextEnriched = null;
     renderProfileContext();
+    updateMessageTabControls();
   }
+}
+
+async function loadFirstMessagePrompt() {
+  const { [STORAGE_KEY_FIRST_MESSAGE_PROMPT]: savedPrompt } =
+    await chrome.storage.sync.get([STORAGE_KEY_FIRST_MESSAGE_PROMPT]);
+
+  if (typeof savedPrompt === "string" && savedPrompt.trim()) {
+    messagePromptEl.value = savedPrompt;
+  }
+
+  lastSavedFirstMessagePrompt = messagePromptEl.value;
+  updateSavePromptButtonState();
 }
 
 async function copyToClipboard(text) {
@@ -224,7 +265,26 @@ async function loadSettings() {
 loadSettings();
 setCopyButtonEnabled(false);
 renderProfileContext();
+updateMessageTabControls();
 loadProfileContextOnOpen();
+loadFirstMessagePrompt().catch((_e) => {
+  lastSavedFirstMessagePrompt = messagePromptEl.value;
+  updateSavePromptButtonState();
+});
+
+messagePromptEl.addEventListener("input", () => {
+  updateSavePromptButtonState();
+});
+
+saveMessagePromptBtnEl.addEventListener("click", async () => {
+  const promptValue = messagePromptEl.value;
+  await chrome.storage.sync.set({
+    [STORAGE_KEY_FIRST_MESSAGE_PROMPT]: promptValue,
+  });
+  lastSavedFirstMessagePrompt = promptValue;
+  updateSavePromptButtonState();
+  messageStatusEl.textContent = UI_TEXT.promptSaved;
+});
 
 async function saveConfig() {
   const apiKey = (apiKeyEl.value || "").trim();
@@ -435,6 +495,12 @@ document.getElementById("generate").addEventListener("click", async () => {
 document
   .getElementById("generateFirstMessage")
   .addEventListener("click", async () => {
+    if (!hasMessageProfileUrl()) {
+      messageStatusEl.textContent = UI_TEXT.openLinkedInProfileFirst;
+      updateMessageTabControls();
+      return;
+    }
+
     messageStatusEl.textContent = UI_TEXT.generatingFirstMessage;
     firstMessagePreviewEl.textContent = "";
 
@@ -485,11 +551,13 @@ document
 
     if (!resp?.ok) {
       messageStatusEl.textContent = `${UI_TEXT.errorPrefix} ${getErrorMessage(resp?.error)}`;
+      updateMessageTabControls();
       return;
     }
 
     firstMessage = (resp.first_message || "").trim();
     firstMessagePreviewEl.textContent = firstMessage;
+    updateMessageTabControls();
 
     const linkedinUrl = getLinkedinUrlFromContext(currentProfileContext);
     if (!linkedinUrl) {
@@ -508,11 +576,25 @@ document
 
     if (!dbResp?.ok) {
       messageStatusEl.textContent = `${UI_TEXT.generatedButDbErrorPrefix} ${getErrorMessage(dbResp?.error)}`;
+      updateMessageTabControls();
       return;
     }
 
     messageStatusEl.textContent = UI_TEXT.firstMessageGenerated;
+    updateMessageTabControls();
   });
+
+copyFirstMessageBtnEl.addEventListener("click", async () => {
+  try {
+    await copyToClipboard(
+      firstMessage || firstMessagePreviewEl.textContent || "",
+    );
+    messageStatusEl.textContent = UI_TEXT.copiedToClipboard;
+  } catch (e) {
+    messageStatusEl.textContent = `${UI_TEXT.copyFailedPrefix} ${getErrorMessage(e)}`;
+  }
+  updateMessageTabControls();
+});
 
 document
   .getElementById("markMessageSent")
@@ -536,4 +618,5 @@ document
     messageStatusEl.textContent = resp?.ok
       ? UI_TEXT.markedFirstMessageSent
       : `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`;
+    updateMessageTabControls();
   });

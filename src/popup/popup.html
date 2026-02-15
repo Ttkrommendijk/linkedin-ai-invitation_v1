@@ -89,12 +89,14 @@ Evitar completamente:
 
 A pergunta final deve reduzir friccao e facilitar resposta rapida. Sem emojis, hashtags ou bullets. Nunca invente fatos; use somente profile_context e profile_excerpt_fallback.</textarea
                 >
+                <button id="saveMessagePrompt" type="button">
+                    Save prompt
+                </button>
             </div>
 
             <button id="generateFirstMessage" type="button">
                 Generate first message
             </button>
-            <button id="markMessageSent" type="button">Message sent</button>
 
             <div class="row">
                 <small>Status</small>
@@ -105,6 +107,9 @@ A pergunta final deve reduzir friccao e facilitar resposta rapida. Sem emojis, h
                 <small>First message preview</small>
                 <pre id="firstMessagePreview"></pre>
             </div>
+
+            <button id="copyFirstMessage" type="button">Copy</button>
+            <button id="markMessageSent" type="button">Message sent</button>
         </div>
 
         <div id="tabConfig" class="tab-panel">
