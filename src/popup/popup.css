@@ -85,6 +85,11 @@ pre {
     flex: 1;
 }
 
+.is-highlighted {
+    border: 1px solid #b7a546;
+    background: #fff6cc;
+}
+
 .lifecycle-bar {
     position: fixed;
     left: 0;

@@ -97,6 +97,10 @@ let lastSavedFirstMessagePrompt = "";
 let isProfileContextCollapsed = true;
 let dbInvitationRow = null;
 
+function getLifecycleStatusValue(dbRow) {
+  return (dbRow?.status || "").trim().toLowerCase();
+}
+
 function getErrorMessage(error) {
   if (error && typeof error === "object" && typeof error.message === "string") {
     return error.message;
@@ -133,6 +137,53 @@ function setLifecycleBar(stateKey, text) {
   lifecycleBarEl.style.backgroundColor = style.background;
   lifecycleBarEl.style.color = style.color;
   lifecycleBarTextEl.textContent = text;
+}
+
+function applyLifecycleUiState(dbRow) {
+  const markInvitedBtn = document.getElementById("markInvited");
+  const markAcceptedBtn = document.getElementById("markAccepted");
+  const generateBtn = document.getElementById("generate");
+
+  if (!markInvitedBtn || !markAcceptedBtn || !generateBtn) return;
+
+  markInvitedBtn.classList.remove("is-highlighted");
+  markAcceptedBtn.classList.remove("is-highlighted");
+
+  markInvitedBtn.disabled = false;
+  markAcceptedBtn.disabled = false;
+  generateBtn.disabled = false;
+
+  const status = getLifecycleStatusValue(dbRow);
+  const dbMessage = (dbRow?.message || "").trim();
+
+  if (status === "generated") {
+    setActiveTab("invitation");
+    if (dbMessage) {
+      previewEl.textContent = dbMessage;
+      setCopyButtonEnabled(true);
+    }
+    markInvitedBtn.classList.add("is-highlighted");
+    return;
+  }
+
+  if (status === "invited") {
+    setActiveTab("invitation");
+    if (dbMessage) {
+      previewEl.textContent = dbMessage;
+      setCopyButtonEnabled(true);
+    }
+    markInvitedBtn.disabled = true;
+    generateBtn.disabled = true;
+    markAcceptedBtn.classList.add("is-highlighted");
+    return;
+  }
+
+  if (status === "accepted") {
+    setActiveTab("message");
+    markInvitedBtn.disabled = true;
+    generateBtn.disabled = true;
+    markAcceptedBtn.disabled = true;
+  }
 }
 
 function deriveLifecycleState(row) {
@@ -173,6 +224,7 @@ async function refreshInvitationRowFromDb() {
   if (!linkedin_url) {
     dbInvitationRow = null;
     setLifecycleBar("neutral", UI_TEXT.lifecycleOpenLinkedInProfileFirst);
+    applyLifecycleUiState(dbInvitationRow);
     return;
   }
 
@@ -184,12 +236,14 @@ async function refreshInvitationRowFromDb() {
   if (!resp?.ok) {
     dbInvitationRow = null;
     setLifecycleBar("neutral", getErrorMessage(resp?.error));
+    applyLifecycleUiState(dbInvitationRow);
     return;
   }
 
   dbInvitationRow = resp.row || null;
   const lifecycle = deriveLifecycleState(dbInvitationRow);
   setLifecycleBar(lifecycle.key, lifecycle.text);
+  applyLifecycleUiState(dbInvitationRow);
 }
 
 function hasMessageProfileUrl() {
@@ -372,6 +426,7 @@ renderProfileContext();
 setProfileContextPreviewCollapsed(true);
 updateMessageTabControls();
 setLifecycleBar("neutral", UI_TEXT.lifecycleOpenLinkedInProfileFirst);
+applyLifecycleUiState(dbInvitationRow);
 loadProfileContextOnOpen();
 loadFirstMessagePrompt().catch((_e) => {
   lastSavedFirstMessagePrompt = messagePromptEl.value;
@@ -444,6 +499,11 @@ document.getElementById("markInvited").addEventListener("click", async () => {
 });
 
 document.getElementById("markAccepted").addEventListener("click", async () => {
+  if (getLifecycleStatusValue(dbInvitationRow) === "accepted") {
+    setActiveTab("message");
+    return;
+  }
+
   if (!currentProfileContext) {
     statusEl.textContent = UI_TEXT.openLinkedInProfileFirst;
     return;
