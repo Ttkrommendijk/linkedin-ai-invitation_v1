@@ -52,6 +52,12 @@ const firstMessagePreviewEl = document.getElementById("firstMessagePreview");
 const profileContextPreviewEl = document.getElementById(
   "profileContextPreview",
 );
+const profileContextPreviewWrapEl = document.getElementById(
+  "profileContextPreviewWrap",
+);
+const toggleProfileContextPreviewBtnEl = document.getElementById(
+  "toggleProfileContextPreview",
+);
 const copyBtnEl = document.getElementById("copyBtn");
 
 const tabMainBtn = document.getElementById("tabMainBtn");
@@ -69,6 +75,7 @@ let lastProfileContextEnriched = null;
 let currentProfileContext = null;
 let firstMessage = "";
 let lastSavedFirstMessagePrompt = "";
+let isProfileContextCollapsed = true;
 
 function getErrorMessage(error) {
   if (error && typeof error === "object" && typeof error.message === "string") {
@@ -88,6 +95,16 @@ function renderProfileContext() {
     },
     null,
     2,
+  );
+}
+
+function setProfileContextPreviewCollapsed(collapsed) {
+  isProfileContextCollapsed = collapsed;
+  profileContextPreviewWrapEl.hidden = collapsed;
+  toggleProfileContextPreviewBtnEl.textContent = collapsed ? "Show" : "Hide";
+  toggleProfileContextPreviewBtnEl.setAttribute(
+    "aria-expanded",
+    collapsed ? "false" : "true",
   );
 }
 
@@ -265,11 +282,16 @@ async function loadSettings() {
 loadSettings();
 setCopyButtonEnabled(false);
 renderProfileContext();
+setProfileContextPreviewCollapsed(true);
 updateMessageTabControls();
 loadProfileContextOnOpen();
 loadFirstMessagePrompt().catch((_e) => {
   lastSavedFirstMessagePrompt = messagePromptEl.value;
   updateSavePromptButtonState();
+});
+
+toggleProfileContextPreviewBtnEl.addEventListener("click", () => {
+  setProfileContextPreviewCollapsed(!isProfileContextCollapsed);
 });
 
 messagePromptEl.addEventListener("input", () => {

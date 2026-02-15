@@ -19,8 +19,15 @@
 
         <div id="tabMain" class="tab-panel active">
             <div class="row">
-                <small>Profile context sent to AI</small>
-                <pre id="profileContextPreview">{}</pre>
+                <small
+                    >Profile context sent to AI
+                    <button id="toggleProfileContextPreview" type="button">
+                        Show
+                    </button></small
+                >
+                <div id="profileContextPreviewWrap">
+                    <pre id="profileContextPreview">{}</pre>
+                </div>
             </div>
 
             <div class="row">

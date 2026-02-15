@@ -84,7 +84,7 @@ it is pre-constructed and displayed in the “profile context sent to ai” sect
   - about
   - recent_experience
   - excerpt_fallback (sanitized)
-- this block is informational only and not editable.
+- this block is informational only and not editable and can be shown and collapsed using a button.
 
 ---
 
@@ -230,10 +230,6 @@ its objective is to open a lightweight conversation and move the relationship fo
     - the prompt is not auto-saved silently; it must be explicitly saved.
     - clicking **Save prompt** stores the current textarea value in `chrome.storage.sync`.
     - a small status message confirms successful save.
-
-- **profile context preview** (read-only pre/json)
-  - shows the exact `profile_context` payload that will be sent for message generation.
-  - informational only; not editable.
 
 - **generated first message preview** (read-only textarea or pre)
   - displays the generated first message text.
