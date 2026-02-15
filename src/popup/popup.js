@@ -78,6 +78,8 @@ const toggleProfileContextPreviewBtnEl = document.getElementById(
 const lifecycleBarEl = document.getElementById("lifecycleBar");
 const lifecycleBarTextEl = document.getElementById("lifecycleBarText");
 const copyBtnEl = document.getElementById("copyBtn");
+const invitedAtLabelEl = document.getElementById("invitedAtLabel");
+const acceptedAtLabelEl = document.getElementById("acceptedAtLabel");
 
 const tabMainBtn = document.getElementById("tabMainBtn");
 const tabMessageBtn = document.getElementById("tabMessageBtn");
@@ -139,6 +141,32 @@ function setLifecycleBar(stateKey, text) {
   lifecycleBarTextEl.textContent = text;
 }
 
+function formatDateTime(isoString) {
+  if (!isoString) return "";
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) return "";
+
+  try {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "America/Sao_Paulo",
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(date);
+    const get = (type) => parts.find((p) => p.type === type)?.value || "";
+    return `${get("day")} ${get("month")} ${get("year")} ${get("hour")}:${get("minute")}`.trim();
+  } catch (_e) {
+    try {
+      return date.toLocaleString();
+    } catch (_e2) {
+      return "";
+    }
+  }
+}
+
 function applyLifecycleUiState(dbRow) {
   const markInvitedBtn = document.getElementById("markInvited");
   const markAcceptedBtn = document.getElementById("markAccepted");
@@ -152,9 +180,17 @@ function applyLifecycleUiState(dbRow) {
   markInvitedBtn.disabled = false;
   markAcceptedBtn.disabled = false;
   generateBtn.disabled = false;
+  invitedAtLabelEl.hidden = true;
+  acceptedAtLabelEl.hidden = true;
+  invitedAtLabelEl.querySelector("small").textContent = "";
+  acceptedAtLabelEl.querySelector("small").textContent = "";
 
   const status = getLifecycleStatusValue(dbRow);
   const dbMessage = (dbRow?.message || "").trim();
+  if (dbMessage) {
+    previewEl.textContent = dbMessage;
+    setCopyButtonEnabled(true);
+  }
 
   if (status === "generated") {
     setActiveTab("invitation");
@@ -183,6 +219,30 @@ function applyLifecycleUiState(dbRow) {
     markInvitedBtn.disabled = true;
     generateBtn.disabled = true;
     markAcceptedBtn.disabled = true;
+    if (dbMessage) {
+      previewEl.textContent = dbMessage;
+      setCopyButtonEnabled(true);
+    }
+  }
+
+  const invitedAtText = formatDateTime(dbRow?.invited_at);
+  if (markInvitedBtn.disabled && invitedAtText) {
+    invitedAtLabelEl.hidden = false;
+    invitedAtLabelEl.querySelector("small").textContent =
+      `Invitation sent: ${invitedAtText}`;
+    if (dbMessage) {
+      previewEl.textContent = dbMessage;
+      setCopyButtonEnabled(true);
+    }
+  }
+
+  const acceptedAtText = formatDateTime(dbRow?.accepted_at);
+  const acceptedOrBeyond =
+    status === "accepted" || status === "first message sent";
+  if ((acceptedOrBeyond || markAcceptedBtn.disabled) && acceptedAtText) {
+    acceptedAtLabelEl.hidden = false;
+    acceptedAtLabelEl.querySelector("small").textContent =
+      `Invitation accepted: ${acceptedAtText}`;
   }
 }
 
@@ -241,6 +301,10 @@ async function refreshInvitationRowFromDb() {
   }
 
   dbInvitationRow = resp.row || null;
+  debug("DB invitation row fetched:", {
+    has_row: Boolean(dbInvitationRow),
+    message_length: (dbInvitationRow?.message || "").length,
+  });
   const lifecycle = deriveLifecycleState(dbInvitationRow);
   setLifecycleBar(lifecycle.key, lifecycle.text);
   applyLifecycleUiState(dbInvitationRow);
