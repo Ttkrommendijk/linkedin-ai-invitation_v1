@@ -96,57 +96,149 @@
                 Config
             </button>
         </div>
-        <small id="promptStatus">Prompt status: idle</small>
-      </div>
 
-      <div class="btn-row row">
-        <button id="generateFirstMessage" type="button">
-          generate first message
-        </button>
-        <button id="markMessageSent" type="button">message sent</button>
-      </div>
+        <div id="tabMain" class="tab-panel active">
+            <div class="row">
+                <small>Profile context sent to AI</small>
+                <pre id="profileContextPreview">{}</pre>
+            </div>
 
-      <div class="row">
-        <label>First message preview</label>
-        <pre id="firstMessagePreview"></pre>
-      </div>
+            <div class="row">
+                <label
+                    ><small
+                        >Specific focus for this profile (optional)</small
+                    ></label
+                >
+                <input
+                    id="focus"
+                    placeholder="e.g. S&OP + Slimstock + SAP S/4HANA go-live"
+                />
+            </div>
 
-      <div class="row">
-        <small id="messageStatus"></small>
-      </div>
-    </section>
+            <button id="generate" type="button">Generate invite</button>
 
-    <section id="tabConfig" class="tab-pane">
-      <div class="row">
-        <label for="apiKey">OpenAI API key</label>
-        <input id="apiKey" type="password" autocomplete="off" />
-      </div>
+            <div class="row inline">
+                <button id="markInvited" type="button">Invitation sent</button>
+                <button id="markAccepted" type="button">
+                    Invitation accepted
+                </button>
+            </div>
 
-      <div class="row">
-        <label for="model">Model</label>
-        <input id="model" type="text" value="gpt-4.1" />
-      </div>
+            <div class="row">
+                <small>Status</small>
+                <div id="status">Idle</div>
+            </div>
 
-      <div class="row">
-        <label for="strategy">Strategy core</label>
-        <textarea id="strategy"></textarea>
-      </div>
+            <div class="row">
+                <small>Preview</small>
+                <pre id="preview"></pre>
+            </div>
+            <button id="copyBtn" type="button">Copy</button>
+        </div>
 
-      <div class="row">
-        <label for="webhookBaseUrl">Webhook base URL</label>
-        <input id="webhookBaseUrl" type="text" />
-      </div>
+        <div id="tabMessage" class="tab-panel">
+            <div class="row">
+                <label><small>Message prompt</small></label>
+                <textarea id="messagePrompt">
+Escreva a melhor primeira mensagem após aceitar conexão no LinkedIn, em português.
 
-      <div class="row">
-        <label for="webhookSecret">Webhook secret</label>
-        <input id="webhookSecret" type="password" autocomplete="off" />
-      </div>
+                Objetivo estratégico: abrir uma conversa com fricção mínima e incentivar resposta curta.
 
-      <div class="row">
-        <button id="saveConfig" type="button">save config</button>
-      </div>
-    </section>
+                Regras obrigatórias:
 
-    <script src="./popup.js"></script>
-  </body>
+                1. Agradeça por aceitar a conexão.
+                2. Cite uma referência factual específica do perfil (empresa, cargo, área de atuação, etc).
+                3. Mantenha tom peer-level, neutro, específico e não comercial.
+                4. Não faça pitch de serviços.
+                5. Não elogie excessivamente.
+                6. Não use adjetivos emocionais.
+                7. Nunca invente fatos; use apenas profile_context e profile_excerpt_fallback.
+
+                Estrutura:
+
+                - Máximo 2 parágrafos curtos.
+                - O segundo parágrafo deve conter:
+                   - Uma observação afirmativa leve sobre o contexto profissional da pessoa.
+                   - Uma pergunta simples de validação, que possa ser respondida com sim/não ou frase curta.
+                   - Evite perguntas amplas, reflexivas ou que exijam explicações longas.
+
+                Evitar completamente:
+                - “quais foram os aprendizados”
+                - “como você enxerga”
+                - “poderia compartilhar”
+                - perguntas profundas ou conceituais
+                - convite direto para reunião
+                - emojis, hashtags ou bullets
+
+                A pergunta final deve reduzir fricção e facilitar resposta rápida. Sem emojis, hashtags ou bullets. Nunca invente fatos; use somente profile_context e profile_excerpt_fallback.</textarea
+                >
+            </div>
+
+            <button id="generateFirstMessage" type="button">
+                Generate first message
+            </button>
+            <button id="markMessageSent" type="button">Message sent</button>
+
+            <div class="row">
+                <small>Status</small>
+                <div id="messageStatus">Idle</div>
+            </div>
+
+            <div class="row">
+                <small>First message preview</small>
+                <pre id="firstMessagePreview"></pre>
+            </div>
+        </div>
+
+        <div id="tabConfig" class="tab-panel">
+            <div class="row">
+                <label><small>OpenAI API key (saved)</small></label>
+                <input id="apiKey" type="password" placeholder="sk-..." />
+            </div>
+
+            <div class="row">
+                <label><small>Model (saved)</small></label>
+                <input id="model" placeholder="gpt-4.1" />
+            </div>
+
+            <div class="row">
+                <label><small>Strategy (saved)</small></label>
+                <textarea
+                    id="strategy"
+                    placeholder="Paste your strategy core here (saved)."
+                ></textarea>
+            </div>
+
+            <div class="row">
+                <label><small>Webhook base URL (saved)</small></label>
+                <input
+                    id="webhookBaseUrl"
+                    placeholder="https://yourdomain.com"
+                />
+            </div>
+
+            <div class="row">
+                <label><small>Webhook secret (saved)</small></label>
+                <input
+                    id="webhookSecret"
+                    type="password"
+                    placeholder="shared secret"
+                />
+            </div>
+
+            <button id="saveConfig" type="button">Save config</button>
+
+            <div class="row">
+                <small>Tip</small>
+                <div>
+                    <small
+                        >Edits are saved when you click "Save config" or
+                        "Generate".</small
+                    >
+                </div>
+            </div>
+        </div>
+
+        <script src="popup.js"></script>
+    </body>
 </html>
