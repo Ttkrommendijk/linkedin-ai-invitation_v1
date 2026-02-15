@@ -6,6 +6,7 @@ const focusEl = document.getElementById("focus");
 
 const statusEl = document.getElementById("status");
 const previewEl = document.getElementById("preview");
+const copyBtnEl = document.getElementById("copyBtn");
 
 const tabMainBtn = document.getElementById("tabMainBtn");
 const tabConfigBtn = document.getElementById("tabConfigBtn");
@@ -23,7 +24,7 @@ async function copyToClipboard(text) {
   try {
     await navigator.clipboard.writeText(value);
     return;
-  } catch (err) {
+  } catch (_err) {
     // Fallback below
   }
 
@@ -45,6 +46,9 @@ async function copyToClipboard(text) {
   if (!ok) throw new Error("Copy failed (execCommand).");
 }
 
+function setCopyButtonEnabled(enabled) {
+  copyBtnEl.disabled = !enabled;
+}
 
 function setActiveTab(which) {
   const mainActive = which === "main";
@@ -73,6 +77,7 @@ async function loadSettings() {
   if (webhookBaseUrl) webhookBaseUrlEl.value = webhookBaseUrl;
 }
 loadSettings();
+setCopyButtonEnabled(false);
 
 async function saveConfig() {
   const apiKey = (apiKeyEl.value || "").trim();
@@ -107,7 +112,7 @@ document.getElementById("markInvited").addEventListener("click", async () => {
     payload: { linkedin_url: ctx.profile.url, status: "invited" }
   });
 
-  statusEl.textContent = resp?.ok ? "Marked as invited ✅" : `DB error: ${resp?.error || "unknown"}`;
+  statusEl.textContent = resp?.ok ? "Marked as invited âœ…" : `DB error: ${resp?.error || "unknown"}`;
 });
 
 document.getElementById("markAccepted").addEventListener("click", async () => {
@@ -120,53 +125,50 @@ document.getElementById("markAccepted").addEventListener("click", async () => {
     payload: { linkedin_url: ctx.profile.url, status: "accepted" }
   });
 
-  statusEl.textContent = resp?.ok ? "Marked as accepted ✅" : `DB error: ${resp?.error || "unknown"}`;
+  statusEl.textContent = resp?.ok ? "Marked as accepted âœ…" : `DB error: ${resp?.error || "unknown"}`;
 });
 
-document.getElementById("copyBtn").addEventListener("click", async () => {
+copyBtnEl.addEventListener("click", async () => {
   try {
     await copyToClipboard(previewEl.textContent || "");
-    statusEl.textContent = "Copied to clipboard ✅";
+    statusEl.textContent = "Copied to clipboard.";
   } catch (e) {
     statusEl.textContent = `Copy failed: ${String(e?.message || e)}`;
   }
 });
 
 document.getElementById("generate").addEventListener("click", async () => {
-  statusEl.textContent = "Extracting profile…";
+  statusEl.textContent = "Extracting profileâ€¦";
   previewEl.textContent = "";
+  setCopyButtonEnabled(false);
 
   await savePositioning();
   await chrome.storage.sync.set({ strategyCore: (strategyEl.value || "").trim() });
 
   const focus = (focusEl.value || "").trim();
 
-const [{ apiKey: apiKeyLocal }, { model, positioning, strategyCore }] = await Promise.all([
-  chrome.storage.local.get(["apiKey"]),
-  chrome.storage.sync.get(["model", "positioning", "strategyCore"])
-]);
+  const [{ apiKey: apiKeyLocal }, { model, positioning, strategyCore }] = await Promise.all([
+    chrome.storage.local.get(["apiKey"]),
+    chrome.storage.sync.get(["model", "positioning", "strategyCore"])
+  ]);
 
-// fallback: if local is empty but user typed the key in the field, use it and persist it
-let apiKey = (apiKeyLocal || "").trim();
-if (!apiKey) {
-  const typed = (apiKeyEl.value || "").trim();
-  if (typed) {
-    apiKey = typed;
-    await chrome.storage.local.set({ apiKey }); // persist so next time it works
+  // fallback: if local is empty but user typed the key in the field, use it and persist it
+  let apiKey = (apiKeyLocal || "").trim();
+  if (!apiKey) {
+    const typed = (apiKeyEl.value || "").trim();
+    if (typed) {
+      apiKey = typed;
+      await chrome.storage.local.set({ apiKey }); // persist so next time it works
+    }
   }
-}
 
-statusEl.textContent = `apiKey local: ${apiKey ? "YES" : "NO"}`;
+  if (!apiKey) {
+    statusEl.textContent = "Please set your API key in Config.";
+    setActiveTab("config");
+    return;
+  }
 
-console.log("apiKeyLocal:", apiKeyLocal);
-console.log("apiKeyInput:", apiKeyEl.value);
-if (!apiKey) {
-  statusEl.textContent = "Please set your API key in Config.";
-  setActiveTab("config");
-  return;
-}
-
-const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) {
     statusEl.textContent = "No active tab found.";
     return;
@@ -178,7 +180,7 @@ const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     return;
   }
 
-  statusEl.textContent = "Calling OpenAI…";
+  statusEl.textContent = "Calling OpenAIâ€¦";
 
   const resp = await chrome.runtime.sendMessage({
     type: "GENERATE_INVITE",
@@ -197,39 +199,30 @@ const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     return;
   }
 
-const message = (resp.message || "").trim();
-previewEl.textContent = message;
+  const message = (resp.message || "").trim();
+  previewEl.textContent = message;
+  setCopyButtonEnabled(Boolean(message));
+  statusEl.textContent = message ? "Generated. Click Copy." : "No message generated.";
 
-// 1) COPY FIRST (so user always gets it)
-try {
-  await copyToClipboard(message);
-  statusEl.textContent = `Copied to clipboard ✅ (${message.length} chars)`;
-} catch (e) {
-  statusEl.textContent = `Copy failed: ${String(e?.message || e)}`;
-}
-
-// 2) DB WRITE SECOND (fire-and-forget, don't block copy)
-chrome.runtime.sendMessage({
-  type: "DB_UPSERT_GENERATED",
-  payload: {
-    linkedin_url: ctx.profile.url,
-    full_name: ctx.profile.name || null,
-    company: ctx.profile.company || null,
-    headline: ctx.profile.headline || null,
-    message,
-    focus,
-    positioning: positioning || "",
-    generated_at: new Date().toISOString(),
-    status: "generated"
-  }
-}).then((dbResp) => {
-  if (!dbResp?.ok) {
-    // don't overwrite the copy success; just append info
-    statusEl.textContent += ` | DB error: ${dbResp?.error || "unknown"}`;
-  }
-}).catch((e) => {
-  statusEl.textContent += ` | DB error: ${String(e?.message || e)}`;
-});
-
-
+  // DB WRITE (fire-and-forget)
+  chrome.runtime.sendMessage({
+    type: "DB_UPSERT_GENERATED",
+    payload: {
+      linkedin_url: ctx.profile.url,
+      full_name: ctx.profile.name || null,
+      company: ctx.profile.company || null,
+      headline: ctx.profile.headline || null,
+      message,
+      focus,
+      positioning: positioning || "",
+      generated_at: new Date().toISOString(),
+      status: "generated"
+    }
+  }).then((dbResp) => {
+    if (!dbResp?.ok) {
+      statusEl.textContent += ` | DB error: ${dbResp?.error || "unknown"}`;
+    }
+  }).catch((e) => {
+    statusEl.textContent += ` | DB error: ${String(e?.message || e)}`;
+  });
 });
