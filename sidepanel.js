@@ -15,6 +15,81 @@ function setRefreshStatus(text) {
   refreshStatusEl.textContent = text;
 }
 
+async function getActiveTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab || null;
+}
+
+function sendExtractMessage(tabId) {
+  return new Promise((resolve) => {
+    chrome.tabs.sendMessage(
+      tabId,
+      { type: "EXTRACT_PROFILE_CONTEXT" },
+      (resp) => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          resolve({
+            ok: false,
+            lastErrorMessage: lastError.message,
+            resp: null,
+          });
+          return;
+        }
+        resolve({ ok: true, resp });
+      },
+    );
+  });
+}
+
+function shouldRetryWithInjection(lastErrorMessage) {
+  const msg = String(lastErrorMessage || "").toLowerCase();
+  return (
+    msg.includes("receiving end does not exist") ||
+    msg.includes("could not establish connection")
+  );
+}
+
+async function extractProfileWithInjectionFallback(tabId) {
+  let firstAttempt = await sendExtractMessage(tabId);
+  if (
+    !firstAttempt.ok &&
+    shouldRetryWithInjection(firstAttempt.lastErrorMessage)
+  ) {
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        files: ["src/content/content.js"],
+      });
+    } catch (e) {
+      return {
+        ok: false,
+        error:
+          e instanceof Error ? e.message : String(e || "Injection failed."),
+      };
+    }
+    firstAttempt = await sendExtractMessage(tabId);
+  }
+
+  if (!firstAttempt.ok) {
+    return {
+      ok: false,
+      error:
+        firstAttempt.lastErrorMessage || "No response from content script.",
+    };
+  }
+
+  if (!firstAttempt.resp?.ok) {
+    const msg =
+      firstAttempt.resp?.error?.message ||
+      (typeof firstAttempt.resp?.error === "string"
+        ? firstAttempt.resp.error
+        : "Extraction failed.");
+    return { ok: false, error: msg };
+  }
+
+  return { ok: true, profile: firstAttempt.resp.profile || {} };
+}
+
 function resetIframeUiState(frameDocument, frameWindow) {
   const statusEl = frameDocument.getElementById("status");
   const messageStatusEl = frameDocument.getElementById("messageStatus");
@@ -40,36 +115,6 @@ function resetIframeUiState(frameDocument, frameWindow) {
   if (typeof frameWindow.updateMessageTabControls === "function") {
     frameWindow.updateMessageTabControls();
   }
-}
-
-async function extractProfileFromActiveTab() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  const tabId = tab?.id;
-  if (!tabId) return { ok: false, error: "No active tab." };
-
-  return new Promise((resolve) => {
-    chrome.tabs.sendMessage(
-      tabId,
-      { type: "EXTRACT_PROFILE_CONTEXT" },
-      (resp) => {
-        const lastError = chrome.runtime.lastError;
-        if (lastError) {
-          resolve({ ok: false, error: lastError.message });
-          return;
-        }
-        if (!resp?.ok) {
-          const msg =
-            resp?.error?.message ||
-            (typeof resp?.error === "string"
-              ? resp.error
-              : "extraction_failed");
-          resolve({ ok: false, error: msg });
-          return;
-        }
-        resolve({ ok: true, profile: resp.profile || {} });
-      },
-    );
-  });
 }
 
 function getLinkedinUrlFromProfile(profile) {
@@ -109,6 +154,20 @@ async function clearPreviewIfNotInDb(frameDocument, profile) {
 async function refreshFromIframe(reason = "manual") {
   setRefreshStatus(`Refreshing (${reason})...`);
 
+  const activeTab = await getActiveTab();
+  const tabId = activeTab?.id;
+  const tabUrl = activeTab?.url || "";
+
+  if (!tabId) {
+    setRefreshStatus("No active tab.");
+    return;
+  }
+
+  if (!isLinkedInProfileLikeUrl(tabUrl)) {
+    setRefreshStatus("Open a LinkedIn profile/company page.");
+    return;
+  }
+
   const frameWindow = panelFrameEl?.contentWindow;
   const frameDocument = frameWindow?.document;
   if (
@@ -123,11 +182,14 @@ async function refreshFromIframe(reason = "manual") {
   resetIframeUiState(frameDocument, frameWindow);
 
   try {
-    await frameWindow.loadProfileContextOnOpen();
-    const extractResp = await extractProfileFromActiveTab();
-    if (extractResp.ok) {
-      await clearPreviewIfNotInDb(frameDocument, extractResp.profile);
+    const extractResp = await extractProfileWithInjectionFallback(tabId);
+    if (!extractResp.ok) {
+      setRefreshStatus(extractResp.error || "Refresh failed.");
+      return;
     }
+
+    await frameWindow.loadProfileContextOnOpen();
+    await clearPreviewIfNotInDb(frameDocument, extractResp.profile);
     setRefreshStatus(`Refreshed (${reason}).`);
   } catch (e) {
     setRefreshStatus(
@@ -167,3 +229,5 @@ chrome.runtime.onMessage.addListener((msg) => {
 chrome.runtime
   .sendMessage({ type: "SP_REQUEST_REFRESH_SIGNAL" })
   .catch(() => null);
+
+scheduleRefresh("initial");
