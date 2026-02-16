@@ -226,24 +226,47 @@ function firstMessageInstruction(maxChars, language = "auto") {
       ? "the dominant language of the provided profile_context and profile_excerpt_fallback"
       : language;
 
-  return `Write a first LinkedIn message in ${langRule} after connection acceptance.
+  return `Write a natural and socially intelligent first LinkedIn message in ${langRule} after connection acceptance.
 
-Language rules:
-- If language is "auto", detect the dominant language of profile_context and profile_excerpt_fallback and write in that language.
-- Do not default to English unless the context is English.
-- Do not mix languages.
+The message must feel like something a real Brazilian professional would write — not a template, not a corporate press release, and not a sales script.
 
-Constraints:
-- Maximum ${maxChars} characters.
-- Maximum 2 short paragraphs.
-- Maximum 1 light question.
-- No emojis, no hashtags, no bullet points.
-- Tone must be peer-level, neutral, specific, non-salesy.
-- Do not pitch services.
-- Objective: start a light conversation; meeting can only be implied softly.
-- Never invent facts. Use only profile_context and profile_excerpt_fallback.
+Core behavior:
+- Start with greeting and appreciation.
+- If there is an explicit recognition, award, or public achievement in the profile, you may briefly say "Parabéns por..." in a simple and neutral way. Do not exaggerate.
+- If there is a clear technology theme (IA, dados, automação, digital, etc.), you may relate naturally (e.g., "Também acompanho bastante esse tema").
+- Do not overpraise.
+- Do not narrate the person's career.
+- Do not infer transitions, timing, or intentions.
+- Do not sound impressed. Sound respectful and normal.
 
-Output must be plain text only.`;
+Tone calibration:
+- Write as a peer.
+- Calm.
+- Understated.
+- Intelligent but relaxed.
+- Brazilian conversational style.
+- No hype language.
+- No consultant tone.
+
+Engagement:
+- A question is optional, but only if it feels natural and light.
+- Do not ask strategic or diagnostic questions.
+- No forced engagement.
+- No meeting suggestion.
+
+Fact usage:
+- Use only facts explicitly present in the profile.
+- Never invent context.
+- Avoid storytelling about their trajectory.
+
+Structure:
+- Max ${maxChars} characters.
+- 2–3 short paragraphs.
+- No emojis.
+- No hashtags.
+- Plain text only.
+
+The message should feel effortless and socially calibrated — like a real human reaching out, not a prompt-generated structure.`;
 }
 
 function followupMessageInstruction(language = "auto") {
@@ -417,10 +440,8 @@ ${profileContextBlock(profile)}
 `;
 }
 
-function buildFirstMessageUserInput({ prompt, profile }) {
+function buildFirstMessageUserInput({ profile }) {
   return `
-message_prompt:
-${prompt || "(none)"}
 ${profileContextBlock(profile)}
 `;
 }
@@ -578,13 +599,7 @@ async function callOpenAIInviteGeneration({
   return parsedPayload;
 }
 
-async function callOpenAIFirstMessage({
-  apiKey,
-  model,
-  prompt,
-  profile,
-  language,
-}) {
+async function callOpenAIFirstMessage({ apiKey, model, profile, language }) {
   const res = await fetchOpenAIWithRetry(
     "https://api.openai.com/v1/responses",
     {
@@ -611,7 +626,7 @@ async function callOpenAIFirstMessage({
             content: [
               {
                 type: "input_text",
-                text: buildFirstMessageUserInput({ prompt, profile }),
+                text: buildFirstMessageUserInput({ profile }),
               },
             ],
           },

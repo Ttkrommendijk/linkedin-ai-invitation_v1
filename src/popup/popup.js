@@ -1487,12 +1487,7 @@ document
     messageStatusEl.textContent = UI_TEXT.generatingFirstMessage;
     firstMessagePreviewEl.textContent = "";
 
-    const prompt = (messagePromptEl.value || "").trim();
     const language = (messageLanguageEl?.value || "Portuguese").trim();
-    if (!prompt) {
-      messageStatusEl.textContent = UI_TEXT.messagePromptRequired;
-      return;
-    }
 
     const [{ apiKey: apiKeyLocal }, { model }] = await Promise.all([
       chrome.storage.local.get(["apiKey"]),
@@ -1528,7 +1523,6 @@ document
       payload: {
         apiKey,
         model: (model || "gpt-4.1").trim(),
-        prompt,
         language,
         profile: profileContextForGeneration,
       },
