@@ -225,16 +225,61 @@ function formatChatHistory(messages) {
   if (!Array.isArray(messages) || messages.length === 0) {
     return "No chat messages found.";
   }
-  return messages
-    .map((m) => {
-      const text = (m?.text || "").trim();
-      if (!text) return "";
-      if (m?.direction === "them") return `- them: ${text}`;
-      if (m?.direction === "me") return `- me: ${text}`;
-      return `- ${text}`;
-    })
-    .filter(Boolean)
-    .join("\n\n");
+  const lines = [];
+  let lastDate = "";
+  for (const m of messages) {
+    const dateLabel = (m?.heading || m?.dateLabel || "").trim();
+    const time = (m?.time || m?.ts || "").trim();
+    const text = (m?.text || "").trim();
+    if (!text || !time) continue;
+    if (dateLabel && dateLabel !== lastDate) {
+      lines.push(dateLabel);
+      lastDate = dateLabel;
+    }
+    lines.push(`[${time}] ${text}`);
+  }
+  return lines.join("\n");
+}
+
+function normalizeChatText(value) {
+  return (value || "").toString().trim().replace(/\s+/g, " ");
+}
+
+function toChatLogEntry(message, index) {
+  const direction =
+    message?.direction === "them"
+      ? "them"
+      : message?.direction === "me"
+        ? "me"
+        : "unknown";
+  const dateLabel = (message?.heading || message?.dateLabel || "")
+    .toString()
+    .trim();
+  const time = (message?.time || message?.ts || "").toString().trim();
+  const ts = (message?.ts || message?.time || "").toString().trim();
+  const normalizedText = normalizeChatText(message?.text || "");
+  const key = `${direction}|${dateLabel}|${ts || time}|${normalizedText}`;
+  return {
+    i: index,
+    liIndex: message?.liIndex ?? -1,
+    direction,
+    dateLabel,
+    time,
+    ts,
+    textLen: normalizedText.length,
+    text: normalizedText,
+    key,
+    dayHeading: dateLabel,
+    dt_label: (message?.dt_label || `${dateLabel} ${time}`.trim()).trim(),
+    name: (message?.name || "").toString().trim(),
+    sortTsIso: "",
+    displayLocal: "",
+    datetimeForDebug:
+      (message?.dt_label || `${dateLabel} ${time}`.trim()).trim() ||
+      "NO_DATETIME",
+    msgId: message?.msgId || "",
+    domHint: message?.domHint || null,
+  };
 }
 
 function isMessageBoxMissingError(errorText) {
@@ -318,50 +363,39 @@ async function refreshChatHistoryFromActiveTab() {
       }
 
       const messages = Array.isArray(resp.messages) ? resp.messages : [];
-      const counts = new Map();
-      const seenKeys = new Set();
-      const dedupedMessages = [];
-      for (const m of messages) {
-        const direction =
-          m?.direction === "them"
-            ? "them"
-            : m?.direction === "me"
-              ? "me"
-              : "unknown";
-        const time = (m?.ts || m?.time || "").toString().trim();
-        const normalizedText = (m?.text || "")
-          .toString()
-          .trim()
-          .replace(/\s+/g, " ");
-        const key = `${direction}|${time}|${normalizedText}`;
-        counts.set(key, (counts.get(key) || 0) + 1);
-        if (!seenKeys.has(key)) {
-          seenKeys.add(key);
-          dedupedMessages.push(m);
-        }
-      }
-      const dupEntries = Array.from(counts.entries())
-        .filter(([, count]) => count > 1)
-        .sort((a, b) => b[1] - a[1]);
-      const uniqueCount = counts.size;
-      const dupCount = messages.length - uniqueCount;
-      console.log("dup_stats", {
-        rawCount: messages.length,
-        uniqueCount,
-        dupCount,
-        dedupedCount: dedupedMessages.length,
-        topDupKeys: dupEntries.slice(0, 5).map(([key, count]) => ({
-          key,
-          count,
-        })),
+      console.groupCollapsed(`[LEF][chat][${reqId}] popup received messages`);
+      console.log("rawCount", messages.length);
+      console.log("ordering_meta", {
+        hasAnySortTsIso: false,
+        dayHeadingSample:
+          messages.find((m) => (m?.dateLabel || "").trim())?.dateLabel || "",
+        sortTsIsoSample: "",
       });
-
-      extractedChatMessages = dedupedMessages;
-      chatHistoryEl.value = formatChatHistory(dedupedMessages);
+      messages.forEach((m, i) => {
+        const entry = toChatLogEntry(m, i);
+        const datetime = entry.datetimeForDebug;
+        if (!entry.dt_label) {
+          console.error(
+            `[LEF][chat][${reqId}] missing dt_label at index ${i}`,
+            entry,
+          );
+        }
+        const previewText =
+          entry.text.length > 120
+            ? `${entry.text.slice(0, 117).trim()}...`
+            : entry.text;
+        console.log(
+          `[LEF][chat][${reqId}] [${String(i).padStart(2, "0")}] [li:${entry.liIndex}] ${datetime} | ${entry.name || "unknown"} | ${entry.direction} | ${previewText}`,
+        );
+        console.log(entry);
+      });
+      extractedChatMessages = messages;
+      chatHistoryEl.value = formatChatHistory(messages);
       console.log("render", {
         extractedCount: extractedChatMessages.length,
         renderedChars: (chatHistoryEl.value || "").length,
       });
+      console.groupEnd();
       console.groupEnd();
     },
   );

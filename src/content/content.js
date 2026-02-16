@@ -152,9 +152,57 @@ function isUiNoiseLine(text) {
   return false;
 }
 
+function normalizeChatText(value) {
+  return (value || "").toString().trim().replace(/\s+/g, " ");
+}
+
+function toChatLogEntry(message, index) {
+  const direction =
+    message?.direction === "them"
+      ? "them"
+      : message?.direction === "me"
+        ? "me"
+        : "unknown";
+  const time = (message?.time || "").toString().trim();
+  const ts = (message?.ts || "").toString().trim();
+  const normalizedText = normalizeChatText(message?.text || "");
+  const heading = (message?.heading || message?.dateLabel || "")
+    .toString()
+    .trim();
+  const key = `${direction}|${heading}|${ts || time}|${normalizedText}`;
+  return {
+    i: index,
+    liIndex: message?.liIndex ?? -1,
+    direction,
+    time,
+    ts,
+    textLen: normalizedText.length,
+    text: normalizedText,
+    key,
+    heading,
+    dt_label:
+      message?.dt_label || `${heading} ${ts || time}`.trim() || "NO_DATETIME",
+    name: (message?.name || "").toString().trim(),
+    sortTsIso: message?.sortTsIso || "",
+    displayLocal: message?.displayLocal || "",
+    msgId: message?.msgId || "",
+    domHint: message?.domHint || null,
+  };
+}
+
 function extractChatHistoryFromInteropShadow() {
   const host = document.querySelector("#interop-outlet");
   const root = host?.shadowRoot;
+  const selectorsUsed = [
+    "#interop-outlet",
+    "ul.msg-s-message-list-content",
+    "list.children",
+    "time.msg-s-message-list__time-heading",
+    ".msg-s-event-listitem",
+    "time.msg-s-message-group__timestamp",
+    "p.msg-s-event-listitem__body",
+    ".msg-s-event-listitem__body",
+  ];
   console.log("[LEF][chat] interop", {
     hostFound: !!host,
     shadowRootFound: !!root,
@@ -168,143 +216,186 @@ function extractChatHistoryFromInteropShadow() {
     throw err;
   }
 
-  const headingCandidates = Array.from(root.querySelectorAll("*")).filter(
-    (el) =>
-      /(enviou a seguinte mensagem|enviou as seguintes mensagens)/i.test(
-        cleanText(el.textContent || ""),
-      ),
-  );
-  console.log("[LEF][chat] heading candidates", {
-    count: headingCandidates.length,
-  });
-  if (!headingCandidates.length) {
+  const list = root.querySelector("ul.msg-s-message-list-content");
+  if (!list) {
     return {
       noMessageBox: true,
       code: "NO_MESSAGE_BOX",
       error: "Message overlay not open",
       user_warning: "Please open a message box.",
-      meta: { headingCount: 0 },
+      meta: {
+        listFound: false,
+        selectorsUsed,
+        domNodesFound: root.querySelectorAll("*").length,
+      },
       messages: [],
-      diag: { headingCount: 0 },
+      diag: { listFound: false },
     };
   }
 
-  let threadRoot = null;
-  let bestCount = -1;
-  for (const heading of headingCandidates) {
-    let node = heading;
-    while (node && node !== root) {
-      const count = node.querySelectorAll
-        ? Array.from(node.querySelectorAll("*")).filter((el) =>
-            /(enviou a seguinte mensagem|enviou as seguintes mensagens)/i.test(
-              cleanText(el.textContent || ""),
-            ),
-          ).length
-        : 0;
-      if (count > bestCount) {
-        bestCount = count;
-        threadRoot = node;
-      }
-      node = node.parentElement;
-    }
-  }
+  const items = Array.from(list.children);
+  let currentHeadingText = "";
+  let lastGroupTimeText = "";
+  let lastGroupNameText = "";
+  let lastGroupDirection = "unknown";
 
-  console.log("[LEF][chat] thread root", {
-    found: !!threadRoot,
-    tag: threadRoot?.tagName || "",
-    className: threadRoot?.className || "",
-    headingCountInRoot: bestCount,
-  });
-  if (!threadRoot) {
-    const err = new Error("Could not locate message thread root in overlay.");
-    err.diag = { headingCount: headingCandidates.length };
-    throw err;
-  }
-
-  const profileName = cleanText(
-    document.querySelector("main h1")?.innerText || "",
-  ).toLowerCase();
-  const seen = new Set();
   const messages = [];
-  const headingsInRoot = headingCandidates.filter((h) =>
-    threadRoot.contains(h),
-  );
+  let eventCount = 0;
+  let bodyCount = 0;
+  let skippedMissingHeading = 0;
+  let skippedMissingTime = 0;
+  let skippedEmptyBody = 0;
+  let skippedMissingEvent = 0;
+  let inheritedTimeCount = 0;
+  let inheritedNameCount = 0;
 
-  for (const heading of headingsInRoot) {
-    const headingText = cleanText(heading.textContent || "");
-    const senderMatch = headingText.match(/^(.+?)\s+enviou/i);
-    const sender = cleanText(senderMatch?.[1] || "");
-    const tsMatch = headingText.match(/às\s+(\d{1,2}:\d{2})/i);
-    const ts = cleanText(tsMatch?.[1] || "");
-    const group =
-      heading.closest("li,article,section,div") || heading.parentElement;
-    if (!group) continue;
+  items.forEach((li, liIndex) => {
+    const headingEl = li.querySelector("time.msg-s-message-list__time-heading");
+    if (headingEl) {
+      currentHeadingText = (headingEl.textContent || "").trim();
+      return;
+    }
 
-    let bestText = "";
-    const candidates = Array.from(group.querySelectorAll("div,span,p")).map(
-      (el) => cleanText(el.textContent || ""),
+    const eventEl = li.querySelector(".msg-s-event-listitem");
+    if (!eventEl) {
+      skippedMissingEvent += 1;
+      return;
+    }
+    eventCount += 1;
+
+    const tsEl =
+      eventEl.querySelector("time.msg-s-message-group__timestamp") ||
+      eventEl.querySelector("time");
+
+    let effectiveTimeText = (tsEl?.textContent || "").trim();
+    if (effectiveTimeText) {
+      lastGroupTimeText = effectiveTimeText;
+    } else if (lastGroupTimeText) {
+      effectiveTimeText = lastGroupTimeText;
+      inheritedTimeCount += 1;
+    } else {
+      skippedMissingTime += 1;
+      console.warn("[LEF][chat][extract] skip missing time", {
+        liIndex,
+        hasHeading: Boolean(currentHeadingText),
+        hasEvent: true,
+      });
+      return;
+    }
+
+    const senderNameEl =
+      eventEl.querySelector(".msg-s-message-group__name") ||
+      eventEl.querySelector(".msg-s-event-listitem__name");
+
+    let effectiveNameText = (senderNameEl?.textContent || "").trim();
+    if (effectiveNameText) {
+      lastGroupNameText = effectiveNameText;
+    } else if (lastGroupNameText) {
+      effectiveNameText = lastGroupNameText;
+      inheritedNameCount += 1;
+    }
+
+    const className = (eventEl.className || "").toLowerCase();
+    let effectiveDirection = "unknown";
+    if (className.includes("from-me") || className.includes("outgoing")) {
+      effectiveDirection = "me";
+    } else if (
+      className.includes("from-other") ||
+      className.includes("incoming")
+    ) {
+      effectiveDirection = "them";
+    } else if (lastGroupDirection) {
+      effectiveDirection = lastGroupDirection;
+    }
+    lastGroupDirection = effectiveDirection;
+
+    let bodyEls = Array.from(
+      eventEl.querySelectorAll("p.msg-s-event-listitem__body"),
     );
-    for (const txt of candidates) {
-      if (!txt) continue;
-      if (txt === headingText) continue;
-      if (isUiNoiseLine(txt)) continue;
-      if (txt.length > bestText.length) bestText = txt;
+    if (!bodyEls.length) {
+      bodyEls = Array.from(eventEl.querySelectorAll(".msg-s-event-listitem__body"));
     }
-    if (!bestText) continue;
+    bodyCount += bodyEls.length;
 
-    const key = `${sender}|${ts}|${bestText}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-
-    let direction = "unknown";
-    if (sender && profileName) {
-      direction = sender.toLowerCase() === profileName ? "them" : "me";
+    if (!currentHeadingText) {
+      skippedMissingHeading += bodyEls.length || 1;
+      console.warn("[LEF][chat][extract] skip missing heading", {
+        liIndex,
+        hasHeading: false,
+        hasTime: Boolean(effectiveTimeText),
+        hasBody: bodyEls.length > 0,
+      });
+      return;
     }
 
-    messages.push({ text: bestText, direction, sender, ts });
-  }
+    bodyEls.forEach((bodyEl) => {
+      const bodyText = (bodyEl?.innerText || "").trim();
+      if (!bodyText) {
+        skippedEmptyBody += 1;
+        return;
+      }
 
-  const firstTs = messages[0]?.ts;
-  const lastTs = messages[messages.length - 1]?.ts;
-  if (firstTs && lastTs) {
-    const toMinutes = (v) => {
-      const [h, m] = v.split(":").map((n) => Number(n));
-      return h * 60 + m;
-    };
-    if (toMinutes(firstTs) > toMinutes(lastTs)) {
-      messages.reverse();
-    }
-  }
+      const message = {
+        i: messages.length,
+        liIndex,
+        heading: currentHeadingText,
+        dateLabel: currentHeadingText,
+        time: effectiveTimeText,
+        dt_label: `${currentHeadingText} ${effectiveTimeText}`.trim(),
+        name: effectiveNameText || "",
+        direction: effectiveDirection || "unknown",
+        text: bodyText,
+      };
+      messages.push(message);
 
-  console.log("[LEF][chat] extracted", {
-    count: messages.length,
-    sample: messages.slice(0, 3),
+      const preview = bodyText.replace(/\s+/g, " ").slice(0, 80);
+      console.log(
+        `[LEF][chat][extract] [li:${liIndex}] ${message.dt_label} | ${message.name || "unknown"} | ${preview}`,
+      );
+    });
   });
-  if (!messages.length) {
-    const err = new Error(
-      "Message overlay not open or no messages rendered. Open the message box and try again.",
+
+  console.groupCollapsed("[LEF][chat][extract] summary");
+  console.log("totalLiItems", items.length);
+  console.log("eventCount", eventCount);
+  console.log("bodyCount", bodyCount);
+  console.log("messagesProduced", messages.length);
+  console.log("skippedMissingHeading", skippedMissingHeading);
+  console.log("skippedMissingTime", skippedMissingTime);
+  console.log("skippedEmptyBody", skippedEmptyBody);
+  console.log("skippedMissingEvent", skippedMissingEvent);
+  console.log("inheritedTimeCount", inheritedTimeCount);
+  console.log("inheritedNameCount", inheritedNameCount);
+  messages.forEach((m, i) => {
+    const preview = (m.text || "").replace(/\s+/g, " ").slice(0, 80);
+    console.log(
+      `[${i}] [li:${m.liIndex}] ${m.dt_label} | ${m.name || "unknown"} | ${preview}`,
     );
-    err.diag = {
-      headingCount: headingsInRoot.length,
-      bodiesInRoot: threadRoot.querySelectorAll("*").length,
-      rootClass: threadRoot.className || "",
-      composerFound: !!root.querySelector("textarea, [contenteditable='true']"),
-      url: window.location.href,
-    };
-    throw err;
-  }
+  });
+  console.groupEnd();
 
   return {
     messages,
     diag: {
-      headingCount: headingsInRoot.length,
-      rootClass: threadRoot.className || "",
-      composerFound: !!root.querySelector("textarea, [contenteditable='true']"),
+      listFound: true,
+      liCount: items.length,
+      eventCount,
+      bodyCount,
+      messagesProduced: messages.length,
+      skippedMissingHeading,
+      skippedMissingTime,
+      skippedEmptyBody,
+      skippedMissingEvent,
+      inheritedTimeCount,
+      inheritedNameCount,
       url: window.location.href,
+      selectorsUsed,
+      domNodesFound: root.querySelectorAll("*").length,
+      traversalOrder: "top-to-bottom",
+      reversedOrder: false,
     },
   };
 }
-
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === "EXTRACT_PROFILE_CONTEXT") {
     try {
@@ -328,6 +419,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     try {
       const result = extractChatHistoryFromInteropShadow();
       if (result?.noMessageBox) {
+        console.groupCollapsed(`[LEF][chat][${reqId}] content messages (raw)`);
+        console.log("context", {
+          href: location.href,
+          selectorsUsed: result?.meta?.selectorsUsed || [],
+          domNodesFound: result?.meta?.domNodesFound || 0,
+          messagesProduced: 0,
+          traversalOrder: "top-to-bottom",
+          reversed: false,
+        });
+        console.groupEnd();
         sendResponse({
           ok: false,
           code: "NO_MESSAGE_BOX",
@@ -338,9 +439,26 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         return true;
       }
       const { messages, diag } = result;
+      console.groupCollapsed(`[LEF][chat][${reqId}] content messages (raw)`);
+      console.log("context", {
+        href: location.href,
+        selectorsUsed: diag?.selectorsUsed || [],
+        domNodesFound: diag?.domNodesFound || 0,
+        messagesProduced: Array.isArray(messages) ? messages.length : 0,
+        headingCount: diag?.headingCount || 0,
+        traversalOrder: diag?.traversalOrder || "top-to-bottom",
+        reversed: Boolean(diag?.reversedOrder),
+      });
+      (Array.isArray(messages) ? messages : []).forEach((m, i) => {
+        console.log(toChatLogEntry(m, i));
+      });
+      console.groupEnd();
       const meta = {
         reqId,
         extractedCount: Array.isArray(messages) ? messages.length : 0,
+        rawExtractedCount: diag?.rawExtractedCount ?? null,
+        datedCount: diag?.datedCount ?? null,
+        droppedNoDateCount: diag?.droppedNoDateCount ?? null,
       };
       console.log("[LEF][chat] handler success", meta);
       sendResponse({ ok: true, messages, diag, meta });
