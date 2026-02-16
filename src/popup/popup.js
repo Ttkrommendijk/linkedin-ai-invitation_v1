@@ -215,6 +215,8 @@ function applyLifecycleUiState(dbRow) {
   acceptedAtLabelEl.querySelector("small").textContent = "";
 
   const status = getLifecycleStatusValue(dbRow);
+  const canMarkAccepted = status === "invited";
+  markAcceptedBtn.disabled = !canMarkAccepted;
   const dbMessage = (dbRow?.message || "").trim();
   if (dbMessage) {
     previewEl.textContent = dbMessage;
