@@ -64,6 +64,16 @@ const LIFECYCLE_STYLE_MAP = {
   first_message_sent: { background: "#ede9fe", color: "#6d28d9" }, // purple
 };
 const DEFAULT_FIRST_MESSAGE_PROMPT = messagePromptEl.value;
+const IS_SIDE_PANEL_CONTEXT = (() => {
+  try {
+    return (
+      window.location.pathname.includes("sidepanel.html") ||
+      window.top.location.pathname.includes("sidepanel.html")
+    );
+  } catch (_e) {
+    return window.location.pathname.includes("sidepanel.html");
+  }
+})();
 
 function debug(...args) {
   if (DEBUG) console.log(...args);
@@ -85,6 +95,7 @@ const toggleProfileContextPreviewBtnEl = document.getElementById(
 const lifecycleBarEl = document.getElementById("lifecycleBar");
 const lifecycleBarTextEl = document.getElementById("lifecycleBarText");
 const copyBtnEl = document.getElementById("copyBtn");
+const openSidePanelBtnEl = document.getElementById("openSidePanel");
 const invitedAtLabelEl = document.getElementById("invitedAtLabel");
 const acceptedAtLabelEl = document.getElementById("acceptedAtLabel");
 
@@ -535,6 +546,9 @@ async function loadSettings() {
   if (webhookBaseUrl) webhookBaseUrlEl.value = webhookBaseUrl;
 }
 loadSettings();
+if (IS_SIDE_PANEL_CONTEXT && openSidePanelBtnEl) {
+  openSidePanelBtnEl.classList.add("is-hidden");
+}
 setCopyButtonEnabled(false);
 renderProfileContext();
 setProfileContextPreviewCollapsed(true);
@@ -663,20 +677,23 @@ copyBtnEl.addEventListener("click", async () => {
   }
 });
 
-document.getElementById("openSidePanel").addEventListener("click", async () => {
-  if (!chrome.sidePanel?.open) {
-    statusEl.textContent = UI_TEXT.sidePanelNotAvailable;
-    return;
-  }
+if (openSidePanelBtnEl && !IS_SIDE_PANEL_CONTEXT) {
+  openSidePanelBtnEl.addEventListener("click", async () => {
+    if (!chrome.sidePanel?.open) {
+      statusEl.textContent = UI_TEXT.sidePanelNotAvailable;
+      return;
+    }
 
-  try {
-    const currentWindow = await chrome.windows.getCurrent();
-    await chrome.sidePanel.open({ windowId: currentWindow.id });
-    statusEl.textContent = UI_TEXT.openedSidePanel;
-  } catch (_e) {
-    statusEl.textContent = UI_TEXT.sidePanelNotAvailable;
-  }
-});
+    try {
+      const currentWindow = await chrome.windows.getCurrent();
+      await chrome.sidePanel.open({ windowId: currentWindow.id });
+      statusEl.textContent = UI_TEXT.openedSidePanel;
+      window.close();
+    } catch (_e) {
+      statusEl.textContent = UI_TEXT.sidePanelNotAvailable;
+    }
+  });
+}
 
 document.getElementById("generate").addEventListener("click", async () => {
   statusEl.textContent = UI_TEXT.preparingProfile;
