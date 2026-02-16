@@ -16,6 +16,10 @@ textarea {
 button {
     margin-top: 8px;
     padding: 10px;
+    cursor: pointer;
+}
+button:disabled {
+    cursor: default;
 }
 .row {
     margin-top: 10px;
