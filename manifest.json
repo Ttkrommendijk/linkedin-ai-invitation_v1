@@ -3,13 +3,22 @@
   "name": "LEF LinkedIn Invite Generator",
   "version": "0.1.0",
   "description": "Extracts LinkedIn profile context and generates a personalized invite via OpenAI, then copies to clipboard.",
-  "permissions": ["activeTab", "scripting", "storage", "clipboardWrite"],
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "clipboardWrite",
+    "sidePanel"
+  ],
   "host_permissions": [
     "https://www.linkedin.com/*",
     "https://api.openai.com/*"
   ],
   "action": {
     "default_popup": "src/popup/popup.html"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
   },
   "background": {
     "service_worker": "src/background/background.js"

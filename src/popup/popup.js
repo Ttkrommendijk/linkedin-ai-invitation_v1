@@ -42,6 +42,8 @@ const UI_TEXT = {
   markedFirstMessageSent: `Marked as first message sent ${EMOJI_CHECK}`,
   promptSaved: "Prompt saved.",
   promptReset: "Prompt reset to default.",
+  openedSidePanel: "Opened side panel.",
+  sidePanelNotAvailable: "Side panel not available.",
   lifecycleOpenLinkedInProfileFirst: "Open a LinkedIn profile first.",
   lifecycleNotInDatabase: "Not in database",
   lifecycleGenerated: "Generated",
@@ -658,6 +660,21 @@ copyBtnEl.addEventListener("click", async () => {
     statusEl.textContent = UI_TEXT.copiedToClipboard;
   } catch (e) {
     statusEl.textContent = `${UI_TEXT.copyFailedPrefix} ${getErrorMessage(e)}`;
+  }
+});
+
+document.getElementById("openSidePanel").addEventListener("click", async () => {
+  if (!chrome.sidePanel?.open) {
+    statusEl.textContent = UI_TEXT.sidePanelNotAvailable;
+    return;
+  }
+
+  try {
+    const currentWindow = await chrome.windows.getCurrent();
+    await chrome.sidePanel.open({ windowId: currentWindow.id });
+    statusEl.textContent = UI_TEXT.openedSidePanel;
+  } catch (_e) {
+    statusEl.textContent = UI_TEXT.sidePanelNotAvailable;
   }
 });
 
