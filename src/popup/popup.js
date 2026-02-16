@@ -171,6 +171,7 @@ let overviewSortDir = "desc";
 let overviewFilters = { campaign: "", archived: "", status: "" };
 let overviewSearch = "";
 let overviewSearchDebounceTimer = null;
+let chatExtractSeq = 0;
 const OVERVIEW_ENABLED = Boolean(
   IS_SIDE_PANEL_CONTEXT && tabOverviewBtn && tabOverview,
 );
@@ -261,53 +262,114 @@ function isMessageBoxMissingError(errorText) {
 
 async function refreshChatHistoryFromActiveTab() {
   if (!chatHistoryEl) return;
-  console.log("[LEF][chat] refresh requested");
   chatHistoryEl.value = "Loading chat history...";
   extractedChatMessages = [];
+  const reqId = `chat_${Date.now()}_${++chatExtractSeq}`;
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  console.log("[LEF][chat] active tab", { tabId: tab?.id, url: tab?.url });
+  console.groupCollapsed(
+    `[LEF][chat][${reqId}] refreshChatHistoryFromActiveTab`,
+  );
+  console.log("tab", { id: tab?.id, url: tab?.url });
+  console.log("state", { IS_SIDE_PANEL_CONTEXT, outreachMessageStatus });
+  console.groupEnd();
 
   if (!tab?.id) {
     chatHistoryEl.value = "Could not find active tab.";
     return;
   }
 
-  console.log("[LEF][chat] sending EXTRACT_CHAT_HISTORY to tab", tab.id);
-  chrome.tabs.sendMessage(tab.id, { type: "EXTRACT_CHAT_HISTORY" }, (resp) => {
-    const lastErr = chrome.runtime.lastError;
-    if (lastErr) {
-      console.error("[LEF][chat] sendMessage lastError", lastErr.message);
-      chatHistoryEl.value = `sendMessage error: ${lastErr.message}`;
-      return;
-    }
-
-    if (!resp) {
-      console.warn("[LEF][chat] no response from content script");
-      chatHistoryEl.value =
-        "No response from content script. Ensure you're on https://www.linkedin.com/in/* and reload the extension/page.";
-      return;
-    }
-
-    if (!resp.ok) {
-      console.warn("[LEF][chat] extract failed", resp.error);
-      if (resp.stack) console.warn("[LEF][chat] stack", resp.stack);
-      if (isMessageBoxMissingError(resp.error)) {
-        chatHistoryEl.value = "Please open a message box.";
+  chrome.tabs.sendMessage(
+    tab.id,
+    { type: "EXTRACT_CHAT_HISTORY", reqId },
+    (resp) => {
+      console.groupCollapsed(`[LEF][chat][${reqId}] response`);
+      console.log("ok", resp?.ok);
+      console.log("error", resp?.error);
+      console.log("meta", resp?.meta || null);
+      console.log(
+        "count_raw",
+        Array.isArray(resp?.messages) ? resp.messages.length : null,
+      );
+      const lastErr = chrome.runtime.lastError;
+      if (lastErr) {
+        console.error("[LEF][chat] sendMessage lastError", lastErr.message);
+        chatHistoryEl.value = `sendMessage error: ${lastErr.message}`;
+        console.groupEnd();
         return;
       }
-      chatHistoryEl.value = `extract error: ${resp.error || "unknown"}${
-        resp.stack ? `\n\nstack:\n${resp.stack}` : ""
-      }`;
-      return;
-    }
 
-    console.log("[LEF][chat] extract ok", {
-      count: resp.messages?.length || 0,
-    });
-    extractedChatMessages = Array.isArray(resp.messages) ? resp.messages : [];
-    chatHistoryEl.value = formatChatHistory(resp.messages);
-  });
+      if (!resp) {
+        console.warn("[LEF][chat] no response from content script");
+        chatHistoryEl.value =
+          "No response from content script. Ensure you're on https://www.linkedin.com/in/* and reload the extension/page.";
+        console.groupEnd();
+        return;
+      }
+
+      if (!resp.ok) {
+        console.warn("[LEF][chat] extract failed", resp.error);
+        if (resp.stack) console.warn("[LEF][chat] stack", resp.stack);
+        if (isMessageBoxMissingError(resp.error)) {
+          chatHistoryEl.value = "Please open a message box.";
+          console.groupEnd();
+          return;
+        }
+        chatHistoryEl.value = `extract error: ${resp.error || "unknown"}${
+          resp.stack ? `\n\nstack:\n${resp.stack}` : ""
+        }`;
+        console.groupEnd();
+        return;
+      }
+
+      const messages = Array.isArray(resp.messages) ? resp.messages : [];
+      const counts = new Map();
+      const seenKeys = new Set();
+      const dedupedMessages = [];
+      for (const m of messages) {
+        const direction =
+          m?.direction === "them"
+            ? "them"
+            : m?.direction === "me"
+              ? "me"
+              : "unknown";
+        const time = (m?.ts || m?.time || "").toString().trim();
+        const normalizedText = (m?.text || "")
+          .toString()
+          .trim()
+          .replace(/\s+/g, " ");
+        const key = `${direction}|${time}|${normalizedText}`;
+        counts.set(key, (counts.get(key) || 0) + 1);
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          dedupedMessages.push(m);
+        }
+      }
+      const dupEntries = Array.from(counts.entries())
+        .filter(([, count]) => count > 1)
+        .sort((a, b) => b[1] - a[1]);
+      const uniqueCount = counts.size;
+      const dupCount = messages.length - uniqueCount;
+      console.log("dup_stats", {
+        rawCount: messages.length,
+        uniqueCount,
+        dupCount,
+        dedupedCount: dedupedMessages.length,
+        topDupKeys: dupEntries.slice(0, 5).map(([key, count]) => ({
+          key,
+          count,
+        })),
+      });
+
+      extractedChatMessages = dedupedMessages;
+      chatHistoryEl.value = formatChatHistory(dedupedMessages);
+      console.log("render", {
+        extractedCount: extractedChatMessages.length,
+        renderedChars: (chatHistoryEl.value || "").length,
+      });
+      console.groupEnd();
+    },
+  );
 }
 
 function renderProfileContext() {

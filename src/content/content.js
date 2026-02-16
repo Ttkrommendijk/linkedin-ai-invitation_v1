@@ -319,13 +319,20 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 
   if (msg?.type === "EXTRACT_CHAT_HISTORY") {
-    console.log("[LEF][chat] handler entry", { href: location.href });
+    const reqId = String(msg?.reqId || "no_req_id");
+    console.log("[LEF][chat] handler entry", { reqId, href: location.href });
     try {
       const { messages, diag } = extractChatHistoryFromInteropShadow();
-      sendResponse({ ok: true, messages, diag });
+      const meta = {
+        reqId,
+        extractedCount: Array.isArray(messages) ? messages.length : 0,
+      };
+      console.log("[LEF][chat] handler success", meta);
+      sendResponse({ ok: true, messages, diag, meta });
     } catch (e) {
       console.error(
         "[LEF][chat] handler exception",
+        { reqId },
         e?.message || String(e),
         e?.stack,
       );
@@ -334,6 +341,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         error: e?.message || String(e || "unknown"),
         stack: e?.stack || "",
         diag: e?.diag || null,
+        meta: { reqId },
       });
     }
     return true;
