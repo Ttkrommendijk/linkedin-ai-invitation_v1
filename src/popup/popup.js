@@ -244,6 +244,14 @@ function applyLifecycleUiState(dbRow) {
     acceptedAtLabelEl.querySelector("small").textContent =
       `Invitation accepted: ${acceptedAtText}`;
   }
+
+  if (acceptedOrBeyond) {
+    const dbFirstMessage = (dbRow?.first_message || "").trim();
+    if (dbFirstMessage) {
+      firstMessagePreviewEl.textContent = dbFirstMessage;
+      firstMessage = dbFirstMessage;
+    }
+  }
 }
 
 function deriveLifecycleState(row) {
@@ -308,6 +316,7 @@ async function refreshInvitationRowFromDb() {
   const lifecycle = deriveLifecycleState(dbInvitationRow);
   setLifecycleBar(lifecycle.key, lifecycle.text);
   applyLifecycleUiState(dbInvitationRow);
+  updateMessageTabControls();
 }
 
 function hasMessageProfileUrl() {
@@ -321,7 +330,9 @@ function updateSavePromptButtonState() {
 
 function updateMessageTabControls() {
   const hasProfileUrl = hasMessageProfileUrl();
-  const hasGeneratedFirstMessage = Boolean((firstMessage || "").trim());
+  const hasGeneratedFirstMessage = Boolean(
+    (firstMessagePreviewEl.textContent || "").trim(),
+  );
 
   generateFirstMessageBtnEl.disabled = !hasProfileUrl;
   copyFirstMessageBtnEl.disabled = !hasGeneratedFirstMessage;
