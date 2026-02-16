@@ -91,6 +91,7 @@ const LIFECYCLE_STYLE_MAP = {
   first_message_sent: { background: "#ede9fe", color: "#6d28d9" }, // purple
 };
 const DEFAULT_FIRST_MESSAGE_PROMPT = messagePromptEl.value;
+const LEF_UTILS = globalThis.LEFUtils || {};
 const IS_SIDE_PANEL_CONTEXT = (() => {
   try {
     return (
@@ -252,6 +253,9 @@ function formatChatHistory(messages) {
 }
 
 function normalizeChatText(value) {
+  if (typeof LEF_UTILS.normalizeWhitespace === "function") {
+    return LEF_UTILS.normalizeWhitespace(value || "");
+  }
   return (value || "").toString().trim().replace(/\s+/g, " ");
 }
 
@@ -852,6 +856,11 @@ async function fetchOverviewPage() {
 async function openLinkedIn(url) {
   const targetUrl = String(url || "").trim();
   if (!targetUrl) return;
+  const isLinkedInTarget =
+    typeof LEF_UTILS.isLinkedInProfileLikeUrl === "function"
+      ? LEF_UTILS.isLinkedInProfileLikeUrl(targetUrl)
+      : /^https:\/\/www\.linkedin\.com\/(in|company)\/[^/?#]+/i.test(targetUrl);
+  if (!isLinkedInTarget) return;
   const [activeTab] = await chrome.tabs.query({
     active: true,
     currentWindow: true,

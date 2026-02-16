@@ -1,12 +1,16 @@
 const refreshNowBtnEl = document.getElementById("refreshNow");
 const refreshStatusEl = document.getElementById("refreshStatus");
 const panelFrameEl = document.getElementById("panelFrame");
+const LEF_UTILS = globalThis.LEFUtils || {};
 
 const REFRESH_DEBOUNCE_MS = 500;
 let refreshTimer = null;
 let lastNotifiedUrl = "";
 
 function isLinkedInProfileLikeUrl(url) {
+  if (typeof LEF_UTILS.isLinkedInProfileLikeUrl === "function") {
+    return LEF_UTILS.isLinkedInProfileLikeUrl(url);
+  }
   if (!url || typeof url !== "string") return false;
   return /^https:\/\/www\.linkedin\.com\/(in|company)\/[^/?#]+/i.test(url);
 }

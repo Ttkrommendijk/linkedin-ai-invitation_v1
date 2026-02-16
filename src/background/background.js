@@ -1,3 +1,11 @@
+try {
+  importScripts("../shared/utils.js");
+} catch (_e) {
+  // Optional shared helper; background keeps local fallbacks.
+}
+
+const LEF_UTILS = globalThis.LEFUtils || {};
+
 const DEBUG = false;
 
 function debug(...args) {
@@ -956,6 +964,9 @@ const sidePanelRefreshTimers = new Map();
 const lastSidePanelUrlByTab = new Map();
 
 function isLinkedInProfileLikeUrl(url) {
+  if (typeof LEF_UTILS.isLinkedInProfileLikeUrl === "function") {
+    return LEF_UTILS.isLinkedInProfileLikeUrl(url);
+  }
   if (!url || typeof url !== "string") return false;
   return /^https:\/\/www\.linkedin\.com\/(in|company)\/[^/?#]+/i.test(url);
 }
