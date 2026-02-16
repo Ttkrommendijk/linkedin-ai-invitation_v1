@@ -178,11 +178,15 @@ function extractChatHistoryFromInteropShadow() {
     count: headingCandidates.length,
   });
   if (!headingCandidates.length) {
-    const err = new Error(
-      "Message overlay not open or no messages rendered. Open the message box and try again.",
-    );
-    err.diag = { headingCount: 0 };
-    throw err;
+    return {
+      noMessageBox: true,
+      code: "NO_MESSAGE_BOX",
+      error: "Message overlay not open",
+      user_warning: "Please open a message box.",
+      meta: { headingCount: 0 },
+      messages: [],
+      diag: { headingCount: 0 },
+    };
   }
 
   let threadRoot = null;
@@ -322,7 +326,18 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     const reqId = String(msg?.reqId || "no_req_id");
     console.log("[LEF][chat] handler entry", { reqId, href: location.href });
     try {
-      const { messages, diag } = extractChatHistoryFromInteropShadow();
+      const result = extractChatHistoryFromInteropShadow();
+      if (result?.noMessageBox) {
+        sendResponse({
+          ok: false,
+          code: "NO_MESSAGE_BOX",
+          error: "Message overlay not open",
+          user_warning: "Please open a message box.",
+          meta: { reqId, headingCount: result?.meta?.headingCount || 0 },
+        });
+        return true;
+      }
+      const { messages, diag } = result;
       const meta = {
         reqId,
         extractedCount: Array.isArray(messages) ? messages.length : 0,

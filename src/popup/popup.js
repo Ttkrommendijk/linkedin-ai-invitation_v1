@@ -308,6 +308,16 @@ async function refreshChatHistoryFromActiveTab() {
       }
 
       if (!resp.ok) {
+        if (resp?.code === "NO_MESSAGE_BOX" || resp?.user_warning) {
+          chatHistoryEl.value =
+            resp?.user_warning || "Please open a message box.";
+          console.log("[LEF][chat] warning", {
+            code: resp?.code || null,
+            user_warning: resp?.user_warning || null,
+          });
+          console.groupEnd();
+          return;
+        }
         console.warn("[LEF][chat] extract failed", resp.error);
         if (resp.stack) console.warn("[LEF][chat] stack", resp.stack);
         if (isMessageBoxMissingError(resp.error)) {
