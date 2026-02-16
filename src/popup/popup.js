@@ -968,7 +968,10 @@ async function copyToClipboard(text) {
 function setCopyButtonEnabled(enabled) {
   copyBtnEl.disabled = !enabled;
 }
-function setActiveTab(which) {
+function setActiveTab(which, { userInitiated = false } = {}) {
+  if (IS_SIDE_PANEL_CONTEXT && !userInitiated) {
+    return;
+  }
   const invitationActive = which === "invitation";
   const messageActive = which === "message";
   const overviewActive = OVERVIEW_ENABLED && which === "overview";
@@ -997,10 +1000,18 @@ function setActiveTab(which) {
   }
 }
 
-tabMainBtn.addEventListener("click", () => setActiveTab("invitation"));
-tabMessageBtn.addEventListener("click", () => setActiveTab("message"));
-tabOverviewBtn?.addEventListener("click", () => setActiveTab("overview"));
-tabConfigBtn.addEventListener("click", () => setActiveTab("config"));
+tabMainBtn.addEventListener("click", () =>
+  setActiveTab("invitation", { userInitiated: true }),
+);
+tabMessageBtn.addEventListener("click", () =>
+  setActiveTab("message", { userInitiated: true }),
+);
+tabOverviewBtn?.addEventListener("click", () =>
+  setActiveTab("overview", { userInitiated: true }),
+);
+tabConfigBtn.addEventListener("click", () =>
+  setActiveTab("config", { userInitiated: true }),
+);
 refreshChatHistoryBtnEl?.addEventListener("click", () => {
   refreshChatHistoryFromActiveTab();
 });

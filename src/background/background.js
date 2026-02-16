@@ -150,8 +150,15 @@ invite_text must be a single paragraph (no line breaks). Aim for 220-280 charact
 MANDATORY STRUCTURE FOR invite_text:
 1. Start with "Olá {first name from profile}". If first name is missing/unknown, start with "Olá," (no name).
 2. Brief factual reference from the profile.
-3. Clear strategic linkage to my own atuação (shared domain or complexity).
-4. Short, low-friction closing sentence ONLY about connecting.
+3. CAUSAL LINKAGE sentence that connects their profile to my own atuação using a cause-and-effect connector.
+   - Must use a connector like: "e como também atuo...", "e como eu também atuo...", "por eu também atuar...", "como também atuo...", "por também atuar..."
+   - The linkage MUST clearly express: because of (2) + because I also do (3) => it makes sense/it's interesting to connect.
+4. Close with a short, low-friction sentence ONLY about connecting OR integrate the closing into the causal linkage (single-sentence close allowed).
+
+STYLE TARGET (VERY IMPORTANT):
+Prefer a single flowing sentence where possible, using commas to connect clauses, similar to:
+"Olá {nome}, notei ... , e como também atuo ... achei interessante conectar."
+This is allowed even if it merges steps (2)-(4), as long as all intents are present.
 
 Tone: peer-level, neutral, specific, not salesy.
 Avoid praise, flattery, or emotional adjectives.
@@ -161,11 +168,13 @@ Never invent facts.
 CLOSING RULES (STRICT):
 - Do NOT end with a question.
 - Do NOT mention meetings, calls, troca de experiências, agenda, conversar, apresentar.
-- Closing must only express openness to connect.
+- Closing must only express openness to connect, or the implicit "achei interessante conectar" style.
 Examples:
 "Seria um prazer conectar."
 "Seria ótimo adicionar você à minha rede."
 "Vamos nos conectar."
+"Achei interessante conectar."
+"Faz sentido a gente se conectar."
 
 Do NOT ask deep conceptual or technical questions.
 Do NOT introduce new themes in the final sentence.
