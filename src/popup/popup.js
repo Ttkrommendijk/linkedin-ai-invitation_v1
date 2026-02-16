@@ -49,13 +49,13 @@ const UI_TEXT = {
 };
 const STORAGE_KEY_FIRST_MESSAGE_PROMPT = "firstMessagePrompt";
 const LIFECYCLE_STYLE_MAP = {
-  neutral: { background: "#f2f2f2", color: "#333" },
-  not_in_database: { background: "#fbeaea", color: "#8a1f1f" },
-  generated: { background: "#fff4e5", color: "#7a4a00" },
-  invited: { background: "#fff9db", color: "#6b5a00" },
-  accepted: { background: "#e8f4ff", color: "#0b4a7a" },
-  first_message_generated: { background: "#eaf7ee", color: "#1f6b2a" },
-  first_message_sent: { background: "#e6ffed", color: "#146c2e" },
+  neutral: { background: "#f3f4f6", color: "#374151" },
+  not_in_database: { background: "#fee2e2", color: "#7f1d1d" },
+  generated: { background: "#dbeafe", color: "#1d4ed8" }, // blue
+  invited: { background: "#ffedd5", color: "#c2410c" }, // orange
+  accepted: { background: "#dcfce7", color: "#166534" }, // green
+  first_message_generated: { background: "#bbf7d0", color: "#14532d" }, // dark green
+  first_message_sent: { background: "#ede9fe", color: "#6d28d9" }, // purple
 };
 
 function debug(...args) {
