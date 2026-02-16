@@ -6,6 +6,7 @@ const messagePromptEl = document.getElementById("messagePrompt");
 const messagePromptWrapEl = document.getElementById("messagePromptWrap");
 const toggleMessagePromptBtnEl = document.getElementById("toggleMessagePrompt");
 const saveMessagePromptBtnEl = document.getElementById("saveMessagePrompt");
+const resetMessagePromptBtnEl = document.getElementById("resetMessagePrompt");
 const generateFirstMessageBtnEl = document.getElementById(
   "generateFirstMessage",
 );
@@ -40,6 +41,7 @@ const UI_TEXT = {
   firstMessageGenerated: `First message generated ${EMOJI_CHECK}`,
   markedFirstMessageSent: `Marked as first message sent ${EMOJI_CHECK}`,
   promptSaved: "Prompt saved.",
+  promptReset: "Prompt reset to default.",
   lifecycleOpenLinkedInProfileFirst: "Open a LinkedIn profile first.",
   lifecycleNotInDatabase: "Not in database",
   lifecycleGenerated: "Generated",
@@ -59,6 +61,7 @@ const LIFECYCLE_STYLE_MAP = {
   first_message_generated: { background: "#bbf7d0", color: "#14532d" }, // dark green
   first_message_sent: { background: "#ede9fe", color: "#6d28d9" }, // purple
 };
+const DEFAULT_FIRST_MESSAGE_PROMPT = messagePromptEl.value;
 
 function debug(...args) {
   if (DEBUG) console.log(...args);
@@ -352,6 +355,8 @@ function hasMessageProfileUrl() {
 function updateSavePromptButtonState() {
   saveMessagePromptBtnEl.disabled =
     messagePromptEl.value === lastSavedFirstMessagePrompt;
+  resetMessagePromptBtnEl.disabled =
+    messagePromptEl.value === DEFAULT_FIRST_MESSAGE_PROMPT;
 }
 
 function updateMessageTabControls() {
@@ -557,6 +562,12 @@ saveMessagePromptBtnEl.addEventListener("click", async () => {
   lastSavedFirstMessagePrompt = promptValue;
   updateSavePromptButtonState();
   messageStatusEl.textContent = UI_TEXT.promptSaved;
+});
+
+resetMessagePromptBtnEl.addEventListener("click", () => {
+  messagePromptEl.value = DEFAULT_FIRST_MESSAGE_PROMPT;
+  updateSavePromptButtonState();
+  messageStatusEl.textContent = UI_TEXT.promptReset;
 });
 
 async function saveConfig() {
