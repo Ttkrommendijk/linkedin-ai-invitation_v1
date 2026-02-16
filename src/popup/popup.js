@@ -205,21 +205,6 @@ function renderMessageTab(status) {
   if (commStatusEl) commStatusEl.textContent = status;
 }
 
-function setMessageTabModeUi(status) {
-  renderMessageTab(status);
-}
-
-async function loadOutreachMessageStatus() {
-  const { message_status } = await chrome.storage.local.get(["message_status"]);
-  const normalized =
-    message_status === "first_message_sent"
-      ? "first_message_sent"
-      : getOutreachStatusFromDbRow();
-  outreachMessageStatus = normalized || "accepted";
-  console.log("[LEF][chat] status loaded", outreachMessageStatus);
-  renderMessageTab(outreachMessageStatus);
-}
-
 function updateGenerateFirstMessageButtonLabel() {
   generateFirstMessageBtnEl.textContent = isPostSendMode()
     ? "Create new message"
