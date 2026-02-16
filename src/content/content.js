@@ -156,6 +156,19 @@ function normalizeChatText(value) {
   return (value || "").toString().trim().replace(/\s+/g, " ");
 }
 
+function looksLikeSenderName(value) {
+  const text = (value || "").toString().trim();
+  if (!text) return false;
+  if (text.length < 2) return false;
+  if (text.length > 80) return false;
+  if (/^\d{1,2}:\d{2}$/.test(text)) return false;
+  if (/^ver perfil/i.test(text)) return false;
+  if (/enviou a seguinte mensagem|enviou as seguintes mensagens/i.test(text))
+    return false;
+  if (isUiNoiseLine(text)) return false;
+  return true;
+}
+
 function toChatLogEntry(message, index) {
   const direction =
     message?.direction === "them"
@@ -242,6 +255,8 @@ function extractChatHistoryFromInteropShadow() {
   const messages = [];
   let eventCount = 0;
   let bodyCount = 0;
+  let headingLiCount = 0;
+  let liWithHeadingAndEventCount = 0;
   let skippedMissingHeading = 0;
   let skippedMissingTime = 0;
   let skippedEmptyBody = 0;
@@ -253,10 +268,13 @@ function extractChatHistoryFromInteropShadow() {
     const headingEl = li.querySelector("time.msg-s-message-list__time-heading");
     if (headingEl) {
       currentHeadingText = (headingEl.textContent || "").trim();
-      return;
+      headingLiCount += 1;
     }
 
     const eventEl = li.querySelector(".msg-s-event-listitem");
+    if (headingEl && eventEl) {
+      liWithHeadingAndEventCount += 1;
+    }
     if (!eventEl) {
       skippedMissingEvent += 1;
       return;
@@ -283,11 +301,22 @@ function extractChatHistoryFromInteropShadow() {
       return;
     }
 
-    const senderNameEl =
-      eventEl.querySelector(".msg-s-message-group__name") ||
-      eventEl.querySelector(".msg-s-event-listitem__name");
-
-    let effectiveNameText = (senderNameEl?.textContent || "").trim();
+    const senderNameCandidates = [
+      eventEl.querySelector(".msg-s-message-group__name"),
+      eventEl.querySelector(
+        "[data-control-name='view_profile'] .hoverable-link-text",
+      ),
+      eventEl.querySelector("a[href*='/in/'] .hoverable-link-text"),
+      eventEl.querySelector("span[aria-hidden='true']"),
+    ];
+    let effectiveNameText = "";
+    for (const el of senderNameCandidates) {
+      const candidate = (el?.innerText || el?.textContent || "").trim();
+      if (looksLikeSenderName(candidate)) {
+        effectiveNameText = candidate;
+        break;
+      }
+    }
     if (effectiveNameText) {
       lastGroupNameText = effectiveNameText;
     } else if (lastGroupNameText) {
@@ -313,7 +342,9 @@ function extractChatHistoryFromInteropShadow() {
       eventEl.querySelectorAll("p.msg-s-event-listitem__body"),
     );
     if (!bodyEls.length) {
-      bodyEls = Array.from(eventEl.querySelectorAll(".msg-s-event-listitem__body"));
+      bodyEls = Array.from(
+        eventEl.querySelectorAll(".msg-s-event-listitem__body"),
+      );
     }
     bodyCount += bodyEls.length;
 
@@ -360,6 +391,8 @@ function extractChatHistoryFromInteropShadow() {
   console.log("eventCount", eventCount);
   console.log("bodyCount", bodyCount);
   console.log("messagesProduced", messages.length);
+  console.log("headingLiCount", headingLiCount);
+  console.log("liWithHeadingAndEventCount", liWithHeadingAndEventCount);
   console.log("skippedMissingHeading", skippedMissingHeading);
   console.log("skippedMissingTime", skippedMissingTime);
   console.log("skippedEmptyBody", skippedEmptyBody);
@@ -376,6 +409,17 @@ function extractChatHistoryFromInteropShadow() {
 
   return {
     messages,
+    meta: {
+      totalLi: items.length,
+      headingLiCount,
+      liWithHeadingAndEventCount,
+      extractedCount: messages.length,
+      skippedNoHeadingCount: skippedMissingHeading,
+      skippedNoTimeCount: skippedMissingTime,
+      skippedNoBodyCount: skippedEmptyBody,
+      inheritedTimeCount,
+      inheritedNameCount,
+    },
     diag: {
       listFound: true,
       liCount: items.length,
@@ -455,10 +499,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       console.groupEnd();
       const meta = {
         reqId,
-        extractedCount: Array.isArray(messages) ? messages.length : 0,
-        rawExtractedCount: diag?.rawExtractedCount ?? null,
-        datedCount: diag?.datedCount ?? null,
-        droppedNoDateCount: diag?.droppedNoDateCount ?? null,
+        ...(result?.meta || {}),
+        extractedCount:
+          result?.meta?.extractedCount ??
+          (Array.isArray(messages) ? messages.length : 0),
       };
       console.log("[LEF][chat] handler success", meta);
       sendResponse({ ok: true, messages, diag, meta });

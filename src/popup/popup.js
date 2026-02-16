@@ -226,17 +226,27 @@ function formatChatHistory(messages) {
     return "No chat messages found.";
   }
   const lines = [];
-  let lastDate = "";
+  let lastHeading = "";
+  let lastGroupKey = "";
   for (const m of messages) {
     const dateLabel = (m?.heading || m?.dateLabel || "").trim();
+    const name = (m?.name || "").trim() || "Unknown";
     const time = (m?.time || m?.ts || "").trim();
     const text = (m?.text || "").trim();
     if (!text || !time) continue;
-    if (dateLabel && dateLabel !== lastDate) {
+    if (dateLabel && dateLabel !== lastHeading) {
+      if (lines.length && lines[lines.length - 1] !== "") lines.push("");
       lines.push(dateLabel);
-      lastDate = dateLabel;
+      lastHeading = dateLabel;
+      lastGroupKey = "";
     }
-    lines.push(`[${time}] ${text}`);
+    const groupKey = `${name}||${time}`;
+    if (groupKey !== lastGroupKey) {
+      if (lines.length && lines[lines.length - 1] !== "") lines.push("");
+      lines.push(`${name}  ${time}`);
+      lastGroupKey = groupKey;
+    }
+    lines.push(text);
   }
   return lines.join("\n");
 }
@@ -317,6 +327,7 @@ async function refreshChatHistoryFromActiveTab() {
       console.log("ok", resp?.ok);
       console.log("error", resp?.error);
       console.log("meta", resp?.meta || null);
+      console.log("extract_meta", resp?.meta || null);
       console.log(
         "count_raw",
         Array.isArray(resp?.messages) ? resp.messages.length : null,
@@ -385,7 +396,7 @@ async function refreshChatHistoryFromActiveTab() {
             ? `${entry.text.slice(0, 117).trim()}...`
             : entry.text;
         console.log(
-          `[LEF][chat][${reqId}] [${String(i).padStart(2, "0")}] [li:${entry.liIndex}] ${datetime} | ${entry.name || "unknown"} | ${entry.direction} | ${previewText}`,
+          `[LEF][chat][${reqId}] [${String(i).padStart(2, "0")}] [li:${entry.liIndex}] ${entry.dayHeading || "NO_HEADING"} | ${entry.name || "Unknown"} | ${entry.time || "NO_TIME"} | ${previewText}`,
         );
         console.log(entry);
       });
