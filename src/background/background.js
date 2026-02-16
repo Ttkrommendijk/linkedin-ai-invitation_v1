@@ -826,6 +826,122 @@ async function supabaseGetInvitationByLinkedinUrl(linkedin_url) {
   return rows[0] || null;
 }
 
+function toOverviewInt(value, fallback) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+}
+
+function toOverviewSortDir(value) {
+  return String(value || "").toLowerCase() === "asc" ? "asc" : "desc";
+}
+
+function toOverviewSortField(value) {
+  const allowed = new Set([
+    "name",
+    "company",
+    "status",
+    "most_relevant_date",
+    "campaign",
+    "archived",
+  ]);
+  const field = String(value || "");
+  return allowed.has(field) ? field : "most_relevant_date";
+}
+
+async function supabaseListInvitationsOverview({
+  page,
+  pageSize,
+  sortField,
+  sortDir,
+  filters,
+  search,
+}) {
+  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+  const safePage = toOverviewInt(page, 1);
+  const safePageSize = toOverviewInt(pageSize, 25);
+  const safeSortField = toOverviewSortField(sortField);
+  const safeSortDir = toOverviewSortDir(sortDir);
+  const offset = (safePage - 1) * safePageSize;
+
+  const params = new URLSearchParams();
+  params.set(
+    "select",
+    "url,name,company,most_relevant_date,archived,campaign,status",
+  );
+  params.set("limit", String(safePageSize));
+  params.set("offset", String(offset));
+  params.set("order", `${safeSortField}.${safeSortDir}`);
+
+  if (filters?.campaign) {
+    params.set("campaign", `eq.${String(filters.campaign).trim()}`);
+  }
+  if (filters?.archived === "0" || filters?.archived === "1") {
+    params.set("archived", `eq.${filters.archived}`);
+  }
+  if (filters?.status) {
+    params.set("status", `eq.${String(filters.status).trim()}`);
+  }
+  if (search && String(search).trim()) {
+    const q = String(search).trim().replace(/\*/g, "");
+    params.set("or", `(name.ilike.*${q}*,company.ilike.*${q}*)`);
+  }
+
+  const url = `${supabaseUrl}/rest/v1/vw_linkedin_invitations_overview?${params.toString()}`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "GET",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+        "Content-Type": "application/json",
+        Prefer: "count=exact",
+      },
+    },
+    15000,
+    "Supabase request",
+  );
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+
+  const rows = await res.json();
+  const contentRange = res.headers.get("content-range") || "";
+  const totalMatch = contentRange.match(/\/(\d+|\*)$/);
+  const total =
+    totalMatch && totalMatch[1] !== "*" ? Number(totalMatch[1]) : null;
+
+  return { rows: Array.isArray(rows) ? rows : [], total };
+}
+
+async function supabaseArchiveInvitation({ url }) {
+  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+  const endpoint = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(url)}`;
+
+  const res = await fetchWithTimeout(
+    endpoint,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({ archived: 1 }),
+    },
+    15000,
+    "Supabase request",
+  );
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+}
+
 const SIDEPANEL_REFRESH_DEBOUNCE_MS = 500;
 const sidePanelRefreshTimers = new Map();
 const lastSidePanelUrlByTab = new Map();
@@ -1026,6 +1142,38 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse({
           ok: false,
           error: normalizeError(e, "SUPABASE_GET_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "DB_LIST_INVITATIONS_OVERVIEW") {
+    (async () => {
+      try {
+        const result = await supabaseListInvitationsOverview(
+          msg?.payload || {},
+        );
+        sendResponse({ ok: true, rows: result.rows, total: result.total });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_GET_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "DB_ARCHIVE_INVITATION") {
+    (async () => {
+      try {
+        await supabaseArchiveInvitation(msg?.payload || {});
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
         });
       }
     })();

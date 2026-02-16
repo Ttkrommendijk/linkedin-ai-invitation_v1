@@ -21,6 +21,9 @@
             <button id="tabMessageBtn" class="tab-btn" type="button">
                 First Message
             </button>
+            <button id="tabOverviewBtn" class="tab-btn" type="button">
+                Overview
+            </button>
             <button id="tabConfigBtn" class="tab-btn" type="button">
                 Config
             </button>
@@ -215,6 +218,141 @@ A pergunta final deve reduzir friccao e facilitar resposta rapida. Sem emojis, h
                     </div>
                     <button id="copyFollowup" type="button">Copy</button>
                 </div>
+            </div>
+        </div>
+
+        <div id="tabOverview" class="tab-panel">
+            <div class="overview-filters row">
+                <input id="overviewCampaignFilter" placeholder="Campaign" />
+                <select id="overviewArchivedFilter">
+                    <option value="">Archived: All</option>
+                    <option value="0">Archived: 0</option>
+                    <option value="1">Archived: 1</option>
+                </select>
+                <select id="overviewStatusFilter">
+                    <option value="">Status: All</option>
+                    <option value="generated">generated</option>
+                    <option value="invited">invited</option>
+                    <option value="accepted">accepted</option>
+                    <option value="first message sent">
+                        first message sent
+                    </option>
+                </select>
+                <input id="overviewSearch" placeholder="Search name/company" />
+            </div>
+
+            <div class="overview-grid-wrap row">
+                <div id="overviewLoading" class="overview-loading" hidden>
+                    Loading…
+                </div>
+                <table class="overview-grid overview-table">
+                    <colgroup>
+                        <col class="overview-col-open" />
+                        <col class="overview-col-archive" />
+                        <col class="overview-col-name" />
+                        <col class="overview-col-company" />
+                        <col class="overview-col-status" />
+                        <col class="overview-col-date" />
+                        <col class="overview-col-campaign" />
+                        <col class="overview-col-archived" />
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th>Open</th>
+                            <th>Archive</th>
+                            <th>
+                                <button
+                                    type="button"
+                                    class="sort-btn"
+                                    data-overview-sort="full_name"
+                                >
+                                    Name
+                                    <span
+                                        class="sort-indicator"
+                                        data-overview-sort-indicator="full_name"
+                                    ></span>
+                                </button>
+                            </th>
+                            <th>
+                                <button
+                                    type="button"
+                                    class="sort-btn"
+                                    data-overview-sort="company"
+                                >
+                                    Company
+                                    <span
+                                        class="sort-indicator"
+                                        data-overview-sort-indicator="company"
+                                    ></span>
+                                </button>
+                            </th>
+                            <th>
+                                <button
+                                    type="button"
+                                    class="sort-btn"
+                                    data-overview-sort="status"
+                                >
+                                    Status
+                                    <span
+                                        class="sort-indicator"
+                                        data-overview-sort-indicator="status"
+                                    ></span>
+                                </button>
+                            </th>
+                            <th>
+                                <button
+                                    type="button"
+                                    class="sort-btn"
+                                    data-overview-sort="most_relevant_date"
+                                >
+                                    Most relevant date
+                                    <span
+                                        class="sort-indicator"
+                                        data-overview-sort-indicator="most_relevant_date"
+                                    ></span>
+                                </button>
+                            </th>
+                            <th>
+                                <button
+                                    type="button"
+                                    class="sort-btn"
+                                    data-overview-sort="campaign"
+                                >
+                                    Campaign
+                                    <span
+                                        class="sort-indicator"
+                                        data-overview-sort-indicator="campaign"
+                                    ></span>
+                                </button>
+                            </th>
+                            <th>
+                                <button
+                                    type="button"
+                                    class="sort-btn"
+                                    data-overview-sort="archived"
+                                >
+                                    Archived
+                                    <span
+                                        class="sort-indicator"
+                                        data-overview-sort-indicator="archived"
+                                    ></span>
+                                </button>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="overviewTbody"></tbody>
+                </table>
+            </div>
+
+            <div class="overview-pagination row">
+                <select id="overviewPageSize">
+                    <option value="10">10</option>
+                    <option value="25" selected>25</option>
+                    <option value="50">50</option>
+                </select>
+                <button id="overviewPrevBtn" type="button">Prev</button>
+                <button id="overviewNextBtn" type="button">Next</button>
+                <div id="overviewCountLabel">Total: ?</div>
             </div>
         </div>
 

@@ -128,10 +128,27 @@ const acceptedAtLabelEl = document.getElementById("acceptedAtLabel");
 
 const tabMainBtn = document.getElementById("tabMainBtn");
 const tabMessageBtn = document.getElementById("tabMessageBtn");
+const tabOverviewBtn = document.getElementById("tabOverviewBtn");
 const tabConfigBtn = document.getElementById("tabConfigBtn");
 const tabMain = document.getElementById("tabMain");
 const tabMessage = document.getElementById("tabMessage");
+const tabOverview = document.getElementById("tabOverview");
 const tabConfig = document.getElementById("tabConfig");
+
+const overviewCampaignFilterEl = document.getElementById(
+  "overviewCampaignFilter",
+);
+const overviewArchivedFilterEl = document.getElementById(
+  "overviewArchivedFilter",
+);
+const overviewStatusFilterEl = document.getElementById("overviewStatusFilter");
+const overviewSearchEl = document.getElementById("overviewSearch");
+const overviewTbodyEl = document.getElementById("overviewTbody");
+const overviewLoadingEl = document.getElementById("overviewLoading");
+const overviewPageSizeEl = document.getElementById("overviewPageSize");
+const overviewPrevBtnEl = document.getElementById("overviewPrevBtn");
+const overviewNextBtnEl = document.getElementById("overviewNextBtn");
+const overviewCountLabelEl = document.getElementById("overviewCountLabel");
 
 const webhookBaseUrlEl = document.getElementById("webhookBaseUrl");
 const webhookSecretEl = document.getElementById("webhookSecret");
@@ -146,6 +163,17 @@ let isMessagePromptCollapsed = true;
 let dbInvitationRow = null;
 let extractedChatMessages = [];
 let outreachMessageStatus = "accepted";
+let overviewPage = 1;
+let overviewPageSize = 25;
+let overviewTotal = null;
+let overviewSortField = "most_relevant_date";
+let overviewSortDir = "desc";
+let overviewFilters = { campaign: "", archived: "", status: "" };
+let overviewSearch = "";
+let overviewSearchDebounceTimer = null;
+const OVERVIEW_ENABLED = Boolean(
+  IS_SIDE_PANEL_CONTEXT && tabOverviewBtn && tabOverview,
+);
 
 function getLifecycleStatusValue(dbRow) {
   return (dbRow?.status || "").trim().toLowerCase();
@@ -526,6 +554,284 @@ function updateMessageTabControls() {
     isFirstMessageSent || !(hasProfileUrl && hasGeneratedFirstMessage);
 }
 
+function getOverviewLastRelevantDate(row) {
+  return row?.most_relevant_date || "";
+}
+
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
+function formatLocalDateTime(isoString) {
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  if (Number.isNaN(d.getTime())) return "";
+  const dd = pad2(d.getDate());
+  const mm = pad2(d.getMonth() + 1);
+  const yy = String(d.getFullYear()).slice(-2);
+  const hh = pad2(d.getHours());
+  const mi = pad2(d.getMinutes());
+  return `${dd}-${mm}-${yy} ${hh}:${mi}`;
+}
+
+function buildOverviewQueryState() {
+  return {
+    page: overviewPage,
+    pageSize: overviewPageSize,
+    sortField: overviewSortField,
+    sortDir: overviewSortDir,
+    filters: {
+      campaign: overviewFilters.campaign || "",
+      archived: overviewFilters.archived || "",
+      status: overviewFilters.status || "",
+    },
+    search: overviewSearch || "",
+  };
+}
+
+function renderOverviewSortIndicators() {
+  const indicatorEls = document.querySelectorAll(
+    "[data-overview-sort-indicator]",
+  );
+  indicatorEls.forEach((el) => {
+    const field = el.getAttribute("data-overview-sort-indicator");
+    if (field === overviewSortField) {
+      el.textContent = overviewSortDir === "asc" ? "▲" : "▼";
+    } else {
+      el.textContent = "";
+    }
+  });
+
+  const sortBtns = document.querySelectorAll("[data-overview-sort]");
+  sortBtns.forEach((btn) => {
+    const field = btn.getAttribute("data-overview-sort");
+    btn.classList.toggle("is-active", field === overviewSortField);
+  });
+}
+
+function renderOverviewPagination() {
+  const totalKnown = Number.isFinite(overviewTotal);
+  const start =
+    overviewTotal === 0 ? 0 : (overviewPage - 1) * overviewPageSize + 1;
+  const end = totalKnown
+    ? Math.min(overviewPage * overviewPageSize, overviewTotal)
+    : overviewPage * overviewPageSize;
+  overviewCountLabelEl.textContent = totalKnown
+    ? `${start}-${end} of ${overviewTotal}`
+    : "Total: ?";
+  overviewPrevBtnEl.disabled = overviewPage <= 1;
+  overviewNextBtnEl.disabled = totalKnown
+    ? overviewPage * overviewPageSize >= overviewTotal
+    : false;
+}
+
+function renderOverviewTable(rows) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  overviewTbodyEl.innerHTML = "";
+  if (!safeRows.length) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 8;
+    td.textContent = "No rows.";
+    tr.appendChild(td);
+    overviewTbodyEl.appendChild(tr);
+    return;
+  }
+
+  for (const row of safeRows) {
+    const tr = document.createElement("tr");
+
+    const openTd = document.createElement("td");
+    const openBtn = document.createElement("button");
+    openBtn.type = "button";
+    openBtn.className = "cell-btn";
+    openBtn.textContent = "Open";
+    openBtn.addEventListener("click", () => {
+      openLinkedIn(row?.url || "");
+    });
+    openTd.appendChild(openBtn);
+    tr.appendChild(openTd);
+
+    const archiveTd = document.createElement("td");
+    const archiveBtn = document.createElement("button");
+    archiveBtn.type = "button";
+    archiveBtn.className = "cell-btn";
+    archiveBtn.textContent = "Archive";
+    archiveBtn.disabled = String(row?.archived || "") === "1";
+    archiveBtn.addEventListener("click", async () => {
+      await archiveRow(row?.url || "");
+    });
+    archiveTd.appendChild(archiveBtn);
+    tr.appendChild(archiveTd);
+
+    const nameTd = document.createElement("td");
+    nameTd.className = "overview-cell-text";
+    nameTd.textContent = row?.name || "";
+    tr.appendChild(nameTd);
+
+    const companyTd = document.createElement("td");
+    companyTd.className = "overview-cell-text";
+    companyTd.textContent = row?.company || "";
+    tr.appendChild(companyTd);
+
+    const statusTd = document.createElement("td");
+    statusTd.className = "overview-cell-text";
+    statusTd.textContent = row?.status || "";
+    tr.appendChild(statusTd);
+
+    const dateTd = document.createElement("td");
+    dateTd.className = "overview-cell-text";
+    dateTd.textContent = formatLocalDateTime(getOverviewLastRelevantDate(row));
+    tr.appendChild(dateTd);
+
+    const campaignTd = document.createElement("td");
+    campaignTd.className = "overview-cell-text overview-cell-campaign";
+    campaignTd.textContent = row?.campaign || "";
+    tr.appendChild(campaignTd);
+
+    const archivedTd = document.createElement("td");
+    archivedTd.className = "overview-cell-text";
+    archivedTd.textContent = row?.archived != null ? String(row.archived) : "";
+    tr.appendChild(archivedTd);
+
+    overviewTbodyEl.appendChild(tr);
+  }
+}
+
+async function fetchOverviewPage() {
+  overviewLoadingEl.hidden = false;
+  try {
+    const resp = await chrome.runtime.sendMessage({
+      type: "DB_LIST_INVITATIONS_OVERVIEW",
+      payload: buildOverviewQueryState(),
+    });
+    if (!resp?.ok) {
+      overviewLoadingEl.hidden = true;
+      overviewTbodyEl.innerHTML = "";
+      const tr = document.createElement("tr");
+      const td = document.createElement("td");
+      td.colSpan = 8;
+      td.textContent = getErrorMessage(resp?.error);
+      tr.appendChild(td);
+      overviewTbodyEl.appendChild(tr);
+      overviewTotal = null;
+      renderOverviewPagination();
+      return;
+    }
+    overviewTotal = Number.isFinite(resp?.total) ? resp.total : null;
+    renderOverviewTable(resp?.rows || []);
+    renderOverviewSortIndicators();
+    renderOverviewPagination();
+  } catch (e) {
+    overviewTbodyEl.innerHTML = "";
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 8;
+    td.textContent = getErrorMessage(e);
+    tr.appendChild(td);
+    overviewTbodyEl.appendChild(tr);
+  } finally {
+    overviewLoadingEl.hidden = true;
+  }
+}
+
+async function openLinkedIn(url) {
+  const targetUrl = String(url || "").trim();
+  if (!targetUrl) return;
+  const [activeTab] = await chrome.tabs.query({
+    active: true,
+    currentWindow: true,
+  });
+  if (activeTab?.id) {
+    await chrome.tabs.update(activeTab.id, { url: targetUrl, active: true });
+    return;
+  }
+  await chrome.tabs.create({ url: targetUrl, active: true });
+}
+
+async function archiveRow(url) {
+  const target = String(url || "").trim();
+  if (!target) return;
+  const resp = await chrome.runtime.sendMessage({
+    type: "DB_ARCHIVE_INVITATION",
+    payload: { url: target },
+  });
+  if (!resp?.ok) {
+    statusEl.textContent = `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`;
+    return;
+  }
+  await fetchOverviewPage();
+}
+
+function wireOverviewEvents() {
+  if (!OVERVIEW_ENABLED) return;
+  document.querySelectorAll("[data-overview-sort]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const field = btn.getAttribute("data-overview-sort");
+      if (!field) return;
+      if (overviewSortField === field) {
+        overviewSortDir = overviewSortDir === "asc" ? "desc" : "asc";
+      } else {
+        overviewSortField = field;
+        overviewSortDir = "asc";
+      }
+      overviewPage = 1;
+      fetchOverviewPage();
+    });
+  });
+
+  overviewCampaignFilterEl?.addEventListener("input", () => {
+    overviewFilters.campaign = overviewCampaignFilterEl.value.trim();
+    overviewPage = 1;
+    fetchOverviewPage();
+  });
+
+  overviewArchivedFilterEl?.addEventListener("change", () => {
+    overviewFilters.archived = overviewArchivedFilterEl.value;
+    overviewPage = 1;
+    fetchOverviewPage();
+  });
+
+  overviewStatusFilterEl?.addEventListener("change", () => {
+    overviewFilters.status = overviewStatusFilterEl.value;
+    overviewPage = 1;
+    fetchOverviewPage();
+  });
+
+  overviewSearchEl?.addEventListener("input", () => {
+    if (overviewSearchDebounceTimer) clearTimeout(overviewSearchDebounceTimer);
+    overviewSearchDebounceTimer = setTimeout(() => {
+      overviewSearch = overviewSearchEl.value.trim();
+      overviewPage = 1;
+      fetchOverviewPage();
+    }, 250);
+  });
+
+  overviewPageSizeEl?.addEventListener("change", () => {
+    const nextSize = Number(overviewPageSizeEl.value);
+    overviewPageSize = Number.isFinite(nextSize) ? nextSize : 25;
+    overviewPage = 1;
+    fetchOverviewPage();
+  });
+
+  overviewPrevBtnEl?.addEventListener("click", () => {
+    if (overviewPage <= 1) return;
+    overviewPage -= 1;
+    fetchOverviewPage();
+  });
+
+  overviewNextBtnEl?.addEventListener("click", () => {
+    if (
+      Number.isFinite(overviewTotal) &&
+      overviewPage * overviewPageSize >= overviewTotal
+    ) {
+      return;
+    }
+    overviewPage += 1;
+    fetchOverviewPage();
+  });
+}
+
 function getProfileForGeneration(profile) {
   const p = profile || {};
   const out = {};
@@ -665,14 +971,17 @@ function setCopyButtonEnabled(enabled) {
 function setActiveTab(which) {
   const invitationActive = which === "invitation";
   const messageActive = which === "message";
+  const overviewActive = OVERVIEW_ENABLED && which === "overview";
   const configActive = which === "config";
 
   tabMainBtn.classList.toggle("active", invitationActive);
   tabMessageBtn.classList.toggle("active", messageActive);
+  if (tabOverviewBtn) tabOverviewBtn.classList.toggle("active", overviewActive);
   tabConfigBtn.classList.toggle("active", configActive);
 
   tabMain.classList.toggle("active", invitationActive);
   tabMessage.classList.toggle("active", messageActive);
+  if (tabOverview) tabOverview.classList.toggle("active", overviewActive);
   tabConfig.classList.toggle("active", configActive);
 
   if (messageActive) {
@@ -682,10 +991,15 @@ function setActiveTab(which) {
     });
     refreshChatHistoryFromActiveTab();
   }
+
+  if (overviewActive) {
+    fetchOverviewPage();
+  }
 }
 
 tabMainBtn.addEventListener("click", () => setActiveTab("invitation"));
 tabMessageBtn.addEventListener("click", () => setActiveTab("message"));
+tabOverviewBtn?.addEventListener("click", () => setActiveTab("overview"));
 tabConfigBtn.addEventListener("click", () => setActiveTab("config"));
 refreshChatHistoryBtnEl?.addEventListener("click", () => {
   refreshChatHistoryFromActiveTab();
@@ -706,14 +1020,28 @@ async function loadSettings() {
   if (webhookBaseUrl) webhookBaseUrlEl.value = webhookBaseUrl;
 }
 loadSettings();
+if (IS_SIDE_PANEL_CONTEXT) {
+  document.body.classList.add("is-sidepanel");
+}
 if (IS_SIDE_PANEL_CONTEXT && openSidePanelBtnEl) {
   openSidePanelBtnEl.classList.add("is-hidden");
+}
+if (!OVERVIEW_ENABLED) {
+  tabOverviewBtn?.classList.add("is-hidden");
+  tabOverview?.classList.remove("active");
+  tabOverview?.classList.add("is-hidden");
 }
 setCopyButtonEnabled(false);
 renderProfileContext();
 setProfileContextPreviewCollapsed(true);
 setMessagePromptCollapsed(true);
 updateMessageTabControls();
+if (OVERVIEW_ENABLED) {
+  wireOverviewEvents();
+  overviewPageSize = Number(overviewPageSizeEl?.value || 25);
+  renderOverviewSortIndicators();
+  renderOverviewPagination();
+}
 setLifecycleBar("neutral", UI_TEXT.lifecycleOpenLinkedInProfileFirst);
 applyLifecycleUiState(dbInvitationRow);
 renderMessageTab(outreachMessageStatus);

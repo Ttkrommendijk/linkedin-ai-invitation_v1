@@ -141,3 +141,143 @@ pre {
     background: #f2f2f2;
     color: #333;
 }
+
+.overview-filters {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+.overview-grid-wrap {
+    overflow: auto;
+}
+.overview-grid {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    table-layout: fixed;
+}
+.overview-grid th,
+.overview-grid td {
+    border: 1px solid #e5e7eb;
+    padding: 6px 8px;
+    vertical-align: top;
+    text-align: left;
+}
+.overview-grid tbody tr {
+    height: 40px;
+}
+.overview-grid tbody td {
+    vertical-align: middle;
+}
+.overview-cell-text {
+    min-width: 75px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.overview-grid th {
+    background: #f9fafb;
+}
+.overview-grid .cell-btn {
+    width: auto;
+    margin-top: 0;
+    min-height: 24px;
+    padding: 2px 8px;
+    font-size: 12px;
+}
+.sort-btn {
+    width: auto;
+    margin-top: 0;
+    min-height: 22px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    text-align: left;
+    font-weight: 600;
+}
+.sort-btn.is-active {
+    text-decoration: underline;
+}
+.sort-indicator {
+    display: inline-block;
+    min-width: 12px;
+}
+.overview-pagination {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.overview-pagination #overviewPageSize,
+.overview-pagination button {
+    width: auto;
+    margin-top: 0;
+}
+.overview-loading {
+    font-size: 12px;
+    color: #555;
+    margin-bottom: 6px;
+}
+.overview-cell-campaign {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+body.is-sidepanel #tabOverview .overview-grid col.overview-col-open {
+    width: 84px;
+}
+body.is-sidepanel #tabOverview .overview-grid col.overview-col-archive {
+    width: 96px;
+}
+body.is-sidepanel #tabOverview .overview-grid col.overview-col-name {
+    width: 120px;
+}
+body.is-sidepanel #tabOverview .overview-grid col.overview-col-company {
+    width: 120px;
+}
+body.is-sidepanel #tabOverview .overview-grid col.overview-col-status {
+    width: 90px;
+}
+body.is-sidepanel #tabOverview .overview-grid col.overview-col-date {
+    width: 120px;
+}
+body.is-sidepanel #tabOverview .overview-grid col.overview-col-campaign {
+    width: 140px;
+}
+body.is-sidepanel #tabOverview .overview-grid col.overview-col-archived {
+    width: 80px;
+}
+body.is-sidepanel {
+    margin: 0;
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+body.is-sidepanel .tabs,
+body.is-sidepanel .lifecycle-bar {
+    flex: 0 0 auto;
+}
+body.is-sidepanel .tab-panel {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+body.is-sidepanel #tabOverview.active {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+body.is-sidepanel #tabOverview .overview-filters,
+body.is-sidepanel #tabOverview .overview-pagination {
+    flex: 0 0 auto;
+}
+body.is-sidepanel #tabOverview .overview-grid-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+}
+body.is-sidepanel #tabOverview .overview-grid th:nth-child(7),
+body.is-sidepanel #tabOverview .overview-grid td:nth-child(7) {
+    width: 140px;
+    max-width: 140px;
+}
