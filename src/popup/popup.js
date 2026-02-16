@@ -3,6 +3,8 @@ const modelEl = document.getElementById("model");
 const strategyEl = document.getElementById("strategy");
 const focusEl = document.getElementById("focus");
 const messagePromptEl = document.getElementById("messagePrompt");
+const messagePromptWrapEl = document.getElementById("messagePromptWrap");
+const toggleMessagePromptBtnEl = document.getElementById("toggleMessagePrompt");
 const saveMessagePromptBtnEl = document.getElementById("saveMessagePrompt");
 const generateFirstMessageBtnEl = document.getElementById(
   "generateFirstMessage",
@@ -97,6 +99,7 @@ let currentProfileContext = null;
 let firstMessage = "";
 let lastSavedFirstMessagePrompt = "";
 let isProfileContextCollapsed = true;
+let isMessagePromptCollapsed = true;
 let dbInvitationRow = null;
 
 function getLifecycleStatusValue(dbRow) {
@@ -139,6 +142,18 @@ function setProfileContextPreviewCollapsed(collapsed) {
   profileContextPreviewWrapEl.hidden = collapsed;
   toggleProfileContextPreviewBtnEl.textContent = collapsed ? "Show" : "Hide";
   toggleProfileContextPreviewBtnEl.setAttribute(
+    "aria-expanded",
+    collapsed ? "false" : "true",
+  );
+}
+
+function setMessagePromptCollapsed(collapsed) {
+  isMessagePromptCollapsed = collapsed;
+  messagePromptWrapEl.hidden = collapsed;
+  toggleMessagePromptBtnEl.textContent = collapsed
+    ? "Show prompt"
+    : "Hide prompt";
+  toggleMessagePromptBtnEl.setAttribute(
     "aria-expanded",
     collapsed ? "false" : "true",
   );
@@ -512,6 +527,7 @@ loadSettings();
 setCopyButtonEnabled(false);
 renderProfileContext();
 setProfileContextPreviewCollapsed(true);
+setMessagePromptCollapsed(true);
 updateMessageTabControls();
 setLifecycleBar("neutral", UI_TEXT.lifecycleOpenLinkedInProfileFirst);
 applyLifecycleUiState(dbInvitationRow);
@@ -523,6 +539,10 @@ loadFirstMessagePrompt().catch((_e) => {
 
 toggleProfileContextPreviewBtnEl.addEventListener("click", () => {
   setProfileContextPreviewCollapsed(!isProfileContextCollapsed);
+});
+
+toggleMessagePromptBtnEl.addEventListener("click", () => {
+  setMessagePromptCollapsed(!isMessagePromptCollapsed);
 });
 
 messagePromptEl.addEventListener("input", () => {

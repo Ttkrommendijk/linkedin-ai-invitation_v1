@@ -47,6 +47,12 @@ pre {
     margin-left: 6px;
     padding: 2px 8px;
 }
+#toggleMessagePrompt {
+    width: auto;
+    margin-top: 0;
+    margin-left: 6px;
+    padding: 2px 8px;
+}
 
 .tabs {
     display: flex;

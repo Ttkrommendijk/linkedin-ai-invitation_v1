@@ -71,8 +71,20 @@
 
         <div id="tabMessage" class="tab-panel">
             <div class="row">
-                <label><small>Message prompt</small></label>
-                <textarea id="messagePrompt">
+                <label
+                    ><small
+                        >Message prompt
+                        <button
+                            id="toggleMessagePrompt"
+                            type="button"
+                            aria-expanded="false"
+                        >
+                            Show prompt
+                        </button></small
+                    ></label
+                >
+                <div id="messagePromptWrap">
+                    <textarea id="messagePrompt">
 Escreva a melhor primeira mensagem apos aceitar conexao no LinkedIn, em portugues.
 Objetivo estrategico: abrir uma conversa com friccao minima e incentivar resposta curta.
 
@@ -101,10 +113,11 @@ Evitar completamente:
 - emojis, hashtags ou bullets
 
 A pergunta final deve reduzir friccao e facilitar resposta rapida. Sem emojis, hashtags ou bullets. Nunca invente fatos; use somente profile_context e profile_excerpt_fallback.</textarea
-                >
-                <button id="saveMessagePrompt" type="button">
-                    Save prompt
-                </button>
+                    >
+                    <button id="saveMessagePrompt" type="button">
+                        Save prompt
+                    </button>
+                </div>
             </div>
 
             <button id="generateFirstMessage" type="button">
