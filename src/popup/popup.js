@@ -103,6 +103,16 @@ function getLifecycleStatusValue(dbRow) {
   return (dbRow?.status || "").trim().toLowerCase();
 }
 
+function isPostSendMode() {
+  return getLifecycleStatusValue(dbInvitationRow) === "first message sent";
+}
+
+function updateGenerateFirstMessageButtonLabel() {
+  generateFirstMessageBtnEl.textContent = isPostSendMode()
+    ? "Create new message"
+    : "Generate first message";
+}
+
 function getErrorMessage(error) {
   if (error && typeof error === "object" && typeof error.message === "string") {
     return error.message;
@@ -173,6 +183,7 @@ function applyLifecycleUiState(dbRow) {
   const generateBtn = document.getElementById("generate");
 
   if (!markInvitedBtn || !markAcceptedBtn || !generateBtn) return;
+  updateGenerateFirstMessageButtonLabel();
 
   markInvitedBtn.classList.remove("is-highlighted");
   markAcceptedBtn.classList.remove("is-highlighted");
@@ -214,7 +225,7 @@ function applyLifecycleUiState(dbRow) {
     return;
   }
 
-  if (status === "accepted") {
+  if (status === "accepted" || status === "first message sent") {
     setActiveTab("message");
     markInvitedBtn.disabled = true;
     generateBtn.disabled = true;
@@ -333,10 +344,12 @@ function updateMessageTabControls() {
   const hasGeneratedFirstMessage = Boolean(
     (firstMessagePreviewEl.textContent || "").trim(),
   );
+  const isFirstMessageSent = isPostSendMode();
 
   generateFirstMessageBtnEl.disabled = !hasProfileUrl;
   copyFirstMessageBtnEl.disabled = !hasGeneratedFirstMessage;
-  markMessageSentBtnEl.disabled = !(hasProfileUrl && hasGeneratedFirstMessage);
+  markMessageSentBtnEl.disabled =
+    isFirstMessageSent || !(hasProfileUrl && hasGeneratedFirstMessage);
 }
 
 function getProfileForGeneration(profile) {
@@ -750,6 +763,8 @@ document.getElementById("generate").addEventListener("click", async () => {
 document
   .getElementById("generateFirstMessage")
   .addEventListener("click", async () => {
+    const postSendMode = isPostSendMode();
+
     if (!hasMessageProfileUrl()) {
       messageStatusEl.textContent = UI_TEXT.openLinkedInProfileFirst;
       updateMessageTabControls();
@@ -813,6 +828,11 @@ document
     firstMessage = (resp.first_message || "").trim();
     firstMessagePreviewEl.textContent = firstMessage;
     updateMessageTabControls();
+
+    if (postSendMode) {
+      messageStatusEl.textContent = UI_TEXT.firstMessageGenerated;
+      return;
+    }
 
     const linkedinUrl = getLinkedinUrlFromContext(currentProfileContext);
     if (!linkedinUrl) {
