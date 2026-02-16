@@ -83,20 +83,31 @@
 
         <div id="tabMessage" class="tab-panel">
             <div class="row">
-                <label
-                    ><small
-                        >Message prompt
-                        <button
-                            id="toggleMessagePrompt"
-                            type="button"
-                            aria-expanded="false"
+                <label><small>Language</small></label>
+                <select id="messageLanguage">
+                    <option value="Portuguese" selected>Portuguese</option>
+                    <option value="English">English</option>
+                    <option value="Dutch">Dutch</option>
+                    <option value="Spanish">Spanish</option>
+                </select>
+            </div>
+            <div id="acceptedMode">
+                <div id="initialMessageSection">
+                    <div class="row">
+                        <label
+                            ><small
+                                >Message prompt
+                                <button
+                                    id="togglePrompt"
+                                    type="button"
+                                    aria-expanded="false"
+                                >
+                                    Show prompt
+                                </button></small
+                            ></label
                         >
-                            Show prompt
-                        </button></small
-                    ></label
-                >
-                <div id="messagePromptWrap">
-                    <textarea id="messagePrompt">
+                        <div id="firstPromptContainer">
+                            <textarea id="messagePrompt">
 Escreva a melhor primeira mensagem apos aceitar conexao no LinkedIn, em portugues.
 Objetivo estrategico: abrir uma conversa com friccao minima e incentivar resposta curta.
 
@@ -125,34 +136,86 @@ Evitar completamente:
 - emojis, hashtags ou bullets
 
 A pergunta final deve reduzir friccao e facilitar resposta rapida. Sem emojis, hashtags ou bullets. Nunca invente fatos; use somente profile_context e profile_excerpt_fallback.</textarea
-                    >
-                    <div class="inline">
-                        <button id="saveMessagePrompt" type="button">
-                            Save prompt
-                        </button>
-                        <button id="resetMessagePrompt" type="button">
-                            Reset to default
-                        </button>
+                            >
+                            <div class="inline">
+                                <button id="saveMessagePrompt" type="button">
+                                    Save prompt
+                                </button>
+                                <button id="resetMessagePrompt" type="button">
+                                    Reset to default
+                                </button>
+                            </div>
+                        </div>
                     </div>
+
+                    <button id="generateFirstMessage" type="button">
+                        Generate first message
+                    </button>
+
+                    <div class="row">
+                        <small>Status</small>
+                        <div id="messageStatus">Idle</div>
+                    </div>
+                </div>
+
+                <div id="firstMessagePreviewSection">
+                    <div class="row">
+                        <small>First message preview</small>
+                        <pre id="firstMessagePreview"></pre>
+                    </div>
+
+                    <button id="copyFirstMessage" type="button">Copy</button>
+                    <button id="markFirstMessageSent" type="button">
+                        Message sent
+                    </button>
                 </div>
             </div>
 
-            <button id="generateFirstMessage" type="button">
-                Generate first message
-            </button>
-
-            <div class="row">
-                <small>Status</small>
-                <div id="messageStatus">Idle</div>
+            <div id="firstMessageSentMode" hidden>
+                <div class="row">
+                    <label><small>Chat history</small></label>
+                    <textarea
+                        id="chatHistory"
+                        readonly
+                        placeholder="Chat history will appear here…"
+                    ></textarea>
+                    <button id="refreshChatHistory" type="button">
+                        Refresh history
+                    </button>
+                </div>
+                <div id="followupSection">
+                    <div class="row">
+                        <label><small>Objective</small></label>
+                        <textarea
+                            id="followupObjective"
+                            placeholder="Objective for the next message…"
+                        ></textarea>
+                    </div>
+                    <div class="row">
+                        <label class="checkbox-row">
+                            <input
+                                type="checkbox"
+                                id="includeStrategy"
+                                class="strategy-checkbox"
+                                checked
+                            />
+                            <small>Include strategy</small>
+                        </label>
+                    </div>
+                    <button id="generateFollowup" type="button">
+                        Generate follow-up
+                    </button>
+                    <div class="row">
+                        <small>Communication status</small>
+                        <div id="commStatusBar">Idle</div>
+                    </div>
+                    <div class="row">
+                        <small>Generated message preview</small>
+                        <textarea id="followupPreview"></textarea>
+                    </div>
+                    <button id="copyFollowup" type="button">Copy</button>
+                </div>
             </div>
-
-            <div class="row">
-                <small>First message preview</small>
-                <pre id="firstMessagePreview"></pre>
-            </div>
-
-            <button id="copyFirstMessage" type="button">Copy</button>
-            <button id="markMessageSent" type="button">Message sent</button>
         </div>
 
         <div id="tabConfig" class="tab-panel">

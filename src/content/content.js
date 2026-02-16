@@ -127,6 +127,180 @@ function extractProfile() {
   return profile;
 }
 
+function isUiNoiseLine(text) {
+  const t = cleanText(text).toLowerCase();
+  if (!t) return true;
+  const noise = [
+    "arraste",
+    "selecione seu arquivo",
+    "anexar",
+    "abrir teclado",
+    "emoji",
+    "emojis",
+    "gif",
+    "gifs",
+    "pressione enter",
+    "clique enviar",
+    "abrir opções",
+    "maximizar",
+    "campo da mensagem",
+    "enviar abrir",
+    "ver perfil",
+  ];
+  if (noise.some((n) => t.includes(n))) return true;
+  if (/^\S.+\s+\d{1,2}:\d{2}$/.test(cleanText(text))) return true;
+  return false;
+}
+
+function extractChatHistoryFromInteropShadow() {
+  const host = document.querySelector("#interop-outlet");
+  const root = host?.shadowRoot;
+  console.log("[LEF][chat] interop", {
+    hostFound: !!host,
+    shadowRootFound: !!root,
+  });
+
+  if (!root) {
+    const err = new Error(
+      "interop shadow root not found; open the message overlay first",
+    );
+    err.diag = { hostFound: !!host, shadowRootFound: !!root };
+    throw err;
+  }
+
+  const headingCandidates = Array.from(root.querySelectorAll("*")).filter(
+    (el) =>
+      /(enviou a seguinte mensagem|enviou as seguintes mensagens)/i.test(
+        cleanText(el.textContent || ""),
+      ),
+  );
+  console.log("[LEF][chat] heading candidates", {
+    count: headingCandidates.length,
+  });
+  if (!headingCandidates.length) {
+    const err = new Error(
+      "Message overlay not open or no messages rendered. Open the message box and try again.",
+    );
+    err.diag = { headingCount: 0 };
+    throw err;
+  }
+
+  let threadRoot = null;
+  let bestCount = -1;
+  for (const heading of headingCandidates) {
+    let node = heading;
+    while (node && node !== root) {
+      const count = node.querySelectorAll
+        ? Array.from(node.querySelectorAll("*")).filter((el) =>
+            /(enviou a seguinte mensagem|enviou as seguintes mensagens)/i.test(
+              cleanText(el.textContent || ""),
+            ),
+          ).length
+        : 0;
+      if (count > bestCount) {
+        bestCount = count;
+        threadRoot = node;
+      }
+      node = node.parentElement;
+    }
+  }
+
+  console.log("[LEF][chat] thread root", {
+    found: !!threadRoot,
+    tag: threadRoot?.tagName || "",
+    className: threadRoot?.className || "",
+    headingCountInRoot: bestCount,
+  });
+  if (!threadRoot) {
+    const err = new Error("Could not locate message thread root in overlay.");
+    err.diag = { headingCount: headingCandidates.length };
+    throw err;
+  }
+
+  const profileName = cleanText(
+    document.querySelector("main h1")?.innerText || "",
+  ).toLowerCase();
+  const seen = new Set();
+  const messages = [];
+  const headingsInRoot = headingCandidates.filter((h) =>
+    threadRoot.contains(h),
+  );
+
+  for (const heading of headingsInRoot) {
+    const headingText = cleanText(heading.textContent || "");
+    const senderMatch = headingText.match(/^(.+?)\s+enviou/i);
+    const sender = cleanText(senderMatch?.[1] || "");
+    const tsMatch = headingText.match(/às\s+(\d{1,2}:\d{2})/i);
+    const ts = cleanText(tsMatch?.[1] || "");
+    const group =
+      heading.closest("li,article,section,div") || heading.parentElement;
+    if (!group) continue;
+
+    let bestText = "";
+    const candidates = Array.from(group.querySelectorAll("div,span,p")).map(
+      (el) => cleanText(el.textContent || ""),
+    );
+    for (const txt of candidates) {
+      if (!txt) continue;
+      if (txt === headingText) continue;
+      if (isUiNoiseLine(txt)) continue;
+      if (txt.length > bestText.length) bestText = txt;
+    }
+    if (!bestText) continue;
+
+    const key = `${sender}|${ts}|${bestText}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    let direction = "unknown";
+    if (sender && profileName) {
+      direction = sender.toLowerCase() === profileName ? "them" : "me";
+    }
+
+    messages.push({ text: bestText, direction, sender, ts });
+  }
+
+  const firstTs = messages[0]?.ts;
+  const lastTs = messages[messages.length - 1]?.ts;
+  if (firstTs && lastTs) {
+    const toMinutes = (v) => {
+      const [h, m] = v.split(":").map((n) => Number(n));
+      return h * 60 + m;
+    };
+    if (toMinutes(firstTs) > toMinutes(lastTs)) {
+      messages.reverse();
+    }
+  }
+
+  console.log("[LEF][chat] extracted", {
+    count: messages.length,
+    sample: messages.slice(0, 3),
+  });
+  if (!messages.length) {
+    const err = new Error(
+      "Message overlay not open or no messages rendered. Open the message box and try again.",
+    );
+    err.diag = {
+      headingCount: headingsInRoot.length,
+      bodiesInRoot: threadRoot.querySelectorAll("*").length,
+      rootClass: threadRoot.className || "",
+      composerFound: !!root.querySelector("textarea, [contenteditable='true']"),
+      url: window.location.href,
+    };
+    throw err;
+  }
+
+  return {
+    messages,
+    diag: {
+      headingCount: headingsInRoot.length,
+      rootClass: threadRoot.className || "",
+      composerFound: !!root.querySelector("textarea, [contenteditable='true']"),
+      url: window.location.href,
+    },
+  };
+}
+
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === "EXTRACT_PROFILE_CONTEXT") {
     try {
@@ -139,6 +313,27 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           code: "EXTRACTION_FAILED",
           message: e instanceof Error ? e.message : String(e || "unknown"),
         },
+      });
+    }
+    return true;
+  }
+
+  if (msg?.type === "EXTRACT_CHAT_HISTORY") {
+    console.log("[LEF][chat] handler entry", { href: location.href });
+    try {
+      const { messages, diag } = extractChatHistoryFromInteropShadow();
+      sendResponse({ ok: true, messages, diag });
+    } catch (e) {
+      console.error(
+        "[LEF][chat] handler exception",
+        e?.message || String(e),
+        e?.stack,
+      );
+      sendResponse({
+        ok: false,
+        error: e?.message || String(e || "unknown"),
+        stack: e?.stack || "",
+        diag: e?.diag || null,
       });
     }
     return true;

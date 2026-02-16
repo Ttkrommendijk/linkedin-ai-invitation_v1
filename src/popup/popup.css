@@ -24,6 +24,18 @@ button:disabled {
 .row {
     margin-top: 10px;
 }
+.checkbox-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.strategy-checkbox {
+    width: 15px;
+    height: 15px;
+    flex: 0 0 15px; /* prevents stretching */
+}
 small {
     color: #555;
 }

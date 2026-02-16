@@ -203,8 +203,18 @@ Return valid JSON only (no markdown, no extra text) with exactly these keys:
 - Never invent facts for company/headline; derive only from profile_context and profile_excerpt_fallback.`;
 }
 
-function firstMessageInstruction(maxChars) {
-  return `Write a first LinkedIn message in Portuguese after connection acceptance.
+function firstMessageInstruction(maxChars, language = "auto") {
+  const langRule =
+    language === "auto"
+      ? "the dominant language of the provided profile_context and profile_excerpt_fallback"
+      : language;
+
+  return `Write a first LinkedIn message in ${langRule} after connection acceptance.
+
+Language rules:
+- If language is "auto", detect the dominant language of profile_context and profile_excerpt_fallback and write in that language.
+- Do not default to English unless the context is English.
+- Do not mix languages.
 
 Constraints:
 - Maximum ${maxChars} characters.
@@ -217,6 +227,28 @@ Constraints:
 - Never invent facts. Use only profile_context and profile_excerpt_fallback.
 
 Output must be plain text only.`;
+}
+
+function followupMessageInstruction(language = "auto") {
+  return `Write a reply message for an ongoing LinkedIn conversation.
+
+Language rules:
+- If a specific language is provided, respond in that language.
+- If language is set to "auto", detect the dominant language used in the conversation context and respond in that same language.
+- Never default to English unless the conversation itself is in English.
+
+Tone and style:
+- Peer-level, neutral, specific, non-salesy.
+- Keep it concise (1–2 short paragraphs).
+- Maintain the natural tone of the existing conversation.
+- Do not switch language mid-response.
+
+Constraints:
+- Use only the provided context.
+- Do not invent facts.
+- Focus strictly on the user's objective.
+
+Output plain text only.`;
 }
 
 function parseInviteGenerationJson(rawText) {
@@ -376,6 +408,52 @@ ${profileContextBlock(profile)}
 `;
 }
 
+function buildFollowupUserInput({
+  objective,
+  strategy,
+  includeStrategy,
+  contextLast10,
+  profileContext,
+}) {
+  const contextBlock = (Array.isArray(contextLast10) ? contextLast10 : [])
+    .slice(-10)
+    .map((m) => {
+      const direction =
+        m?.direction === "them"
+          ? "them"
+          : m?.direction === "me"
+            ? "me"
+            : "unknown";
+      const text = normalizeProfileField(m?.text);
+      return text ? `- ${direction}: ${text}` : "";
+    })
+    .filter(Boolean)
+    .join("\n");
+
+  return `
+Objective:
+${objective || "(none)"}
+
+${
+  includeStrategy && strategy
+    ? `Strategy:
+${strategy}`
+    : ""
+}
+
+Context (last 10 messages, chronological):
+${contextBlock || "(none)"}
+
+Instruction:
+${
+  includeStrategy && strategy
+    ? "Respond with this objective using this context (last 10 messages) and respecting this strategy. Output ONLY the message text."
+    : "Respond with this objective using this context (last 10 messages). Output ONLY the message text."
+}
+${profileContextBlock(profileContext || {})}
+`;
+}
+
 async function callOpenAIInviteGeneration({
   apiKey,
   model,
@@ -483,7 +561,13 @@ async function callOpenAIInviteGeneration({
   return parsedPayload;
 }
 
-async function callOpenAIFirstMessage({ apiKey, model, prompt, profile }) {
+async function callOpenAIFirstMessage({
+  apiKey,
+  model,
+  prompt,
+  profile,
+  language,
+}) {
   const res = await fetchOpenAIWithRetry(
     "https://api.openai.com/v1/responses",
     {
@@ -499,7 +583,10 @@ async function callOpenAIFirstMessage({ apiKey, model, prompt, profile }) {
           {
             role: "system",
             content: [
-              { type: "input_text", text: firstMessageInstruction(600) },
+              {
+                type: "input_text",
+                text: firstMessageInstruction(600, language || "Portuguese"),
+              },
             ],
           },
           {
@@ -530,6 +617,73 @@ async function callOpenAIFirstMessage({ apiKey, model, prompt, profile }) {
     ).trim();
 
   return clampText(text, 600);
+}
+
+async function callOpenAIFollowupMessage({
+  apiKey,
+  model,
+  objective,
+  strategy,
+  includeStrategy,
+  contextLast10,
+  profileContext,
+  language,
+}) {
+  const res = await fetchOpenAIWithRetry(
+    "https://api.openai.com/v1/responses",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        max_output_tokens: 260,
+        input: [
+          {
+            role: "system",
+            content: [
+              {
+                type: "input_text",
+                text: followupMessageInstruction(language || "Portuguese"),
+              },
+            ],
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text: buildFollowupUserInput({
+                  objective,
+                  strategy,
+                  includeStrategy,
+                  contextLast10,
+                  profileContext,
+                }),
+              },
+            ],
+          },
+        ],
+      }),
+    },
+  );
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("openai", res.status, txt || res.statusText);
+  }
+
+  const data = await res.json();
+  const text =
+    (data.output_text || "").trim() ||
+    (
+      data.output?.[0]?.content?.find((c) => c.type === "output_text")?.text ||
+      ""
+    ).trim();
+
+  return clampText(text, 1000);
 }
 
 async function getSupabaseConfig() {
@@ -673,7 +827,15 @@ async function supabaseGetInvitationByLinkedinUrl(linkedin_url) {
 }
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  const req = msg || {};
   debug("onMessage:", msg?.type);
+  console.log("[LEF][chat] received type", req.type);
+  if (
+    msg?.type === "GENERATE_FIRST_MESSAGE" ||
+    msg?.type === "GENERATE_FOLLOWUP_MESSAGE"
+  ) {
+    console.log("[LEF][chat] LLM type", msg?.type);
+  }
 
   if (msg?.type === "GENERATE_INVITE") {
     (async () => {
@@ -702,6 +864,21 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       try {
         const first_message = await callOpenAIFirstMessage(msg.payload);
         sendResponse({ ok: true, first_message });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "GENERATION_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (req.type === "GENERATE_FOLLOWUP_MESSAGE") {
+    (async () => {
+      try {
+        const text = await callOpenAIFollowupMessage(req.payload);
+        sendResponse({ ok: true, text });
       } catch (e) {
         sendResponse({
           ok: false,
@@ -774,6 +951,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
 
+  console.error("[LEF][chat] unknown type", req.type);
   sendResponse({
     ok: false,
     error: normalizeError("unknown_message_type", "UNKNOWN_MESSAGE_TYPE"),

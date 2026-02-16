@@ -2,16 +2,42 @@ const apiKeyEl = document.getElementById("apiKey");
 const modelEl = document.getElementById("model");
 const strategyEl = document.getElementById("strategy");
 const focusEl = document.getElementById("focus");
+const messageLanguageEl = document.getElementById("messageLanguage");
 const messagePromptEl = document.getElementById("messagePrompt");
-const messagePromptWrapEl = document.getElementById("messagePromptWrap");
-const toggleMessagePromptBtnEl = document.getElementById("toggleMessagePrompt");
+const messagePromptWrapEl =
+  document.getElementById("firstPromptContainer") ||
+  document.getElementById("messagePromptWrap");
+const toggleMessagePromptBtnEl =
+  document.getElementById("togglePrompt") ||
+  document.getElementById("toggleMessagePrompt");
 const saveMessagePromptBtnEl = document.getElementById("saveMessagePrompt");
 const resetMessagePromptBtnEl = document.getElementById("resetMessagePrompt");
 const generateFirstMessageBtnEl = document.getElementById(
   "generateFirstMessage",
 );
-const markMessageSentBtnEl = document.getElementById("markMessageSent");
+const markMessageSentBtnEl =
+  document.getElementById("markFirstMessageSent") ||
+  document.getElementById("markMessageSent");
 const copyFirstMessageBtnEl = document.getElementById("copyFirstMessage");
+const chatHistoryEl = document.getElementById("chatHistory");
+const refreshChatHistoryBtnEl = document.getElementById("refreshChatHistory");
+const initialMessageSectionEl = document.getElementById(
+  "initialMessageSection",
+);
+const firstMessagePreviewSectionEl = document.getElementById(
+  "firstMessagePreviewSection",
+);
+const acceptedModeEl = document.getElementById("acceptedMode");
+const firstMessageSentModeEl = document.getElementById("firstMessageSentMode");
+const followupSectionEl = document.getElementById("followupSection");
+const followupObjectiveEl = document.getElementById("followupObjective");
+const includeStrategyEl = document.getElementById("includeStrategy");
+const generateFollowupBtnEl = document.getElementById("generateFollowup");
+const commStatusEl =
+  document.getElementById("commStatusBar") ||
+  document.getElementById("commStatus");
+const followupPreviewEl = document.getElementById("followupPreview");
+const copyFollowupBtnEl = document.getElementById("copyFollowup");
 
 const EMOJI_CHECK = "\u2705";
 const SYMBOL_ELLIPSIS = "\u2026";
@@ -54,6 +80,7 @@ const UI_TEXT = {
   lifecycleInDatabase: "In database",
 };
 const STORAGE_KEY_FIRST_MESSAGE_PROMPT = "firstMessagePrompt";
+const STORAGE_KEY_MESSAGE_LANGUAGE = "message_language";
 const LIFECYCLE_STYLE_MAP = {
   neutral: { background: "#f3f4f6", color: "#374151" },
   not_in_database: { background: "#fee2e2", color: "#7f1d1d" },
@@ -117,6 +144,8 @@ let lastSavedFirstMessagePrompt = "";
 let isProfileContextCollapsed = true;
 let isMessagePromptCollapsed = true;
 let dbInvitationRow = null;
+let extractedChatMessages = [];
+let outreachMessageStatus = "accepted";
 
 function getLifecycleStatusValue(dbRow) {
   return (dbRow?.status || "").trim().toLowerCase();
@@ -124,6 +153,42 @@ function getLifecycleStatusValue(dbRow) {
 
 function isPostSendMode() {
   return getLifecycleStatusValue(dbInvitationRow) === "first message sent";
+}
+
+function getOutreachStatusFromDbRow() {
+  const status = getLifecycleStatusValue(dbInvitationRow);
+  return status === "first message sent" || status === "first_message_sent"
+    ? "first_message_sent"
+    : "accepted";
+}
+
+function renderMessageTab(status) {
+  const isFirstMessageSent = status === "first_message_sent";
+  if (acceptedModeEl) acceptedModeEl.hidden = isFirstMessageSent;
+  if (firstMessageSentModeEl)
+    firstMessageSentModeEl.hidden = !isFirstMessageSent;
+  if (initialMessageSectionEl)
+    initialMessageSectionEl.hidden = isFirstMessageSent;
+  if (firstMessagePreviewSectionEl) {
+    firstMessagePreviewSectionEl.hidden = isFirstMessageSent;
+  }
+  if (followupSectionEl) followupSectionEl.hidden = !isFirstMessageSent;
+  if (commStatusEl) commStatusEl.textContent = status;
+}
+
+function setMessageTabModeUi(status) {
+  renderMessageTab(status);
+}
+
+async function loadOutreachMessageStatus() {
+  const { message_status } = await chrome.storage.local.get(["message_status"]);
+  const normalized =
+    message_status === "first_message_sent"
+      ? "first_message_sent"
+      : getOutreachStatusFromDbRow();
+  outreachMessageStatus = normalized || "accepted";
+  console.log("[LEF][chat] status loaded", outreachMessageStatus);
+  renderMessageTab(outreachMessageStatus);
 }
 
 function updateGenerateFirstMessageButtonLabel() {
@@ -140,6 +205,69 @@ function getErrorMessage(error) {
     return error.message;
   }
   return UI_TEXT.unexpectedError;
+}
+
+function formatChatHistory(messages) {
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return "No chat messages found.";
+  }
+  return messages
+    .map((m) => {
+      const text = (m?.text || "").trim();
+      if (!text) return "";
+      if (m?.direction === "them") return `- them: ${text}`;
+      if (m?.direction === "me") return `- me: ${text}`;
+      return `- ${text}`;
+    })
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+async function refreshChatHistoryFromActiveTab() {
+  if (!chatHistoryEl) return;
+  console.log("[LEF][chat] refresh requested");
+  chatHistoryEl.value = "Loading chat history...";
+  extractedChatMessages = [];
+
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  console.log("[LEF][chat] active tab", { tabId: tab?.id, url: tab?.url });
+
+  if (!tab?.id) {
+    chatHistoryEl.value = "Could not find active tab.";
+    return;
+  }
+
+  console.log("[LEF][chat] sending EXTRACT_CHAT_HISTORY to tab", tab.id);
+  chrome.tabs.sendMessage(tab.id, { type: "EXTRACT_CHAT_HISTORY" }, (resp) => {
+    const lastErr = chrome.runtime.lastError;
+    if (lastErr) {
+      console.error("[LEF][chat] sendMessage lastError", lastErr.message);
+      chatHistoryEl.value = `sendMessage error: ${lastErr.message}`;
+      return;
+    }
+
+    if (!resp) {
+      console.warn("[LEF][chat] no response from content script");
+      chatHistoryEl.value =
+        "No response from content script. Ensure you're on https://www.linkedin.com/in/* and reload the extension/page.";
+      return;
+    }
+
+    if (!resp.ok) {
+      console.warn("[LEF][chat] extract failed", resp.error);
+      if (resp.stack) console.warn("[LEF][chat] stack", resp.stack);
+      chatHistoryEl.value = `extract error: ${resp.error || "unknown"}${
+        resp.stack ? `\n\nstack:\n${resp.stack}` : ""
+      }`;
+      return;
+    }
+
+    console.log("[LEF][chat] extract ok", {
+      count: resp.messages?.length || 0,
+    });
+    extractedChatMessages = Array.isArray(resp.messages) ? resp.messages : [];
+    chatHistoryEl.value = formatChatHistory(resp.messages);
+  });
 }
 
 function renderProfileContext() {
@@ -339,6 +467,8 @@ async function refreshInvitationRowFromDb() {
     dbInvitationRow = null;
     setLifecycleBar("neutral", UI_TEXT.lifecycleOpenLinkedInProfileFirst);
     applyLifecycleUiState(dbInvitationRow);
+    outreachMessageStatus = "accepted";
+    renderMessageTab(outreachMessageStatus);
     return;
   }
 
@@ -351,6 +481,8 @@ async function refreshInvitationRowFromDb() {
     dbInvitationRow = null;
     setLifecycleBar("neutral", getErrorMessage(resp?.error));
     applyLifecycleUiState(dbInvitationRow);
+    outreachMessageStatus = "accepted";
+    renderMessageTab(outreachMessageStatus);
     return;
   }
 
@@ -362,6 +494,11 @@ async function refreshInvitationRowFromDb() {
   const lifecycle = deriveLifecycleState(dbInvitationRow);
   setLifecycleBar(lifecycle.key, lifecycle.text);
   applyLifecycleUiState(dbInvitationRow);
+  outreachMessageStatus = getOutreachStatusFromDbRow();
+  if (outreachMessageStatus === "first_message_sent") {
+    await chrome.storage.local.set({ message_status: "first_message_sent" });
+  }
+  renderMessageTab(outreachMessageStatus);
   updateMessageTabControls();
 }
 
@@ -381,7 +518,7 @@ function updateMessageTabControls() {
   const hasGeneratedFirstMessage = Boolean(
     (firstMessagePreviewEl.textContent || "").trim(),
   );
-  const isFirstMessageSent = isPostSendMode();
+  const isFirstMessageSent = outreachMessageStatus === "first_message_sent";
 
   generateFirstMessageBtnEl.disabled = !hasProfileUrl;
   copyFirstMessageBtnEl.disabled = !hasGeneratedFirstMessage;
@@ -482,6 +619,18 @@ async function loadFirstMessagePrompt() {
   updateSavePromptButtonState();
 }
 
+async function loadMessageLanguage() {
+  const { [STORAGE_KEY_MESSAGE_LANGUAGE]: savedLanguage } =
+    await chrome.storage.local.get([STORAGE_KEY_MESSAGE_LANGUAGE]);
+  if (
+    messageLanguageEl &&
+    typeof savedLanguage === "string" &&
+    savedLanguage.trim()
+  ) {
+    messageLanguageEl.value = savedLanguage.trim();
+  }
+}
+
 async function copyToClipboard(text) {
   const value = (text || "").trim();
   if (!value) throw new Error("Nothing to copy.");
@@ -525,11 +674,22 @@ function setActiveTab(which) {
   tabMain.classList.toggle("active", invitationActive);
   tabMessage.classList.toggle("active", messageActive);
   tabConfig.classList.toggle("active", configActive);
+
+  if (messageActive) {
+    loadOutreachMessageStatus().catch((_e) => {
+      outreachMessageStatus = getOutreachStatusFromDbRow();
+      renderMessageTab(outreachMessageStatus);
+    });
+    refreshChatHistoryFromActiveTab();
+  }
 }
 
 tabMainBtn.addEventListener("click", () => setActiveTab("invitation"));
 tabMessageBtn.addEventListener("click", () => setActiveTab("message"));
 tabConfigBtn.addEventListener("click", () => setActiveTab("config"));
+refreshChatHistoryBtnEl?.addEventListener("click", () => {
+  refreshChatHistoryFromActiveTab();
+});
 
 async function loadSettings() {
   const [{ apiKey, webhookSecret }, { model, strategyCore, webhookBaseUrl }] =
@@ -556,11 +716,13 @@ setMessagePromptCollapsed(true);
 updateMessageTabControls();
 setLifecycleBar("neutral", UI_TEXT.lifecycleOpenLinkedInProfileFirst);
 applyLifecycleUiState(dbInvitationRow);
+renderMessageTab(outreachMessageStatus);
 loadProfileContextOnOpen();
 loadFirstMessagePrompt().catch((_e) => {
   lastSavedFirstMessagePrompt = messagePromptEl.value;
   updateSavePromptButtonState();
 });
+loadMessageLanguage().catch((_e) => {});
 
 toggleProfileContextPreviewBtnEl.addEventListener("click", () => {
   setProfileContextPreviewCollapsed(!isProfileContextCollapsed);
@@ -572,6 +734,12 @@ toggleMessagePromptBtnEl.addEventListener("click", () => {
 
 messagePromptEl.addEventListener("input", () => {
   updateSavePromptButtonState();
+});
+
+messageLanguageEl?.addEventListener("change", async () => {
+  await chrome.storage.local.set({
+    [STORAGE_KEY_MESSAGE_LANGUAGE]: messageLanguageEl.value,
+  });
 });
 
 saveMessagePromptBtnEl.addEventListener("click", async () => {
@@ -844,6 +1012,7 @@ document
     firstMessagePreviewEl.textContent = "";
 
     const prompt = (messagePromptEl.value || "").trim();
+    const language = (messageLanguageEl?.value || "Portuguese").trim();
     if (!prompt) {
       messageStatusEl.textContent = UI_TEXT.messagePromptRequired;
       return;
@@ -884,6 +1053,7 @@ document
         apiKey,
         model: (model || "gpt-4.1").trim(),
         prompt,
+        language,
         profile: profileContextForGeneration,
       },
     });
@@ -941,31 +1111,149 @@ copyFirstMessageBtnEl.addEventListener("click", async () => {
   updateMessageTabControls();
 });
 
-document
-  .getElementById("markMessageSent")
-  .addEventListener("click", async () => {
-    if (!currentProfileContext) {
-      messageStatusEl.textContent = UI_TEXT.openLinkedInProfileFirst;
-      return;
-    }
+markMessageSentBtnEl?.addEventListener("click", async () => {
+  if (!currentProfileContext) {
+    messageStatusEl.textContent = UI_TEXT.openLinkedInProfileFirst;
+    return;
+  }
 
-    const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
-    if (!linkedin_url) {
-      messageStatusEl.textContent = UI_TEXT.missingLinkedinUrl;
-      return;
-    }
+  const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
+  if (!linkedin_url) {
+    messageStatusEl.textContent = UI_TEXT.missingLinkedinUrl;
+    return;
+  }
 
-    const resp = await chrome.runtime.sendMessage({
-      type: "DB_MARK_STATUS",
-      payload: { linkedin_url, status: "first message sent" },
-    });
-
-    messageStatusEl.textContent = resp?.ok
-      ? UI_TEXT.markedFirstMessageSent
-      : `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`;
-
-    if (resp?.ok) {
-      await refreshInvitationRowFromDb();
-    }
-    updateMessageTabControls();
+  const resp = await chrome.runtime.sendMessage({
+    type: "DB_MARK_STATUS",
+    payload: { linkedin_url, status: "first message sent" },
   });
+
+  messageStatusEl.textContent = resp?.ok
+    ? UI_TEXT.markedFirstMessageSent
+    : `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`;
+
+  if (resp?.ok) {
+    outreachMessageStatus = "first_message_sent";
+    await chrome.storage.local.set({ message_status: "first_message_sent" });
+    renderMessageTab(outreachMessageStatus);
+    await refreshInvitationRowFromDb();
+  }
+  updateMessageTabControls();
+});
+
+generateFollowupBtnEl?.addEventListener("click", async () => {
+  const objective = (followupObjectiveEl?.value || "").trim();
+  const last10 = extractedChatMessages.slice(-10);
+  const strategy = (strategyEl.value || "").trim();
+  const includeStrategy = includeStrategyEl ? includeStrategyEl.checked : true;
+  const language = (messageLanguageEl?.value || "Portuguese").trim();
+  console.log("[LEF][chat] followup includeStrategy", includeStrategy);
+  console.log("[LEF][chat] followup generate clicked", {
+    language,
+    objectiveLen: objective.length,
+    last10Count: last10.length,
+  });
+
+  if (!objective) {
+    if (commStatusEl) commStatusEl.textContent = "Objective is required.";
+    return;
+  }
+
+  if (!hasMessageProfileUrl()) {
+    if (commStatusEl)
+      commStatusEl.textContent = UI_TEXT.openLinkedInProfileFirst;
+    return;
+  }
+
+  if (!currentProfileContext) {
+    if (commStatusEl) {
+      commStatusEl.textContent = UI_TEXT.couldNotExtractProfileContext;
+    }
+    return;
+  }
+
+  if (commStatusEl) commStatusEl.textContent = "Generating...";
+
+  const [{ apiKey: apiKeyLocal }, { model }] = await Promise.all([
+    chrome.storage.local.get(["apiKey"]),
+    chrome.storage.sync.get(["model"]),
+  ]);
+
+  let apiKey = (apiKeyLocal || "").trim();
+  if (!apiKey) {
+    const typed = (apiKeyEl.value || "").trim();
+    if (typed) {
+      apiKey = typed;
+      await chrome.storage.local.set({ apiKey });
+    }
+  }
+
+  if (!apiKey) {
+    if (commStatusEl) commStatusEl.textContent = UI_TEXT.setApiKeyInConfig;
+    setActiveTab("config");
+    return;
+  }
+
+  const contextLast10 = last10.map((m) => ({
+    direction:
+      m?.direction === "them"
+        ? "them"
+        : m?.direction === "me"
+          ? "me"
+          : "unknown",
+    text: (m?.text || "").trim(),
+    ts: (m?.ts || "").trim(),
+  }));
+  console.log("[LEF][chat] followup payload", {
+    language,
+    objectiveLen: objective.length,
+    ctxCount: contextLast10.length,
+  });
+
+  try {
+    const request = {
+      type: "GENERATE_FOLLOWUP_MESSAGE",
+      payload: {
+        apiKey,
+        model: (model || "gpt-4.1").trim(),
+        objective,
+        strategy: includeStrategy ? strategy : "",
+        includeStrategy,
+        contextLast10,
+        profileContext: { ...currentProfileContext },
+        language,
+      },
+    };
+    console.log("[LEF][chat] sending type", request.type);
+    const resp = await chrome.runtime.sendMessage(request);
+
+    if (!resp?.ok) {
+      const msg = getErrorMessage(resp?.error);
+      console.error("[LEF][chat] followup generate failed", msg);
+      if (commStatusEl) commStatusEl.textContent = msg;
+      if (followupPreviewEl) followupPreviewEl.value = msg;
+      return;
+    }
+
+    const text = (resp.text || resp.first_message || "").trim();
+    if (followupPreviewEl) followupPreviewEl.value = text;
+    if (commStatusEl) commStatusEl.textContent = "Ready";
+    console.log("[LEF][chat] followup generated", { chars: text.length });
+  } catch (e) {
+    const msg = getErrorMessage(e);
+    console.error("[LEF][chat] followup exception", e);
+    if (commStatusEl) commStatusEl.textContent = msg;
+    if (followupPreviewEl) followupPreviewEl.value = msg;
+  }
+});
+
+copyFollowupBtnEl?.addEventListener("click", async () => {
+  try {
+    await copyToClipboard((followupPreviewEl?.value || "").trim());
+    if (commStatusEl) commStatusEl.textContent = "Copied";
+  } catch (e) {
+    const msg = getErrorMessage(e);
+    if (commStatusEl) commStatusEl.textContent = msg;
+    console.error("[LEF][chat] followup copy failed", e);
+  }
+});
