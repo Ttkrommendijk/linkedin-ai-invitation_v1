@@ -826,6 +826,87 @@ async function supabaseGetInvitationByLinkedinUrl(linkedin_url) {
   return rows[0] || null;
 }
 
+const SIDEPANEL_REFRESH_DEBOUNCE_MS = 500;
+const sidePanelRefreshTimers = new Map();
+const lastSidePanelUrlByTab = new Map();
+
+function isLinkedInProfileLikeUrl(url) {
+  if (!url || typeof url !== "string") return false;
+  return /^https:\/\/www\.linkedin\.com\/(in|company)\/[^/?#]+/i.test(url);
+}
+
+async function notifySidePanelRefresh({ tabId, url, reason }) {
+  try {
+    await chrome.runtime.sendMessage({
+      type: "SIDEPANEL_REFRESH_CONTEXT",
+      payload: { tabId, url, reason },
+    });
+  } catch (_e) {
+    // Side panel may not be open; ignore.
+  }
+}
+
+function scheduleSidePanelRefresh(tabId, url, reason) {
+  if (!Number.isInteger(tabId) || !isLinkedInProfileLikeUrl(url)) return;
+
+  const existingTimer = sidePanelRefreshTimers.get(tabId);
+  if (existingTimer) clearTimeout(existingTimer);
+
+  const timer = setTimeout(async () => {
+    sidePanelRefreshTimers.delete(tabId);
+    const prevUrl = lastSidePanelUrlByTab.get(tabId);
+    if (prevUrl === url) return;
+    lastSidePanelUrlByTab.set(tabId, url);
+    await notifySidePanelRefresh({ tabId, url, reason });
+  }, SIDEPANEL_REFRESH_DEBOUNCE_MS);
+
+  sidePanelRefreshTimers.set(tabId, timer);
+}
+
+chrome.tabs.onActivated.addListener(async ({ tabId }) => {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    scheduleSidePanelRefresh(tabId, tab?.url || "", "tabs.onActivated");
+  } catch (_e) {
+    // Ignore transient tab errors.
+  }
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (typeof changeInfo.url === "string") {
+    scheduleSidePanelRefresh(tabId, changeInfo.url, "tabs.onUpdated.url");
+    return;
+  }
+  if (changeInfo.status === "complete") {
+    scheduleSidePanelRefresh(tabId, tab?.url || "", "tabs.onUpdated.complete");
+  }
+});
+
+chrome.webNavigation.onCommitted.addListener((details) => {
+  if (details.frameId !== 0) return;
+  scheduleSidePanelRefresh(
+    details.tabId,
+    details.url,
+    "webNavigation.onCommitted",
+  );
+});
+
+chrome.webNavigation.onHistoryStateUpdated.addListener((details) => {
+  if (details.frameId !== 0) return;
+  scheduleSidePanelRefresh(
+    details.tabId,
+    details.url,
+    "webNavigation.onHistoryStateUpdated",
+  );
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  const timer = sidePanelRefreshTimers.get(tabId);
+  if (timer) clearTimeout(timer);
+  sidePanelRefreshTimers.delete(tabId);
+  lastSidePanelUrlByTab.delete(tabId);
+});
+
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   const req = msg || {};
   debug("onMessage:", msg?.type);
@@ -945,6 +1026,28 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse({
           ok: false,
           error: normalizeError(e, "SUPABASE_GET_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "SP_REQUEST_REFRESH_SIGNAL") {
+    (async () => {
+      try {
+        const [tab] = await chrome.tabs.query({
+          active: true,
+          currentWindow: true,
+        });
+        const url = tab?.url || "";
+        if (tab?.id && isLinkedInProfileLikeUrl(url)) {
+          scheduleSidePanelRefresh(tab.id, url, "sidepanel.request");
+        }
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "UNKNOWN_ERROR"),
         });
       }
     })();
