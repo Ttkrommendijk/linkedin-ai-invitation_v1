@@ -251,6 +251,14 @@ function formatChatHistory(messages) {
     .join("\n\n");
 }
 
+function isMessageBoxMissingError(errorText) {
+  const text = String(errorText || "").toLowerCase();
+  return (
+    text.includes("message overlay not open") ||
+    text.includes("interop shadow root not found")
+  );
+}
+
 async function refreshChatHistoryFromActiveTab() {
   if (!chatHistoryEl) return;
   console.log("[LEF][chat] refresh requested");
@@ -284,6 +292,10 @@ async function refreshChatHistoryFromActiveTab() {
     if (!resp.ok) {
       console.warn("[LEF][chat] extract failed", resp.error);
       if (resp.stack) console.warn("[LEF][chat] stack", resp.stack);
+      if (isMessageBoxMissingError(resp.error)) {
+        chatHistoryEl.value = "Please open a message box.";
+        return;
+      }
       chatHistoryEl.value = `extract error: ${resp.error || "unknown"}${
         resp.stack ? `\n\nstack:\n${resp.stack}` : ""
       }`;
@@ -968,6 +980,26 @@ async function copyToClipboard(text) {
 function setCopyButtonEnabled(enabled) {
   copyBtnEl.disabled = !enabled;
 }
+
+async function onInvitationTabOpenedByUser() {
+  statusEl.textContent = UI_TEXT.preparingProfile;
+  await loadProfileContextOnOpen();
+}
+
+async function refreshMessagesTab({ reason = "manual_refresh" } = {}) {
+  debug("refreshMessagesTab:", reason);
+  messageStatusEl.textContent = UI_TEXT.preparingProfile;
+  await loadProfileContextOnOpen();
+  outreachMessageStatus = getOutreachStatusFromDbRow();
+  renderMessageTab(outreachMessageStatus);
+  updateMessageTabControls();
+  await refreshChatHistoryFromActiveTab();
+}
+
+async function onMessagesTabOpenedByUser() {
+  await refreshMessagesTab({ reason: "tab_click" });
+}
+
 function setActiveTab(which, { userInitiated = false } = {}) {
   if (IS_SIDE_PANEL_CONTEXT && !userInitiated) {
     return;
@@ -987,33 +1019,27 @@ function setActiveTab(which, { userInitiated = false } = {}) {
   if (tabOverview) tabOverview.classList.toggle("active", overviewActive);
   tabConfig.classList.toggle("active", configActive);
 
-  if (messageActive) {
-    loadOutreachMessageStatus().catch((_e) => {
-      outreachMessageStatus = getOutreachStatusFromDbRow();
-      renderMessageTab(outreachMessageStatus);
-    });
-    refreshChatHistoryFromActiveTab();
-  }
-
   if (overviewActive) {
     fetchOverviewPage();
   }
 }
 
-tabMainBtn.addEventListener("click", () =>
-  setActiveTab("invitation", { userInitiated: true }),
-);
-tabMessageBtn.addEventListener("click", () =>
-  setActiveTab("message", { userInitiated: true }),
-);
+tabMainBtn.addEventListener("click", async () => {
+  setActiveTab("invitation", { userInitiated: true });
+  await onInvitationTabOpenedByUser();
+});
+tabMessageBtn.addEventListener("click", async () => {
+  setActiveTab("message", { userInitiated: true });
+  await onMessagesTabOpenedByUser();
+});
 tabOverviewBtn?.addEventListener("click", () =>
   setActiveTab("overview", { userInitiated: true }),
 );
 tabConfigBtn.addEventListener("click", () =>
   setActiveTab("config", { userInitiated: true }),
 );
-refreshChatHistoryBtnEl?.addEventListener("click", () => {
-  refreshChatHistoryFromActiveTab();
+refreshChatHistoryBtnEl?.addEventListener("click", async () => {
+  await refreshMessagesTab({ reason: "manual_refresh" });
 });
 
 async function loadSettings() {
