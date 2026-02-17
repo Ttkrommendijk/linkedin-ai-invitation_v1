@@ -5,112 +5,160 @@
         <link rel="stylesheet" href="popup.css" />
     </head>
     <body>
-        <div class="header-actions">
-            <button
-                id="openSidePanel"
-                type="button"
-                class="btn-small-secondary"
-            >
-                Side panel
-            </button>
-        </div>
-        <div class="tabs">
-            <button id="tabMainBtn" class="tab-btn active" type="button">
-                Invitation
-            </button>
-            <button id="tabMessageBtn" class="tab-btn" type="button">
-                First Message
-            </button>
-            <button id="tabOverviewBtn" class="tab-btn" type="button">
-                Overview
-            </button>
-            <button id="tabConfigBtn" class="tab-btn" type="button">
-                Config
-            </button>
-        </div>
-        <div id="lifecycleBar" class="lifecycle-bar">
-            <span id="lifecycleBarText"></span>
-        </div>
-
-        <div id="tabMain" class="tab-panel active">
-            <div class="row">
-                <small
-                    >Profile context sent to AI
-                    <button id="toggleProfileContextPreview" type="button">
-                        Show
-                    </button></small
+        <div id="sidePanelRoot">
+            <div id="topTabs">
+                <button
+                    id="openSidePanel"
+                    type="button"
+                    class="btn-small-secondary"
                 >
-                <div id="profileContextPreviewWrap">
-                    <pre id="profileContextPreview">{}</pre>
+                    Open in side panel
+                </button>
+                <div class="tabs">
+                    <button
+                        id="tabMainBtn"
+                        class="tab-btn active"
+                        type="button"
+                    >
+                        Detail
+                    </button>
+                    <button id="tabOverviewBtn" class="tab-btn" type="button">
+                        List
+                    </button>
+                    <button id="tabConfigBtn" class="tab-btn" type="button">
+                        Configuration
+                    </button>
                 </div>
             </div>
 
-            <div class="row">
-                <label
-                    ><small
-                        >Specific focus for this profile (optional)</small
-                    ></label
-                >
-                <input
-                    id="focus"
-                    placeholder="e.g. S&OP + Slimstock + SAP S/4HANA go-live"
-                />
-            </div>
+            <div id="innerContentContainer" class="app-content-scroll">
+                <div id="tabMain" class="tab-panel active">
+                    <div class="detail-person">
+                        <div id="detailPersonName" class="detail-person-name">
+                            -
+                        </div>
+                        <div id="detailCompany" class="detail-person-company">
+                            -
+                        </div>
+                        <div id="detailHeadline" class="detail-person-headline">
+                            -
+                        </div>
+                    </div>
 
-            <button id="generate" type="button">Generate invite</button>
+                    <div class="row inline">
+                        <button id="statusRegisterBtn" type="button">
+                            Register
+                        </button>
+                        <button id="statusInvitedBtn" type="button">
+                            Invited
+                        </button>
+                        <button id="statusAcceptedBtn" type="button">
+                            Accepted
+                        </button>
+                        <button id="statusFirstMessageSentBtn" type="button">
+                            First message sent
+                        </button>
+                        <button id="statusMessageRespondedBtn" type="button">
+                            Message responded
+                        </button>
+                    </div>
 
-            <div class="row inline">
-                <button id="markInvited" type="button">Invitation sent</button>
-                <button id="markAccepted" type="button">
-                    Invitation accepted
-                </button>
-            </div>
-            <div id="invitedAtLabel" hidden>
-                <small></small>
-            </div>
-            <div id="acceptedAtLabel" hidden>
-                <small></small>
-            </div>
-
-            <div class="row">
-                <small>Status</small>
-                <div id="status">Idle</div>
-            </div>
-
-            <div class="row">
-                <small>Preview</small>
-                <pre id="preview"></pre>
-            </div>
-            <button id="copyBtn" type="button">Copy</button>
-        </div>
-
-        <div id="tabMessage" class="tab-panel">
-            <div class="row">
-                <label><small>Language</small></label>
-                <select id="messageLanguage">
-                    <option value="Portuguese" selected>Portuguese</option>
-                    <option value="English">English</option>
-                    <option value="Dutch">Dutch</option>
-                    <option value="Spanish">Spanish</option>
-                </select>
-            </div>
-            <div id="acceptedMode">
-                <div id="initialMessageSection">
-                    <div class="row">
-                        <label
-                            ><small
-                                >Message prompt
-                                <button
-                                    id="togglePrompt"
-                                    type="button"
-                                    aria-expanded="false"
-                                >
-                                    Show prompt
-                                </button></small
-                            ></label
+                    <div class="row inline detail-tabs">
+                        <button
+                            id="detailTabInviteBtn"
+                            class="detail-tab-btn active"
+                            type="button"
                         >
-                        <div id="firstPromptContainer">
-                            <textarea id="messagePrompt">
+                            Invitation
+                        </button>
+                        <button
+                            id="detailTabFirstMessageBtn"
+                            class="detail-tab-btn"
+                            type="button"
+                        >
+                            First Message
+                        </button>
+                        <button
+                            id="detailTabFollowBtn"
+                            class="detail-tab-btn"
+                            type="button"
+                        >
+                            Follow
+                        </button>
+                    </div>
+
+                    <div id="detailInviteSection">
+                        <div class="row">
+                            <small
+                                >Profile context sent to AI
+                                <button
+                                    id="toggleProfileContextPreview"
+                                    type="button"
+                                >
+                                    Show
+                                </button></small
+                            >
+                            <div id="profileContextPreviewWrap">
+                                <pre id="profileContextPreview">{}</pre>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <label
+                                ><small
+                                    >Specific focus for this profile
+                                    (optional)</small
+                                ></label
+                            >
+                            <input
+                                id="focus"
+                                placeholder="e.g. S&OP + Slimstock + SAP S/4HANA go-live"
+                            />
+                        </div>
+
+                        <button id="generate" type="button">
+                            Generate invite
+                        </button>
+
+                        <div class="row">
+                            <small>Preview</small>
+                            <pre id="preview"></pre>
+                        </div>
+                        <button id="copyBtn" type="button">Copy</button>
+                    </div>
+
+                    <div id="detailMessageMount"></div>
+                </div>
+
+                <div id="tabMessage" class="tab-panel">
+                    <div class="row">
+                        <label><small>Language</small></label>
+                        <select id="messageLanguage">
+                            <option value="Portuguese" selected>
+                                Portuguese
+                            </option>
+                            <option value="English">English</option>
+                            <option value="Dutch">Dutch</option>
+                            <option value="Spanish">Spanish</option>
+                        </select>
+                    </div>
+                    <div id="acceptedMode">
+                        <div id="initialMessageSection">
+                            <div class="row">
+                                <label
+                                    ><small
+                                        >Message prompt
+                                        <button
+                                            id="togglePrompt"
+                                            type="button"
+                                            aria-expanded="false"
+                                        >
+                                            Show prompt
+                                        </button></small
+                                    ></label
+                                >
+                                <div id="firstPromptContainer">
+                                    <textarea id="messagePrompt">
 Escreva a melhor primeira mensagem apos aceitar conexao no LinkedIn, em portugues.
 Objetivo estrategico: abrir uma conversa com friccao minima e incentivar resposta curta.
 
@@ -139,269 +187,294 @@ Evitar completamente:
 - emojis, hashtags ou bullets
 
 A pergunta final deve reduzir friccao e facilitar resposta rapida. Sem emojis, hashtags ou bullets. Nunca invente fatos; use somente profile_context e profile_excerpt_fallback.</textarea
-                            >
-                            <div class="inline">
-                                <button id="saveMessagePrompt" type="button">
-                                    Save prompt
-                                </button>
-                                <button id="resetMessagePrompt" type="button">
-                                    Reset to default
-                                </button>
+                                    >
+                                    <div class="inline">
+                                        <button
+                                            id="saveMessagePrompt"
+                                            type="button"
+                                        >
+                                            Save prompt
+                                        </button>
+                                        <button
+                                            id="resetMessagePrompt"
+                                            type="button"
+                                        >
+                                            Reset to default
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
+
+                            <button id="generateFirstMessage" type="button">
+                                Generate first message
+                            </button>
+                        </div>
+
+                        <div id="firstMessagePreviewSection">
+                            <div class="row">
+                                <small>First message preview</small>
+                                <pre id="firstMessagePreview"></pre>
+                            </div>
+
+                            <button id="copyFirstMessage" type="button">
+                                Copy
+                            </button>
+                            <button id="markFirstMessageSent" type="button">
+                                Message sent
+                            </button>
                         </div>
                     </div>
 
-                    <button id="generateFirstMessage" type="button">
-                        Generate first message
-                    </button>
-
-                    <div class="row">
-                        <small>Status</small>
-                        <div id="messageStatus">Idle</div>
+                    <div id="firstMessageSentMode" hidden>
+                        <div class="row">
+                            <label><small>Chat history</small></label>
+                            <textarea
+                                id="chatHistory"
+                                readonly
+                                placeholder="Chat history will appear here…"
+                            ></textarea>
+                            <button id="refreshChatHistory" type="button">
+                                Refresh history
+                            </button>
+                        </div>
+                        <div id="followupSection">
+                            <div class="row">
+                                <label><small>Objective</small></label>
+                                <textarea
+                                    id="followupObjective"
+                                    placeholder="Objective for the next message…"
+                                ></textarea>
+                            </div>
+                            <div class="row">
+                                <label class="checkbox-row">
+                                    <input
+                                        type="checkbox"
+                                        id="includeStrategy"
+                                        class="strategy-checkbox"
+                                        checked
+                                    />
+                                    <small>Include strategy</small>
+                                </label>
+                            </div>
+                            <button id="generateFollowup" type="button">
+                                Generate follow-up
+                            </button>
+                            <div class="row">
+                                <small>Communication status</small>
+                                <div id="commStatusBar">Idle</div>
+                            </div>
+                            <div class="row">
+                                <small>Generated message preview</small>
+                                <textarea id="followupPreview"></textarea>
+                            </div>
+                            <button id="copyFollowup" type="button">
+                                Copy
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <div id="firstMessagePreviewSection">
-                    <div class="row">
-                        <small>First message preview</small>
-                        <pre id="firstMessagePreview"></pre>
+                <div id="tabOverview" class="tab-panel">
+                    <div class="overview-filters row">
+                        <input
+                            id="overviewCampaignFilter"
+                            placeholder="Campaign"
+                        />
+                        <select id="overviewArchivedFilter">
+                            <option value="">Archived: All</option>
+                            <option value="0">Archived: 0</option>
+                            <option value="1">Archived: 1</option>
+                        </select>
+                        <select id="overviewStatusFilter">
+                            <option value="">Status: All</option>
+                            <option value="generated">generated</option>
+                            <option value="invited">invited</option>
+                            <option value="accepted">accepted</option>
+                            <option value="first message sent">
+                                first message sent
+                            </option>
+                        </select>
+                        <input
+                            id="overviewSearch"
+                            placeholder="Search name/company"
+                        />
                     </div>
 
-                    <button id="copyFirstMessage" type="button">Copy</button>
-                    <button id="markFirstMessageSent" type="button">
-                        Message sent
-                    </button>
-                </div>
-            </div>
+                    <div class="overview-grid-wrap row">
+                        <div
+                            id="overviewLoading"
+                            class="overview-loading"
+                            hidden
+                        >
+                            Loading…
+                        </div>
+                        <table class="overview-grid overview-table">
+                            <colgroup>
+                                <col class="overview-col-open" />
+                                <col class="overview-col-archive" />
+                                <col class="overview-col-name" />
+                                <col class="overview-col-company" />
+                                <col class="overview-col-status" />
+                                <col class="overview-col-date" />
+                                <col class="overview-col-campaign" />
+                                <col class="overview-col-archived" />
+                            </colgroup>
+                            <thead>
+                                <tr>
+                                    <th>Open</th>
+                                    <th>Archive</th>
+                                    <th>
+                                        <button
+                                            type="button"
+                                            class="sort-btn"
+                                            data-overview-sort="full_name"
+                                        >
+                                            Name
+                                            <span
+                                                class="sort-indicator"
+                                                data-overview-sort-indicator="full_name"
+                                            ></span>
+                                        </button>
+                                    </th>
+                                    <th>
+                                        <button
+                                            type="button"
+                                            class="sort-btn"
+                                            data-overview-sort="company"
+                                        >
+                                            Company
+                                            <span
+                                                class="sort-indicator"
+                                                data-overview-sort-indicator="company"
+                                            ></span>
+                                        </button>
+                                    </th>
+                                    <th>
+                                        <button
+                                            type="button"
+                                            class="sort-btn"
+                                            data-overview-sort="status"
+                                        >
+                                            Status
+                                            <span
+                                                class="sort-indicator"
+                                                data-overview-sort-indicator="status"
+                                            ></span>
+                                        </button>
+                                    </th>
+                                    <th>
+                                        <button
+                                            type="button"
+                                            class="sort-btn"
+                                            data-overview-sort="most_relevant_date"
+                                        >
+                                            Most relevant date
+                                            <span
+                                                class="sort-indicator"
+                                                data-overview-sort-indicator="most_relevant_date"
+                                            ></span>
+                                        </button>
+                                    </th>
+                                    <th>
+                                        <button
+                                            type="button"
+                                            class="sort-btn"
+                                            data-overview-sort="campaign"
+                                        >
+                                            Campaign
+                                            <span
+                                                class="sort-indicator"
+                                                data-overview-sort-indicator="campaign"
+                                            ></span>
+                                        </button>
+                                    </th>
+                                    <th>
+                                        <button
+                                            type="button"
+                                            class="sort-btn"
+                                            data-overview-sort="archived"
+                                        >
+                                            Archived
+                                            <span
+                                                class="sort-indicator"
+                                                data-overview-sort-indicator="archived"
+                                            ></span>
+                                        </button>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody id="overviewTbody"></tbody>
+                        </table>
+                    </div>
 
-            <div id="firstMessageSentMode" hidden>
-                <div class="row">
-                    <label><small>Chat history</small></label>
-                    <textarea
-                        id="chatHistory"
-                        readonly
-                        placeholder="Chat history will appear here…"
-                    ></textarea>
-                    <button id="refreshChatHistory" type="button">
-                        Refresh history
-                    </button>
+                    <div class="overview-pagination row">
+                        <select id="overviewPageSize">
+                            <option value="10">10</option>
+                            <option value="25" selected>25</option>
+                            <option value="50">50</option>
+                        </select>
+                        <button id="overviewPrevBtn" type="button">Prev</button>
+                        <button id="overviewNextBtn" type="button">Next</button>
+                        <div id="overviewCountLabel">Total: ?</div>
+                    </div>
                 </div>
-                <div id="followupSection">
+
+                <div id="tabConfig" class="tab-panel">
                     <div class="row">
-                        <label><small>Objective</small></label>
+                        <label><small>OpenAI API key (saved)</small></label>
+                        <input
+                            id="apiKey"
+                            type="password"
+                            placeholder="sk-..."
+                        />
+                    </div>
+
+                    <div class="row">
+                        <label><small>Model (saved)</small></label>
+                        <input id="model" placeholder="gpt-4.1" />
+                    </div>
+
+                    <div class="row">
+                        <label><small>Strategy (saved)</small></label>
                         <textarea
-                            id="followupObjective"
-                            placeholder="Objective for the next message…"
+                            id="strategy"
+                            placeholder="Paste your strategy core here (saved)."
                         ></textarea>
                     </div>
+
                     <div class="row">
-                        <label class="checkbox-row">
-                            <input
-                                type="checkbox"
-                                id="includeStrategy"
-                                class="strategy-checkbox"
-                                checked
-                            />
-                            <small>Include strategy</small>
-                        </label>
+                        <label><small>Webhook base URL (saved)</small></label>
+                        <input
+                            id="webhookBaseUrl"
+                            placeholder="https://yourdomain.com"
+                        />
                     </div>
-                    <button id="generateFollowup" type="button">
-                        Generate follow-up
-                    </button>
+
                     <div class="row">
-                        <small>Communication status</small>
-                        <div id="commStatusBar">Idle</div>
+                        <label><small>Webhook secret (saved)</small></label>
+                        <input
+                            id="webhookSecret"
+                            type="password"
+                            placeholder="shared secret"
+                        />
                     </div>
+
+                    <button id="saveConfig" type="button">Save config</button>
+
                     <div class="row">
-                        <small>Generated message preview</small>
-                        <textarea id="followupPreview"></textarea>
+                        <small>Tip</small>
+                        <div>
+                            <small
+                                >Edits are saved when you click "Save config" or
+                                "Generate".</small
+                            >
+                        </div>
                     </div>
-                    <button id="copyFollowup" type="button">Copy</button>
                 </div>
             </div>
-        </div>
-
-        <div id="tabOverview" class="tab-panel">
-            <div class="overview-filters row">
-                <input id="overviewCampaignFilter" placeholder="Campaign" />
-                <select id="overviewArchivedFilter">
-                    <option value="">Archived: All</option>
-                    <option value="0">Archived: 0</option>
-                    <option value="1">Archived: 1</option>
-                </select>
-                <select id="overviewStatusFilter">
-                    <option value="">Status: All</option>
-                    <option value="generated">generated</option>
-                    <option value="invited">invited</option>
-                    <option value="accepted">accepted</option>
-                    <option value="first message sent">
-                        first message sent
-                    </option>
-                </select>
-                <input id="overviewSearch" placeholder="Search name/company" />
-            </div>
-
-            <div class="overview-grid-wrap row">
-                <div id="overviewLoading" class="overview-loading" hidden>
-                    Loading…
-                </div>
-                <table class="overview-grid overview-table">
-                    <colgroup>
-                        <col class="overview-col-open" />
-                        <col class="overview-col-archive" />
-                        <col class="overview-col-name" />
-                        <col class="overview-col-company" />
-                        <col class="overview-col-status" />
-                        <col class="overview-col-date" />
-                        <col class="overview-col-campaign" />
-                        <col class="overview-col-archived" />
-                    </colgroup>
-                    <thead>
-                        <tr>
-                            <th>Open</th>
-                            <th>Archive</th>
-                            <th>
-                                <button
-                                    type="button"
-                                    class="sort-btn"
-                                    data-overview-sort="full_name"
-                                >
-                                    Name
-                                    <span
-                                        class="sort-indicator"
-                                        data-overview-sort-indicator="full_name"
-                                    ></span>
-                                </button>
-                            </th>
-                            <th>
-                                <button
-                                    type="button"
-                                    class="sort-btn"
-                                    data-overview-sort="company"
-                                >
-                                    Company
-                                    <span
-                                        class="sort-indicator"
-                                        data-overview-sort-indicator="company"
-                                    ></span>
-                                </button>
-                            </th>
-                            <th>
-                                <button
-                                    type="button"
-                                    class="sort-btn"
-                                    data-overview-sort="status"
-                                >
-                                    Status
-                                    <span
-                                        class="sort-indicator"
-                                        data-overview-sort-indicator="status"
-                                    ></span>
-                                </button>
-                            </th>
-                            <th>
-                                <button
-                                    type="button"
-                                    class="sort-btn"
-                                    data-overview-sort="most_relevant_date"
-                                >
-                                    Most relevant date
-                                    <span
-                                        class="sort-indicator"
-                                        data-overview-sort-indicator="most_relevant_date"
-                                    ></span>
-                                </button>
-                            </th>
-                            <th>
-                                <button
-                                    type="button"
-                                    class="sort-btn"
-                                    data-overview-sort="campaign"
-                                >
-                                    Campaign
-                                    <span
-                                        class="sort-indicator"
-                                        data-overview-sort-indicator="campaign"
-                                    ></span>
-                                </button>
-                            </th>
-                            <th>
-                                <button
-                                    type="button"
-                                    class="sort-btn"
-                                    data-overview-sort="archived"
-                                >
-                                    Archived
-                                    <span
-                                        class="sort-indicator"
-                                        data-overview-sort-indicator="archived"
-                                    ></span>
-                                </button>
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody id="overviewTbody"></tbody>
-                </table>
-            </div>
-
-            <div class="overview-pagination row">
-                <select id="overviewPageSize">
-                    <option value="10">10</option>
-                    <option value="25" selected>25</option>
-                    <option value="50">50</option>
-                </select>
-                <button id="overviewPrevBtn" type="button">Prev</button>
-                <button id="overviewNextBtn" type="button">Next</button>
-                <div id="overviewCountLabel">Total: ?</div>
-            </div>
-        </div>
-
-        <div id="tabConfig" class="tab-panel">
-            <div class="row">
-                <label><small>OpenAI API key (saved)</small></label>
-                <input id="apiKey" type="password" placeholder="sk-..." />
-            </div>
-
-            <div class="row">
-                <label><small>Model (saved)</small></label>
-                <input id="model" placeholder="gpt-4.1" />
-            </div>
-
-            <div class="row">
-                <label><small>Strategy (saved)</small></label>
-                <textarea
-                    id="strategy"
-                    placeholder="Paste your strategy core here (saved)."
-                ></textarea>
-            </div>
-
-            <div class="row">
-                <label><small>Webhook base URL (saved)</small></label>
-                <input
-                    id="webhookBaseUrl"
-                    placeholder="https://yourdomain.com"
-                />
-            </div>
-
-            <div class="row">
-                <label><small>Webhook secret (saved)</small></label>
-                <input
-                    id="webhookSecret"
-                    type="password"
-                    placeholder="shared secret"
-                />
-            </div>
-
-            <button id="saveConfig" type="button">Save config</button>
-
-            <div class="row">
-                <small>Tip</small>
-                <div>
-                    <small
-                        >Edits are saved when you click "Save config" or
-                        "Generate".</small
-                    >
-                </div>
+            <div id="commFooter" class="comm-status-footer">
+                <small>Ready</small>
+                <div id="commFooterText">Ready</div>
             </div>
         </div>
 

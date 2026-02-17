@@ -1,7 +1,50 @@
+html,
+body {
+    margin: 0;
+    height: auto;
+}
 body {
     font-family: Arial, sans-serif;
     width: 380px;
-    margin: 12px;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    display: block;
+    overflow: hidden;
+}
+#sidePanelRoot {
+    display: flex;
+    flex-direction: column;
+    height: 600px;
+    max-height: 600px;
+    overflow: hidden;
+    min-height: 0;
+    padding: 0; /* IMPORTANT: no padding here */
+}
+/* keep header fixed */
+#topTabs {
+    flex: 0 0 auto;
+    height: 60px;
+    padding: 0px; /* move padding here */
+    box-sizing: border-box;
+}
+/* 2) the ONLY scrolling region */
+#innerContentContainer {
+    flex: 1 1 auto;
+    min-height: 0; /* MUST be 0 */
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-top: 0px;
+    padding-right: 12px;
+    padding-bottom: 12px;
+    padding-left: 12px;
+    box-sizing: border-box;
+}
+.app-content-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 input,
 textarea,
@@ -23,6 +66,25 @@ button:disabled {
 }
 .row {
     margin-top: 10px;
+}
+.detail-person {
+    margin-top: 6px;
+}
+.detail-person-name {
+    font-size: 18px;
+    font-weight: 700;
+    margin: 0;
+}
+.detail-person-company {
+    font-size: 13px;
+    font-weight: 600;
+    margin-top: 2px;
+    color: #374151;
+}
+.detail-person-headline {
+    font-size: 12px;
+    margin-top: 4px;
+    color: #111;
 }
 .checkbox-row {
     display: inline-flex;
@@ -72,7 +134,8 @@ pre {
 
 .tabs {
     display: flex;
-    gap: 8px;
+    gap: 0;
+    border-bottom: 1px solid #ddd;
     margin-bottom: 10px;
 }
 .header-actions {
@@ -89,17 +152,34 @@ pre {
     border: 1px solid #d1d5db;
     color: #374151;
 }
+#openSidePanel {
+    width: 100%;
+    height: 15px;
+    min-height: 15px;
+    padding: 0;
+    margin: 0 0 8px 0;
+    font-size: 12px;
+    line-height: 15px;
+    background: #2563eb;
+    color: #fff;
+    border: 1px solid #1d4ed8;
+    border-radius: 6px;
+}
 .tab-btn {
     flex: 1;
-    padding: 10px;
-    border: 1px solid #ddd;
-    background: #fafafa;
-    border-radius: 8px;
+    margin-top: 0;
+    min-height: 32px;
+    padding: 8px 10px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    border-radius: 0;
     cursor: pointer;
+    color: #555;
 }
 .tab-btn.active {
-    background: #fff;
-    border-color: #bbb;
+    border-bottom-color: #2563eb;
+    color: #111;
     font-weight: 600;
 }
 .tab-panel {
@@ -120,6 +200,35 @@ pre {
 .inline > * {
     flex: 1;
 }
+.detail-tabs {
+    margin-top: 12px;
+    border-bottom: 1px solid #ddd;
+    gap: 0;
+}
+.detail-tab-btn {
+    margin-top: 0;
+    min-height: 32px;
+    padding: 8px 10px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    border-radius: 0;
+    color: #555;
+}
+.detail-tab-btn.active {
+    border-bottom-color: #2563eb;
+    color: #111;
+    font-weight: 600;
+}
+.detail-inner-panel {
+    display: block;
+}
+.detail-inner-panel[hidden] {
+    display: none !important;
+}
+#detailMessageMount {
+    margin-top: 10px;
+}
 
 .is-highlighted {
     border: 1px solid #b7a546;
@@ -129,17 +238,26 @@ pre {
     display: none !important;
 }
 
-.lifecycle-bar {
+.comm-status-footer {
     width: 100%;
-    height: 25px;
+    height: 28px;
+    min-height: 28px;
     display: flex;
     align-items: center;
+    gap: 8px;
     padding: 0 10px;
     font-size: 12px;
     box-sizing: border-box;
-    border-bottom: 1px solid #ddd;
+    border-top: 1px solid #ddd;
     background: #f2f2f2;
     color: #333;
+    flex: 0 0 auto;
+    margin-top: 0;
+}
+.comm-status-footer #commFooterText {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .overview-filters {
@@ -248,13 +366,34 @@ body.is-sidepanel #tabOverview .overview-grid col.overview-col-archived {
 }
 body.is-sidepanel {
     margin: 0;
+    padding: 0;
     width: 100%;
     height: 100vh;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+}
+body.is-sidepanel #sidePanelRoot {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    overflow: hidden;
+}
+body.is-sidepanel #innerContentContainer {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 12px;
+    max-height: none;
 }
 body.is-sidepanel .tabs,
-body.is-sidepanel .lifecycle-bar {
+body.is-sidepanel .comm-status-footer {
     flex: 0 0 auto;
 }
 body.is-sidepanel .tab-panel {

@@ -1058,6 +1058,16 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   lastSidePanelUrlByTab.delete(tabId);
 });
 
+function emitUiStatus(text) {
+  try {
+    chrome.runtime.sendMessage({ type: "ui_status", text }, () => {
+      void chrome.runtime.lastError;
+    });
+  } catch (_e) {
+    // Ignore when popup/sidepanel is closed.
+  }
+}
+
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   const req = msg || {};
   debug("onMessage:", msg?.type);
@@ -1071,6 +1081,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === "GENERATE_INVITE") {
     (async () => {
+      emitUiStatus("Sending to LLM…");
       try {
         const generation = await callOpenAIInviteGeneration(msg.payload);
         sendResponse({
@@ -1086,6 +1097,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           ok: false,
           error: normalizeError(e, "GENERATION_FAILED", details),
         });
+      } finally {
+        emitUiStatus("Ready");
       }
     })();
     return true;
@@ -1093,6 +1106,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === "GENERATE_FIRST_MESSAGE") {
     (async () => {
+      emitUiStatus("Sending to LLM…");
       try {
         const first_message = await callOpenAIFirstMessage(msg.payload);
         sendResponse({ ok: true, first_message });
@@ -1101,6 +1115,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           ok: false,
           error: normalizeError(e, "GENERATION_FAILED"),
         });
+      } finally {
+        emitUiStatus("Ready");
       }
     })();
     return true;
@@ -1108,6 +1124,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (req.type === "GENERATE_FOLLOWUP_MESSAGE") {
     (async () => {
+      emitUiStatus("Sending to LLM…");
       try {
         const text = await callOpenAIFollowupMessage(req.payload);
         sendResponse({ ok: true, text });
@@ -1116,6 +1133,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           ok: false,
           error: normalizeError(e, "GENERATION_FAILED"),
         });
+      } finally {
+        emitUiStatus("Ready");
       }
     })();
     return true;
@@ -1123,6 +1142,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === "DB_UPSERT_GENERATED") {
     (async () => {
+      emitUiStatus("Communicating to database…");
       try {
         await supabaseUpsertInvitation(msg.payload);
         sendResponse({ ok: true });
@@ -1131,6 +1151,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           ok: false,
           error: normalizeError(e, "SUPABASE_UPSERT_FAILED"),
         });
+      } finally {
+        emitUiStatus("Ready");
       }
     })();
     return true;
@@ -1138,6 +1160,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === "DB_UPDATE_FIRST_MESSAGE") {
     (async () => {
+      emitUiStatus("Updating…");
       try {
         await supabaseUpdateFirstMessage(msg.payload);
         sendResponse({ ok: true });
@@ -1146,6 +1169,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           ok: false,
           error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
         });
+      } finally {
+        emitUiStatus("Ready");
       }
     })();
     return true;
@@ -1153,6 +1178,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === "DB_MARK_STATUS") {
     (async () => {
+      emitUiStatus("Communicating to database…");
       try {
         await supabaseMarkStatus(msg.payload);
         sendResponse({ ok: true });
@@ -1161,6 +1187,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           ok: false,
           error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
         });
+      } finally {
+        emitUiStatus("Ready");
       }
     })();
     return true;
@@ -1168,6 +1196,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === "DB_GET_INVITATION") {
     (async () => {
+      emitUiStatus("Fetching…");
       try {
         const row = await supabaseGetInvitationByLinkedinUrl(
           msg?.payload?.linkedin_url,
@@ -1178,6 +1207,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           ok: false,
           error: normalizeError(e, "SUPABASE_GET_FAILED"),
         });
+      } finally {
+        emitUiStatus("Ready");
       }
     })();
     return true;
@@ -1185,6 +1216,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === "DB_LIST_INVITATIONS_OVERVIEW") {
     (async () => {
+      emitUiStatus("Fetching…");
       try {
         const result = await supabaseListInvitationsOverview(
           msg?.payload || {},
@@ -1195,6 +1227,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           ok: false,
           error: normalizeError(e, "SUPABASE_GET_FAILED"),
         });
+      } finally {
+        emitUiStatus("Ready");
       }
     })();
     return true;
@@ -1202,6 +1236,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === "DB_ARCHIVE_INVITATION") {
     (async () => {
+      emitUiStatus("Updating…");
       try {
         await supabaseArchiveInvitation(msg?.payload || {});
         sendResponse({ ok: true });
@@ -1210,6 +1245,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           ok: false,
           error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
         });
+      } finally {
+        emitUiStatus("Ready");
       }
     })();
     return true;
