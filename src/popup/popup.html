@@ -34,8 +34,21 @@
             <div id="innerContentContainer" class="app-content-scroll">
                 <div id="tabMain" class="tab-panel active">
                     <div class="detail-person">
-                        <div id="detailPersonName" class="detail-person-name">
-                            -
+                        <div class="detail-person-top">
+                            <div
+                                id="detailPersonName"
+                                class="detail-person-name"
+                            >
+                                -
+                            </div>
+                            <button
+                                id="enrichProfileBtn"
+                                type="button"
+                                class="btn-enrich"
+                                title="Enrich data with AI"
+                            >
+                                🪄
+                            </button>
                         </div>
                         <div id="detailCompany" class="detail-person-company">
                             -
@@ -45,22 +58,39 @@
                         </div>
                     </div>
 
-                    <div class="row inline">
-                        <button id="statusRegisterBtn" type="button">
-                            Register
-                        </button>
-                        <button id="statusInvitedBtn" type="button">
-                            Invited
-                        </button>
-                        <button id="statusAcceptedBtn" type="button">
-                            Accepted
-                        </button>
-                        <button id="statusFirstMessageSentBtn" type="button">
-                            First message sent
-                        </button>
-                        <button id="statusMessageRespondedBtn" type="button">
-                            Message responded
-                        </button>
+                    <div id="statusStepper" class="status-stepper">
+                        <div id="step-register" class="status-step">
+                            <div class="status-circle"></div>
+                            <div class="status-label">Register</div>
+                        </div>
+                        <div id="step-invited" class="status-step">
+                            <div class="status-circle"></div>
+                            <div class="status-label">Invited</div>
+                        </div>
+                        <div id="step-accepted" class="status-step">
+                            <div class="status-circle"></div>
+                            <div class="status-label">Accepted</div>
+                        </div>
+                        <div id="step-first-message-sent" class="status-step">
+                            <div class="status-circle"></div>
+                            <div class="status-label">1st sent</div>
+                        </div>
+                        <div id="step-message-responded" class="status-step">
+                            <div class="status-circle"></div>
+                            <div class="status-label">Responded</div>
+                        </div>
+                    </div>
+                    <div class="status-actions">
+                        <button
+                            id="statusBackBtn"
+                            type="button"
+                            class="btn-back"
+                        ></button>
+                        <button
+                            id="statusForwardBtn"
+                            type="button"
+                            class="btn-forward"
+                        ></button>
                     </div>
 
                     <div class="row inline detail-tabs">

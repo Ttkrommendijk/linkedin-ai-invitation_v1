@@ -124,6 +124,31 @@ function normalizeProfileField(value) {
   return String(value).trim();
 }
 
+function sanitizeHeadlineJobTitle(value) {
+  let out = normalizeProfileField(value || "");
+  if (!out) return "";
+
+  const patterns = [
+    /^\s*\d+\s*[º°]\s+/i,
+    /^\s*\d+\s*[-–.]\s+/i,
+    /^\s*#\s*\d+\s+/i,
+    /^\s*(i|ii|iii|iv|v|vi|vii|viii|ix|x)\s+/i,
+  ];
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const pattern of patterns) {
+      const next = out.replace(pattern, "").trim();
+      if (next !== out) {
+        out = next;
+        changed = true;
+      }
+    }
+  }
+  return out;
+}
+
 function clampText(text, maxChars) {
   let out = (text || "").trim();
   out = out
@@ -201,6 +226,11 @@ company extraction rules (STRICT):
 
 headline rules (STRICT):
 - Goal: return a job-description style headline for the person (role-focused), not a sales pitch.
+- "headline" means the person's current job title/role (cargo) as shown on LinkedIn.
+- Do NOT return a generic marketing headline, slogan, or promotional phrase.
+- Ignore/remove leading ordinal or line-prefix markers such as "2º", "1º", "3º", "I", "II", "III", "#2", and similar.
+- Return only the clean job title text (example: "TI Manager", never "2º TI Manager").
+- retunr only the clean job title, do not include the company name (example "TI Manager", never "TI Manager na Messer Gases Brasil")
 - Prefer profile_context.headline if present and non-empty; clean it (remove location/noise).
 - Otherwise derive from profile_excerpt_fallback:
   - Extract the current role/title from the top-card style line.
@@ -216,6 +246,7 @@ Return valid JSON only (no markdown, no extra text) with exactly these keys:
   "company": string,
   "headline": string
 }
+- In this schema, "headline" must be the job title / role (cargo).
 - company/headline must be "" when unknown.
 - Never invent facts for company/headline; derive only from profile_context and profile_excerpt_fallback.`;
 }
@@ -322,7 +353,7 @@ function parseInviteGenerationJson(rawText) {
   return {
     invite_text: clampText(normalizeProfileField(parsed.invite_text), 300),
     company: normalizeProfileField(parsed.company),
-    headline: normalizeProfileField(parsed.headline),
+    headline: sanitizeHeadlineJobTitle(parsed.headline),
   };
 }
 
@@ -338,6 +369,27 @@ function extractRawModelText(data) {
 }
 
 function parseInviteGenerationFromResponseData(data) {
+  const primaryText = normalizeProfileField(
+    data?.output?.[0]?.content?.[0]?.text || "",
+  );
+  if (primaryText) {
+    try {
+      const parsed = JSON.parse(primaryText);
+      return {
+        parsed: parseInviteGenerationJson(JSON.stringify(parsed)),
+        rawText: primaryText,
+        usedOutputParsed: false,
+      };
+    } catch (e) {
+      const err = new Error("Model returned invalid JSON.");
+      err.details = {
+        reason: "invalid_json",
+        source: "output.0.content.0.text",
+      };
+      throw err;
+    }
+  }
+
   // Preferred path for structured outputs.
   if (data?.output_parsed && typeof data.output_parsed === "object") {
     const parsed = {
@@ -829,6 +881,69 @@ async function supabaseMarkStatus({ linkedin_url, status }) {
   }
 }
 
+async function supabaseSetStatusOnly({ linkedin_url, status }) {
+  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?on_conflict=linkedin_url`;
+  const row = { linkedin_url, status };
+
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "POST",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+        "Content-Type": "application/json",
+        Prefer: "resolution=merge-duplicates,return=minimal",
+      },
+      body: JSON.stringify(row),
+    },
+    15000,
+    "Supabase request",
+  );
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+}
+
+async function supabaseUpdateProfileDetailsOnly({
+  linkedin_url,
+  company,
+  headline,
+}) {
+  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}`;
+  const patch = {};
+  const safeCompany = normalizeProfileField(company);
+  const safeHeadline = sanitizeHeadlineJobTitle(headline);
+  if (safeCompany) patch.company = safeCompany;
+  if (safeHeadline) patch.headline = safeHeadline;
+  if (!Object.keys(patch).length) return;
+
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify(patch),
+    },
+    15000,
+    "Supabase request",
+  );
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+}
+
 async function supabaseGetInvitationByLinkedinUrl(linkedin_url) {
   const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
   const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}&select=linkedin_url,status,message,generated_at,invited_at,accepted_at,first_message,first_message_generated_at,first_message_sent_at,company,headline,full_name,focus,positioning`;
@@ -1181,6 +1296,42 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       emitUiStatus("Communicating to database…");
       try {
         await supabaseMarkStatus(msg.payload);
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
+        });
+      } finally {
+        emitUiStatus("Ready");
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "DB_SET_STATUS_ONLY") {
+    (async () => {
+      emitUiStatus("Communicating to database…");
+      try {
+        await supabaseSetStatusOnly(msg.payload);
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
+        });
+      } finally {
+        emitUiStatus("Ready");
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "DB_UPDATE_PROFILE_DETAILS_ONLY") {
+    (async () => {
+      emitUiStatus("Updating…");
+      try {
+        await supabaseUpdateProfileDetailsOnly(msg.payload || {});
         sendResponse({ ok: true });
       } catch (e) {
         sendResponse({
