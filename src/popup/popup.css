@@ -47,13 +47,29 @@ body {
     overflow-x: hidden;
 }
 input,
-textarea,
-button {
+textarea {
     width: 100%;
     box-sizing: border-box;
 }
 textarea {
     height: 90px;
+}
+.btn {
+    width: 100%;
+    box-sizing: border-box;
+}
+.btn-primary {
+}
+.btn-secondary {
+}
+.btn-icon {
+    width: auto;
+    min-width: 0;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: transparent;
+    box-sizing: border-box;
 }
 button {
     margin-top: 8px;

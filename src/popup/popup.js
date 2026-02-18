@@ -91,6 +91,31 @@ const LEF_UTILS = globalThis.LEFUtils || {};
 const safeTrim = LEF_UTILS.safeTrim;
 const normalizeWhitespace = LEF_UTILS.normalizeWhitespace;
 const sanitizeHeadlineJobTitle = LEF_UTILS.sanitizeHeadlineJobTitle;
+const sendRuntimeMessage =
+  typeof LEF_UTILS.sendRuntimeMessage === "function"
+    ? LEF_UTILS.sendRuntimeMessage
+    : async (type, payload = {}) => {
+        try {
+          const response = await chrome.runtime.sendMessage({
+            type,
+            ...(payload && typeof payload === "object" ? payload : {}),
+          });
+          if (response?.ok === false || response?.error) {
+            const errorText =
+              typeof response?.error === "string"
+                ? response.error
+                : response?.error?.message || "unknown error";
+            return { ok: false, error: errorText, data: response || null };
+          }
+          return { ok: true, data: response };
+        } catch (e) {
+          return {
+            ok: false,
+            error: e instanceof Error ? e.message : String(e || ""),
+            data: null,
+          };
+        }
+      };
 const debugLog =
   typeof LEF_UTILS.debugLog === "function" ? LEF_UTILS.debugLog : () => {};
 const IS_SIDE_PANEL_CONTEXT = (() => {
@@ -528,13 +553,13 @@ async function refreshChatHistoryFromActiveTab() {
 
 async function fetchChatHistory() {
   const reqId = `chat_${Date.now()}_${++chatExtractSeq}`;
-  const resp = await chrome.runtime.sendMessage({
-    type: "FETCH_CHAT_HISTORY",
+  const result = await sendRuntimeMessage("FETCH_CHAT_HISTORY", {
     payload: { reqId },
   });
-  if (!resp?.ok) {
+  if (!result.ok) {
     return { messages: [], chatHistory: "" };
   }
+  const resp = result.data || {};
   const messages = Array.isArray(resp?.data?.messages)
     ? resp.data.messages
     : [];
@@ -728,14 +753,13 @@ async function refreshInvitationRowFromDb({ preserveTabs = false } = {}) {
   }
 
   try {
-    const resp = await chrome.runtime.sendMessage({
-      type: "DB_GET_INVITATION",
+    const result = await sendRuntimeMessage("DB_GET_INVITATION", {
       payload: { linkedin_url },
     });
-
-    if (!resp?.ok) {
+    const resp = result.data || {};
+    if (!result.ok) {
       dbInvitationRow = null;
-      setCommunicationStatus(getErrorMessage(resp?.error));
+      setCommunicationStatus(getErrorMessage(result.error));
       applyLifecycleUiState(dbInvitationRow, { preserveTabs });
       outreachMessageStatus = "accepted";
       renderMessageTab(outreachMessageStatus);
@@ -964,17 +988,17 @@ async function fetchOverviewPage() {
   setFooterFetchingStatus();
   overviewLoadingEl.hidden = false;
   try {
-    const resp = await chrome.runtime.sendMessage({
-      type: "DB_LIST_INVITATIONS_OVERVIEW",
+    const result = await sendRuntimeMessage("DB_LIST_INVITATIONS_OVERVIEW", {
       payload: buildOverviewQueryState(),
     });
-    if (!resp?.ok) {
+    const resp = result.data || {};
+    if (!result.ok) {
       overviewLoadingEl.hidden = true;
       overviewTbodyEl.innerHTML = "";
       const tr = document.createElement("tr");
       const td = document.createElement("td");
       td.colSpan = 8;
-      td.textContent = getErrorMessage(resp?.error);
+      td.textContent = getErrorMessage(result.error);
       tr.appendChild(td);
       overviewTbodyEl.appendChild(tr);
       overviewTotal = null;
@@ -1007,8 +1031,7 @@ async function openLinkedIn(url) {
       ? LEF_UTILS.isLinkedInProfileLikeUrl(targetUrl)
       : /^https:\/\/www\.linkedin\.com\/(in|company)\/[^/?#]+/i.test(targetUrl);
   if (!isLinkedInTarget) return;
-  await chrome.runtime.sendMessage({
-    type: "OPEN_LINKEDIN_URL",
+  await sendRuntimeMessage("OPEN_LINKEDIN_URL", {
     payload: { url: targetUrl },
   });
 }
@@ -1021,12 +1044,11 @@ async function archiveRow(url) {
     return;
   }
   try {
-    const resp = await chrome.runtime.sendMessage({
-      type: "DB_ARCHIVE_INVITATION",
+    const result = await sendRuntimeMessage("DB_ARCHIVE_INVITATION", {
       payload: { url: target },
     });
-    if (!resp?.ok) {
-      statusEl.textContent = `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`;
+    if (!result.ok) {
+      statusEl.textContent = `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(result.error)}`;
       return;
     }
     await fetchOverviewPage();
@@ -1149,12 +1171,12 @@ function getFullNameFromContext(profileContext) {
 }
 
 async function extractProfileContextFromActiveTab() {
-  const resp = await chrome.runtime.sendMessage({
-    type: "SCRAPE_PROFILE_CONTEXT",
-  });
+  const result = await sendRuntimeMessage("SCRAPE_PROFILE_CONTEXT");
+  const resp = result.data || {};
   if (!resp?.ok || !resp?.data?.profile) {
     throw new Error(
-      getErrorMessage(resp?.error) || "profile extraction failed",
+      getErrorMessage(result.error || resp?.error) ||
+        "profile extraction failed",
     );
   }
   return getProfileForGeneration(resp.data.profile);
@@ -1625,9 +1647,8 @@ async function handleGenerateFirstMessageClick() {
     currentProfileContext = profileContextForGeneration;
     lastProfileContextSent = { ...profileContextForGeneration };
 
-    const resp = await chrome.runtime.sendMessage({
+    const result = await sendRuntimeMessage("GENERATE_FIRST_MESSAGE", {
       // prompt: buildFirstMessageTextPrompt (Generate first message button)
-      type: "GENERATE_FIRST_MESSAGE",
       payload: {
         apiKey,
         model: (model || "gpt-4.1").trim(),
@@ -1636,9 +1657,10 @@ async function handleGenerateFirstMessageClick() {
         profile: profileContextForGeneration,
       },
     });
+    const resp = result.data || {};
 
-    if (!resp?.ok) {
-      throw new Error(getErrorMessage(resp?.error));
+    if (!result.ok || !resp?.ok) {
+      throw new Error(getErrorMessage(result.error || resp?.error));
     }
 
     firstMessage = (resp.first_message || "").trim();
@@ -1650,16 +1672,16 @@ async function handleGenerateFirstMessageClick() {
 
     if (!isPostSendMode()) {
       setFooterUpdatingStatus();
-      const dbResp = await chrome.runtime.sendMessage({
-        type: "DB_UPDATE_FIRST_MESSAGE",
+      const dbResult = await sendRuntimeMessage("DB_UPDATE_FIRST_MESSAGE", {
         payload: {
           linkedin_url: linkedinUrl,
           first_message: firstMessage,
           first_message_generated_at: new Date().toISOString(),
         },
       });
-      if (!dbResp?.ok) {
-        messageStatusEl.textContent = `${UI_TEXT.generatedButDbErrorPrefix} ${getErrorMessage(dbResp?.error)}`;
+      const dbResp = dbResult.data || {};
+      if (!dbResult.ok || !dbResp?.ok) {
+        messageStatusEl.textContent = `${UI_TEXT.generatedButDbErrorPrefix} ${getErrorMessage(dbResult.error || dbResp?.error)}`;
       } else {
         await refreshInvitationRowFromDb({ preserveTabs: true });
         updateMessageTabControls();
@@ -1691,19 +1713,22 @@ async function extractAndPersistProfileDetails() {
   const extracted = await extractProfileDetailsFromLlm();
 
   setFooterUpdatingStatus();
-  const saveResp = await chrome.runtime.sendMessage({
-    type: "DB_UPDATE_PROFILE_DETAILS_ONLY",
-    payload: {
-      linkedin_url: extracted.linkedin_url,
-      company: extracted.company || undefined,
-      headline: extracted.headline || undefined,
-      language: extracted.language || getLanguage(),
+  const saveResult = await sendRuntimeMessage(
+    "DB_UPDATE_PROFILE_DETAILS_ONLY",
+    {
+      payload: {
+        linkedin_url: extracted.linkedin_url,
+        company: extracted.company || undefined,
+        headline: extracted.headline || undefined,
+        language: extracted.language || getLanguage(),
+      },
     },
-  });
+  );
+  const saveResp = saveResult.data || {};
 
-  if (!saveResp?.ok) {
+  if (!saveResult.ok || !saveResp?.ok) {
     throw new Error(
-      `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(saveResp?.error)}`,
+      `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(saveResult.error || saveResp?.error)}`,
     );
   }
 }
@@ -1739,18 +1764,18 @@ async function extractProfileDetailsFromLlm() {
     throw new Error(UI_TEXT.setApiKeyInConfig);
   }
 
-  const enrichResp = await chrome.runtime.sendMessage({
+  const enrichResult = await sendRuntimeMessage("ENRICH_PROFILE", {
     // prompt: buildProfileExtractionPrompt (Enrich/Register)
-    type: "ENRICH_PROFILE",
     payload: {
       apiKey,
       model: (model || "gpt-4.1").trim(),
       profile: { ...currentProfileContext },
     },
   });
+  const enrichResp = enrichResult.data || {};
 
-  if (!enrichResp?.ok) {
-    throw new Error(getErrorMessage(enrichResp?.error));
+  if (!enrichResult.ok || !enrichResp?.ok) {
+    throw new Error(getErrorMessage(enrichResult.error || enrichResp?.error));
   }
 
   const llmCompany = (enrichResp.company || "").trim();
@@ -1813,8 +1838,7 @@ async function upsertCurrentProfileWithStatus(statusValue) {
   const [{ model, positioning, strategyCore }] = await Promise.all([
     chrome.storage.sync.get(["model", "positioning", "strategyCore"]),
   ]);
-  const resp = await chrome.runtime.sendMessage({
-    type: "DB_UPSERT_GENERATED",
+  const result = await sendRuntimeMessage("DB_UPSERT_GENERATED", {
     payload: {
       linkedin_url: linkedinUrl,
       full_name: fullName,
@@ -1828,7 +1852,7 @@ async function upsertCurrentProfileWithStatus(statusValue) {
       status: statusValue,
     },
   });
-  return resp;
+  return result.data || {};
 }
 
 async function onStepRegisterClick() {
@@ -1837,8 +1861,7 @@ async function onStepRegisterClick() {
   try {
     const extracted = await extractProfileDetailsFromLlm();
     setFooterDbStatus();
-    const resp = await chrome.runtime.sendMessage({
-      type: "DB_UPSERT_GENERATED",
+    const result = await sendRuntimeMessage("DB_UPSERT_GENERATED", {
       payload: {
         linkedin_url: extracted.linkedin_url,
         full_name: extracted.full_name || null,
@@ -1848,6 +1871,7 @@ async function onStepRegisterClick() {
         status: "registered",
       },
     });
+    const resp = result.data || {};
     statusEl.textContent = resp?.ok
       ? "Registered"
       : `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`;
@@ -1894,10 +1918,10 @@ async function setStatusOnlyForStepper(statusValue, successText) {
     }
     const payloadStatus =
       statusValue === "message responded" ? "message responded" : statusValue;
-    const resp = await chrome.runtime.sendMessage({
-      type: "DB_SET_STATUS_ONLY",
+    const result = await sendRuntimeMessage("DB_SET_STATUS_ONLY", {
       payload: { linkedin_url, status: payloadStatus },
     });
+    const resp = result.data || {};
     statusEl.textContent = resp?.ok
       ? successText
       : `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`;
@@ -2035,17 +2059,17 @@ async function handleSaveFirstMessageClick() {
       return;
     }
 
-    const resp = await chrome.runtime.sendMessage({
-      type: "DB_UPDATE_FIRST_MESSAGE",
+    const result = await sendRuntimeMessage("DB_UPDATE_FIRST_MESSAGE", {
       payload: {
         linkedin_url,
         first_message: textToSave,
         first_message_generated_at: new Date().toISOString(),
       },
     });
+    const resp = result.data || {};
 
-    if (!resp?.ok) {
-      throw new Error(getErrorMessage(resp?.error));
+    if (!result.ok || !resp?.ok) {
+      throw new Error(getErrorMessage(result.error || resp?.error));
     }
 
     messageStatusEl.textContent = "Saved.";
@@ -2078,9 +2102,10 @@ function bindOpenSidePanelClickHandler() {
     setFooterFetchingStatus();
     try {
       debugLog("[sidepanel] open requested from popup click");
-      const activeTabResp = await chrome.runtime.sendMessage({
-        type: "GET_ACTIVE_TAB_CONTEXT",
-      });
+      const activeTabResult = await sendRuntimeMessage(
+        "GET_ACTIVE_TAB_CONTEXT",
+      );
+      const activeTabResp = activeTabResult.data || {};
       const tabId = activeTabResp?.data?.tabId;
       if (!Number.isInteger(tabId)) {
         statusEl.textContent = UI_TEXT.sidePanelNotAvailable;
@@ -2140,9 +2165,8 @@ async function handleGenerateInviteClick() {
     lastProfileContextEnriched = null;
     renderDetailHeader();
 
-    const resp = await chrome.runtime.sendMessage({
+    const result = await sendRuntimeMessage("GENERATE_INVITE", {
       // prompt: buildInviteTextPrompt (Generate invite button)
-      type: "GENERATE_INVITE",
       payload: {
         apiKey,
         model: (model || "gpt-4.1").trim(),
@@ -2153,9 +2177,10 @@ async function handleGenerateInviteClick() {
         profile: { ...profileContext },
       },
     });
+    const resp = result.data || {};
 
-    if (!resp?.ok) {
-      throw new Error(getErrorMessage(resp?.error));
+    if (!result.ok || !resp?.ok) {
+      throw new Error(getErrorMessage(result.error || resp?.error));
     }
 
     previewEl.textContent = (resp.invite_text || "").trim();
@@ -2195,10 +2220,10 @@ markMessageSentBtnEl?.addEventListener("click", async () => {
       return;
     }
 
-    const resp = await chrome.runtime.sendMessage({
-      type: "DB_MARK_STATUS",
+    const result = await sendRuntimeMessage("DB_MARK_STATUS", {
       payload: { linkedin_url, status: "first message sent" },
     });
+    const resp = result.data || {};
 
     messageStatusEl.textContent = resp?.ok
       ? UI_TEXT.markedFirstMessageSent
@@ -2327,10 +2352,13 @@ async function handleGenerateFollowupClick() {
       },
     };
     debugLog("[LEF][chat] sending type", request.type);
-    const resp = await chrome.runtime.sendMessage(request);
+    const result = await sendRuntimeMessage(request.type, {
+      payload: request.payload,
+    });
+    const resp = result.data || {};
 
-    if (!resp?.ok) {
-      const msg = getErrorMessage(resp?.error);
+    if (!result.ok || !resp?.ok) {
+      const msg = getErrorMessage(result.error || resp?.error);
       console.error("[LEF][chat] followup generate failed", msg);
       if (commStatusEl) commStatusEl.textContent = msg;
       if (followupPreviewEl) followupPreviewEl.value = msg;
