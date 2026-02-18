@@ -871,14 +871,17 @@ async function supabaseUpdateProfileDetailsOnly({
   linkedin_url,
   company,
   headline,
+  language,
 }) {
   const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
   const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}`;
   const patch = {};
   const safeCompany = normalizeProfileField(company);
   const safeHeadline = sanitizeHeadlineJobTitle(headline);
+  const safeLanguage = normalizeProfileField(language);
   if (safeCompany) patch.company = safeCompany;
   if (safeHeadline) patch.headline = safeHeadline;
+  if (safeLanguage) patch.language = safeLanguage;
   if (!Object.keys(patch).length) return;
 
   const res = await fetchWithTimeout(
@@ -905,7 +908,7 @@ async function supabaseUpdateProfileDetailsOnly({
 
 async function supabaseGetInvitationByLinkedinUrl(linkedin_url) {
   const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
-  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}&select=linkedin_url,status,message,generated_at,invited_at,accepted_at,first_message,first_message_generated_at,first_message_sent_at,company,headline,full_name,focus,positioning`;
+  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}&select=linkedin_url,status,message,generated_at,invited_at,accepted_at,first_message,first_message_generated_at,first_message_sent_at,company,headline,language,full_name,focus,positioning`;
 
   const res = await fetchWithTimeout(
     url,
@@ -1421,5 +1424,3 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   });
   return false;
 });
-
-

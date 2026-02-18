@@ -17,7 +17,8 @@
       normalizeText(profile?.current_company) ||
       normalizeText(profile?.company_name);
     const location = normalizeText(profile?.location);
-    const about = normalizeText(profile?.about) || normalizeText(profile?.summary);
+    const about =
+      normalizeText(profile?.about) || normalizeText(profile?.summary);
     const recentExperience =
       normalizeText(profile?.recent_experience) ||
       normalizeText(profile?.recentExperience) ||
@@ -67,9 +68,10 @@ Return strict JSON only (no markdown, no prose) with exactly:
 
 Rules:
 - "headline" means the person's current job title/role (cargo), not a marketing headline.
-- Ignore/remove leading ordinal or line markers in headline, like "2º", "1º", "3º", "#2", "I", "II", "III", and similar.
+- Ignore/remove leading ordinal or line markers in headline, like "2ï¿½", "1ï¿½", "3ï¿½", "#2", "I", "II", "III", and similar.
 - "company" must be only the company/organization name.
 - "language" must be the dominant profile language (prefer: Portuguese, English, Dutch, Spanish).
+- If possible, return language as one of: Portuguese, English, Dutch, Spanish.
 - Never invent facts; use only the provided profile context.
 - If a value cannot be confidently extracted, return an empty string for that field.`;
   }
@@ -88,9 +90,9 @@ Primary objective: maximize connection acceptance rate (not replies).
 The invitation must be a single paragraph (no line breaks). Aim for 220-280 characters.
 
 MANDATORY STRUCTURE:
-1. Start with "Olá {first name from profile}". If first name is missing/unknown, start with "Olá,".
+1. Start with "Olï¿½ {first name from profile}". If first name is missing/unknown, start with "Olï¿½,".
 2. Brief factual reference from the profile.
-3. Causal linkage sentence connecting their profile to my own atuação.
+3. Causal linkage sentence connecting their profile to my own atuaï¿½ï¿½o.
 4. Close with a short low-friction sentence about connecting.
 
 Tone: peer-level, neutral, specific, not salesy.
@@ -262,11 +264,7 @@ ${profileContextBlock(profile)}
 Objective:
 ${objective || "(none)"}
 
-${
-  includeStrategy && strategy
-    ? `Strategy:\n${strategy}`
-    : ""
-}
+${includeStrategy && strategy ? `Strategy:\n${strategy}` : ""}
 
 Context (last 10 messages, chronological):
 ${contextBlock || "(none)"}

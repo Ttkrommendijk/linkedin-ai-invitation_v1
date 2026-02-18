@@ -3,6 +3,7 @@ const modelEl = document.getElementById("model");
 const strategyEl = document.getElementById("strategy");
 const focusEl = document.getElementById("focus");
 const messageLanguageEl = document.getElementById("messageLanguage");
+const inviteLanguageEl = document.getElementById("inviteLanguage");
 const messagePromptEl = document.getElementById("messagePrompt");
 const messagePromptWrapEl =
   document.getElementById("firstPromptContainer") ||
@@ -85,6 +86,7 @@ const UI_TEXT = {
 };
 const STORAGE_KEY_FIRST_MESSAGE_PROMPT = "firstMessagePrompt";
 const STORAGE_KEY_MESSAGE_LANGUAGE = "message_language";
+const SUPPORTED_LANGUAGES = ["Portuguese", "English", "Dutch", "Spanish"];
 const DEFAULT_FIRST_MESSAGE_PROMPT = messagePromptEl.value;
 const LEF_UTILS = globalThis.LEFUtils || {};
 const LEF_PROMPTS = globalThis.LEFPrompts || {};
@@ -183,6 +185,7 @@ let chatExtractSeq = 0;
 let detailInnerTab = "invite";
 let statusBackTarget = null;
 let statusForwardTarget = null;
+let currentLanguage = "Portuguese";
 const OVERVIEW_ENABLED = Boolean(
   IS_SIDE_PANEL_CONTEXT && tabOverviewBtn && tabOverview,
 );
@@ -832,6 +835,12 @@ async function refreshInvitationRowFromDb() {
     }
 
     dbInvitationRow = resp.row || null;
+    await setLanguage(
+      dbInvitationRow?.language ||
+        currentProfileContext?.language ||
+        getLanguage(),
+      { persist: false },
+    );
     debug("DB invitation row fetched:", {
       has_row: Boolean(dbInvitationRow),
       message_length: (dbInvitationRow?.message || "").length,
@@ -1268,16 +1277,49 @@ async function loadFirstMessagePrompt() {
   updateSavePromptButtonState();
 }
 
+function normalizeLanguageValue(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const match = SUPPORTED_LANGUAGES.find(
+    (lang) => lang.toLowerCase() === raw.toLowerCase(),
+  );
+  return match || "";
+}
+
+function getLanguageSelectElements() {
+  return [inviteLanguageEl, messageLanguageEl].filter(Boolean);
+}
+
+function getLanguage() {
+  return normalizeLanguageValue(currentLanguage) || "Portuguese";
+}
+
+async function setLanguage(value, { persist = true } = {}) {
+  const normalized = normalizeLanguageValue(value) || "Portuguese";
+  currentLanguage = normalized;
+  getLanguageSelectElements().forEach((el) => {
+    if (el.value !== normalized) {
+      el.value = normalized;
+    }
+  });
+  if (currentProfileContext) {
+    currentProfileContext.language = normalized;
+  }
+  if (persist) {
+    await chrome.storage.local.set({
+      [STORAGE_KEY_MESSAGE_LANGUAGE]: normalized,
+    });
+  }
+}
+
 async function loadMessageLanguage() {
   const { [STORAGE_KEY_MESSAGE_LANGUAGE]: savedLanguage } =
     await chrome.storage.local.get([STORAGE_KEY_MESSAGE_LANGUAGE]);
-  if (
-    messageLanguageEl &&
-    typeof savedLanguage === "string" &&
-    savedLanguage.trim()
-  ) {
-    messageLanguageEl.value = savedLanguage.trim();
+  if (typeof savedLanguage === "string" && savedLanguage.trim()) {
+    await setLanguage(savedLanguage.trim(), { persist: false });
+    return;
   }
+  await setLanguage("Portuguese", { persist: false });
 }
 
 async function copyToClipboard(text) {
@@ -1487,9 +1529,9 @@ messagePromptEl.addEventListener("input", () => {
   updateSavePromptButtonState();
 });
 
-messageLanguageEl?.addEventListener("change", async () => {
-  await chrome.storage.local.set({
-    [STORAGE_KEY_MESSAGE_LANGUAGE]: messageLanguageEl.value,
+getLanguageSelectElements().forEach((el) => {
+  el.addEventListener("change", async () => {
+    await setLanguage(el.value);
   });
 });
 
@@ -1540,93 +1582,93 @@ document.getElementById("saveConfig").addEventListener("click", async () => {
   }
 });
 
+async function extractAndPersistProfileDetails() {
+  const profileContext = await extractProfileContextFromActiveTab();
+  currentProfileContext = profileContext;
+  lastProfileContextSent = profileContext;
+  lastProfileContextEnriched = null;
+  renderDetailHeader();
+
+  const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
+  if (!linkedin_url) {
+    throw new Error(UI_TEXT.missingLinkedinUrl);
+  }
+
+  const [{ apiKey: apiKeyLocal }, { model }] = await Promise.all([
+    chrome.storage.local.get(["apiKey"]),
+    chrome.storage.sync.get(["model"]),
+  ]);
+
+  let apiKey = (apiKeyLocal || "").trim();
+  if (!apiKey) {
+    const typed = (apiKeyEl.value || "").trim();
+    if (typed) {
+      apiKey = typed;
+      await chrome.storage.local.set({ apiKey });
+    }
+  }
+
+  if (!apiKey) {
+    setActiveTab("config");
+    throw new Error(UI_TEXT.setApiKeyInConfig);
+  }
+
+  const enrichResp = await chrome.runtime.sendMessage({
+    // prompt: buildProfileExtractionPrompt (Enrich)
+    type: "ENRICH_PROFILE",
+    payload: {
+      apiKey,
+      model: (model || "gpt-4.1").trim(),
+      profile: { ...currentProfileContext },
+    },
+  });
+
+  if (!enrichResp?.ok) {
+    throw new Error(getErrorMessage(enrichResp?.error));
+  }
+
+  const llmCompany = (enrichResp.company || "").trim();
+  const llmHeadline = sanitizeHeadlineJobTitle(enrichResp.headline || "");
+  const llmLanguage = (enrichResp.language || "").trim();
+
+  if (llmCompany) {
+    currentProfileContext.company = llmCompany;
+    if (detailCompanyEl) detailCompanyEl.textContent = llmCompany;
+  }
+  if (llmHeadline) {
+    currentProfileContext.headline = llmHeadline;
+    if (detailHeadlineEl) detailHeadlineEl.textContent = llmHeadline;
+  }
+  const normalizedLlmLanguage = normalizeLanguageValue(llmLanguage);
+  if (normalizedLlmLanguage) {
+    await setLanguage(normalizedLlmLanguage);
+  }
+
+  setFooterUpdatingStatus();
+  const saveResp = await chrome.runtime.sendMessage({
+    type: "DB_UPDATE_PROFILE_DETAILS_ONLY",
+    payload: {
+      linkedin_url,
+      company: llmCompany || undefined,
+      headline: llmHeadline || undefined,
+      language: getLanguage(),
+    },
+  });
+
+  if (!saveResp?.ok) {
+    throw new Error(
+      `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(saveResp?.error)}`,
+    );
+  }
+}
+
 if (!enrichProfileBtnEl) {
   console.error("[LEF] enrichProfileBtn element not found");
 } else {
   enrichProfileBtnEl.addEventListener("click", async () => {
     setFooterLlmStatus();
     try {
-      const profileContext = await extractProfileContextFromActiveTab();
-      currentProfileContext = profileContext;
-      lastProfileContextSent = profileContext;
-      lastProfileContextEnriched = null;
-      renderDetailHeader();
-
-      const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
-      if (!linkedin_url) {
-        statusEl.textContent = UI_TEXT.missingLinkedinUrl;
-        return;
-      }
-
-      const [{ apiKey: apiKeyLocal }, { model }] = await Promise.all([
-        chrome.storage.local.get(["apiKey"]),
-        chrome.storage.sync.get(["model"]),
-      ]);
-
-      let apiKey = (apiKeyLocal || "").trim();
-      if (!apiKey) {
-        const typed = (apiKeyEl.value || "").trim();
-        if (typed) {
-          apiKey = typed;
-          await chrome.storage.local.set({ apiKey });
-        }
-      }
-
-      if (!apiKey) {
-        statusEl.textContent = UI_TEXT.setApiKeyInConfig;
-        setActiveTab("config");
-        return;
-      }
-
-      const enrichResp = await chrome.runtime.sendMessage({
-        // prompt: buildProfileExtractionPrompt (Enrich)
-        type: "ENRICH_PROFILE",
-        payload: {
-          apiKey,
-          model: (model || "gpt-4.1").trim(),
-          profile: { ...currentProfileContext },
-        },
-      });
-
-      if (!enrichResp?.ok) {
-        statusEl.textContent = `${UI_TEXT.errorPrefix} ${getErrorMessage(enrichResp?.error)}`;
-        return;
-      }
-
-      const llmCompany = (enrichResp.company || "").trim();
-      const llmHeadline = sanitizeHeadlineJobTitle(enrichResp.headline || "");
-      const llmLanguage = (enrichResp.language || "").trim();
-      if (!llmCompany && !llmHeadline) {
-        return;
-      }
-
-      if (llmCompany) {
-        currentProfileContext.company = llmCompany;
-        if (detailCompanyEl) detailCompanyEl.textContent = llmCompany;
-      }
-      if (llmHeadline) {
-        currentProfileContext.headline = llmHeadline;
-        if (detailHeadlineEl) detailHeadlineEl.textContent = llmHeadline;
-      }
-      if (llmLanguage) {
-        currentProfileContext.language = llmLanguage;
-      }
-
-      setFooterUpdatingStatus();
-      const saveResp = await chrome.runtime.sendMessage({
-        type: "DB_UPDATE_PROFILE_DETAILS_ONLY",
-        payload: {
-          linkedin_url,
-          company: llmCompany || undefined,
-          headline: llmHeadline || undefined,
-        },
-      });
-
-      if (!saveResp?.ok) {
-        statusEl.textContent = `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(saveResp?.error)}`;
-        return;
-      }
-
+      await extractAndPersistProfileDetails();
       await refreshInvitationRowFromDb();
       renderDetailHeader();
     } catch (e) {
@@ -1654,6 +1696,7 @@ async function upsertCurrentProfileWithStatus(statusValue) {
       full_name: fullName,
       company: currentProfileContext.company || null,
       headline: currentProfileContext.headline || null,
+      language: getLanguage(),
       message,
       focus: (focusEl.value || "").trim(),
       positioning: positioning || "",
@@ -1665,7 +1708,14 @@ async function upsertCurrentProfileWithStatus(statusValue) {
 }
 
 async function onStepRegisterClick() {
-  await setStatusOnlyForStepper("registered", "Registered");
+  setFooterLlmStatus();
+  try {
+    await extractAndPersistProfileDetails();
+    await setStatusOnlyForStepper("registered", "Registered");
+  } catch (e) {
+    statusEl.textContent = `${UI_TEXT.errorPrefix} ${getErrorMessage(e)}`;
+    setFooterStatus("Ready");
+  }
 }
 
 async function onStepInvitedClick() {
@@ -1798,12 +1848,7 @@ document.getElementById("generate").addEventListener("click", async () => {
     });
 
     const additionalPrompt = (focusEl.value || "").trim();
-    const inviteLanguage =
-      (
-        currentProfileContext?.language ||
-        messageLanguageEl?.value ||
-        ""
-      ).trim() || "Portuguese";
+    const inviteLanguage = getLanguage();
 
     const [{ apiKey: apiKeyLocal }, { model, positioning, strategyCore }] =
       await Promise.all([
@@ -1887,7 +1932,7 @@ document
       messageStatusEl.textContent = UI_TEXT.generatingFirstMessage;
       firstMessagePreviewEl.textContent = "";
 
-      const language = (messageLanguageEl?.value || "Portuguese").trim();
+      const language = getLanguage();
 
       const [{ apiKey: apiKeyLocal }, { model }] = await Promise.all([
         chrome.storage.local.get(["apiKey"]),
@@ -2030,7 +2075,7 @@ generateFollowupBtnEl?.addEventListener("click", async () => {
     const includeStrategy = includeStrategyEl
       ? includeStrategyEl.checked
       : true;
-    const language = (messageLanguageEl?.value || "Portuguese").trim();
+    const language = getLanguage();
     console.log("[LEF][chat] followup includeStrategy", includeStrategy);
     console.log("[LEF][chat] followup generate clicked", {
       language,
