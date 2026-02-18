@@ -11,6 +11,9 @@ try {
 
 const LEF_UTILS = globalThis.LEFUtils || {};
 const LEF_PROMPTS = globalThis.LEFPrompts || {};
+const safeTrim = LEF_UTILS.safeTrim;
+const normalizeWhitespace = LEF_UTILS.normalizeWhitespace;
+const sanitizeHeadlineJobTitle = LEF_UTILS.sanitizeHeadlineJobTitle;
 
 const DEBUG = false;
 
@@ -116,52 +119,35 @@ async function fetchOpenAIWithRetry(url, options) {
 
 function normalizeProfileField(value) {
   if (value == null) return "";
-  if (typeof value === "string") return value.trim();
+  if (typeof value === "string") {
+    return typeof safeTrim === "function" ? safeTrim(value) : String(value);
+  }
   if (Array.isArray(value)) {
-    return value.map(normalizeProfileField).filter(Boolean).join(" | ").trim();
+    return normalizeProfileField(
+      value.map(normalizeProfileField).filter(Boolean).join(" | "),
+    );
   }
   if (typeof value === "object") {
-    return Object.values(value)
-      .map(normalizeProfileField)
-      .filter(Boolean)
-      .join(" | ")
-      .trim();
+    return normalizeProfileField(
+      Object.values(value)
+        .map(normalizeProfileField)
+        .filter(Boolean)
+        .join(" | "),
+    );
   }
-  return String(value).trim();
-}
-
-function sanitizeHeadlineJobTitle(value) {
-  let out = normalizeProfileField(value || "");
-  if (!out) return "";
-
-  const patterns = [
-    /^\s*\d+\s*[º°]\s+/i,
-    /^\s*\d+\s*[-–.]\s+/i,
-    /^\s*#\s*\d+\s+/i,
-    /^\s*(i|ii|iii|iv|v|vi|vii|viii|ix|x)\s+/i,
-  ];
-
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const pattern of patterns) {
-      const next = out.replace(pattern, "").trim();
-      if (next !== out) {
-        out = next;
-        changed = true;
-      }
-    }
-  }
-  return out;
+  return typeof safeTrim === "function" ? safeTrim(value) : String(value);
 }
 
 function clampText(text, maxChars) {
-  let out = (text || "").trim();
-  out = out
-    .replace(/\r\n/g, "\n")
-    .replace(/\n+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  let out =
+    typeof safeTrim === "function"
+      ? safeTrim(text || "")
+      : String(text || "").trim();
+  out = out.replace(/\r\n/g, "\n").replace(/\n+/g, " ").trim();
+  out =
+    typeof normalizeWhitespace === "function"
+      ? normalizeWhitespace(out)
+      : out.replace(/\s+/g, " ").trim();
   if (out.length > maxChars) {
     out = out.slice(0, maxChars - 3).trim() + "...";
   }
@@ -1179,6 +1165,19 @@ function emitUiStatus(text) {
   }
 }
 
+async function getActiveTabInCurrentWindow() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab || null;
+}
+
+async function sendMessageToTab(tabId, message) {
+  try {
+    return await chrome.tabs.sendMessage(tabId, message);
+  } catch (_e) {
+    return null;
+  }
+}
+
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   const req = msg || {};
   debug("onMessage:", msg?.type);
@@ -1193,6 +1192,128 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === "GET_STANDARD_INVITE_PROMPT") {
     sendResponse({ ok: true, prompt: buildStandardInvitePrompt("") });
     return false;
+  }
+
+  if (msg?.type === "GET_ACTIVE_TAB_CONTEXT") {
+    (async () => {
+      try {
+        const tab = await getActiveTabInCurrentWindow();
+        sendResponse({
+          ok: true,
+          data: {
+            tabId: Number.isInteger(tab?.id) ? tab.id : null,
+            url: tab?.url || "",
+          },
+        });
+      } catch (e) {
+        sendResponse({ ok: false, error: normalizeError(e, "UNKNOWN_ERROR") });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "SCRAPE_PROFILE_CONTEXT") {
+    (async () => {
+      try {
+        const tab = await getActiveTabInCurrentWindow();
+        if (!Number.isInteger(tab?.id)) {
+          sendResponse({
+            ok: false,
+            error: normalizeError("No active tab found.", "EXTRACTION_FAILED"),
+          });
+          return;
+        }
+        const resp = await sendMessageToTab(tab.id, {
+          type: "EXTRACT_PROFILE_CONTEXT",
+        });
+        if (!resp?.ok || !resp?.profile) {
+          const errorMessage =
+            typeof resp?.error === "string"
+              ? resp.error
+              : resp?.error?.message || "profile extraction failed";
+          sendResponse({
+            ok: false,
+            error: normalizeError(errorMessage, "EXTRACTION_FAILED"),
+          });
+          return;
+        }
+        sendResponse({ ok: true, data: { profile: resp.profile } });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "EXTRACTION_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "FETCH_CHAT_HISTORY") {
+    (async () => {
+      try {
+        const tab = await getActiveTabInCurrentWindow();
+        if (!Number.isInteger(tab?.id)) {
+          sendResponse({
+            ok: true,
+            data: {
+              messages: [],
+              chat_history: "",
+              meta: { no_active_tab: true },
+            },
+          });
+          return;
+        }
+        const reqId = String(msg?.payload?.reqId || `chat_${Date.now()}`);
+        const resp = await sendMessageToTab(tab.id, {
+          type: "EXTRACT_CHAT_HISTORY",
+          reqId,
+        });
+        if (!resp?.ok) {
+          sendResponse({
+            ok: true,
+            data: { messages: [], chat_history: "", meta: resp?.meta || {} },
+          });
+          return;
+        }
+        const messages = Array.isArray(resp?.messages) ? resp.messages : [];
+        const chat_history = messages
+          .map((m) => (m?.text || "").toString().trim())
+          .filter(Boolean)
+          .join("\n");
+        sendResponse({
+          ok: true,
+          data: { messages, chat_history, meta: resp?.meta || {} },
+        });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "EXTRACTION_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "OPEN_LINKEDIN_URL") {
+    (async () => {
+      try {
+        const targetUrl = normalizeProfileField(msg?.payload?.url);
+        if (!isLinkedInProfileLikeUrl(targetUrl)) {
+          sendResponse({ ok: true });
+          return;
+        }
+        const tab = await getActiveTabInCurrentWindow();
+        if (Number.isInteger(tab?.id)) {
+          await chrome.tabs.update(tab.id, { url: targetUrl, active: true });
+        } else {
+          await chrome.tabs.create({ url: targetUrl, active: true });
+        }
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({ ok: false, error: normalizeError(e, "UNKNOWN_ERROR") });
+      }
+    })();
+    return true;
   }
 
   if (msg?.type === "GENERATE_INVITE") {

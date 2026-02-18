@@ -89,6 +89,9 @@ const STORAGE_KEY_MESSAGE_LANGUAGE = "message_language";
 const SUPPORTED_LANGUAGES = ["Portuguese", "English", "Dutch", "Spanish"];
 const DEFAULT_FIRST_MESSAGE_PROMPT = messagePromptEl?.value || "";
 const LEF_UTILS = globalThis.LEFUtils || {};
+const safeTrim = LEF_UTILS.safeTrim;
+const normalizeWhitespace = LEF_UTILS.normalizeWhitespace;
+const sanitizeHeadlineJobTitle = LEF_UTILS.sanitizeHeadlineJobTitle;
 const IS_SIDE_PANEL_CONTEXT = (() => {
   try {
     return (
@@ -434,29 +437,6 @@ function getErrorMessage(error) {
   return UI_TEXT.unexpectedError;
 }
 
-function sanitizeHeadlineJobTitle(value) {
-  let out = (value || "").toString().trim();
-  if (!out) return "";
-  const patterns = [
-    /^\s*\d+\s*[º°]\s+/i,
-    /^\s*\d+\s*[-–.]\s+/i,
-    /^\s*#\s*\d+\s+/i,
-    /^\s*(i|ii|iii|iv|v|vi|vii|viii|ix|x)\s+/i,
-  ];
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const pattern of patterns) {
-      const next = out.replace(pattern, "").trim();
-      if (next !== out) {
-        out = next;
-        changed = true;
-      }
-    }
-  }
-  return out;
-}
-
 function formatChatHistory(messages) {
   if (!Array.isArray(messages) || messages.length === 0) {
     return "No chat messages found.";
@@ -488,10 +468,11 @@ function formatChatHistory(messages) {
 }
 
 function normalizeChatText(value) {
-  if (typeof LEF_UTILS.normalizeWhitespace === "function") {
-    return LEF_UTILS.normalizeWhitespace(value || "");
-  }
-  return (value || "").toString().trim().replace(/\s+/g, " ");
+  return typeof normalizeWhitespace === "function"
+    ? normalizeWhitespace(value || "")
+    : typeof safeTrim === "function"
+      ? safeTrim(value || "")
+      : "";
 }
 
 function toChatLogEntry(message, index) {
@@ -545,100 +526,22 @@ async function refreshChatHistoryFromActiveTab() {
 }
 
 async function fetchChatHistory() {
-  let messages = [];
   const reqId = `chat_${Date.now()}_${++chatExtractSeq}`;
-
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  console.groupCollapsed(
-    `[LEF][chat][${reqId}] refreshChatHistoryFromActiveTab`,
-  );
-  console.log("tab", { id: tab?.id, url: tab?.url });
-  console.log("state", { IS_SIDE_PANEL_CONTEXT, outreachMessageStatus });
-  console.groupEnd();
-
-  if (!tab?.id) {
-    return { messages, chatHistory: "" };
-  }
-
-  const resp = await new Promise((resolve) => {
-    chrome.tabs.sendMessage(
-      tab.id,
-      { type: "EXTRACT_CHAT_HISTORY", reqId },
-      (r) => resolve(r),
-    );
+  const resp = await chrome.runtime.sendMessage({
+    type: "FETCH_CHAT_HISTORY",
+    payload: { reqId },
   });
-
-  console.groupCollapsed(`[LEF][chat][${reqId}] response`);
-  console.log("ok", resp?.ok);
-  console.log("error", resp?.error);
-  console.log("meta", resp?.meta || null);
-  console.log("extract_meta", resp?.meta || null);
-  console.log(
-    "count_raw",
-    Array.isArray(resp?.messages) ? resp.messages.length : null,
-  );
-
-  const lastErr = chrome.runtime.lastError;
-  if (lastErr) {
-    console.error("[LEF][chat] sendMessage lastError", lastErr.message);
-    console.groupEnd();
-    return { messages, chatHistory: "" };
+  if (!resp?.ok) {
+    return { messages: [], chatHistory: "" };
   }
-
-  if (!resp) {
-    console.warn("[LEF][chat] no response from content script");
-    console.groupEnd();
-    return { messages, chatHistory: "" };
-  }
-
-  if (!resp.ok) {
-    if (resp?.code === "NO_MESSAGE_BOX" || resp?.user_warning) {
-      console.log("[LEF][chat] warning", {
-        code: resp?.code || null,
-        user_warning: resp?.user_warning || null,
-      });
-      console.groupEnd();
-      return { messages, chatHistory: "" };
-    }
-    console.warn("[LEF][chat] extract failed", resp.error);
-    if (resp.stack) console.warn("[LEF][chat] stack", resp.stack);
-    if (isMessageBoxMissingError(resp.error)) {
-      console.groupEnd();
-      return { messages, chatHistory: "" };
-    }
-    console.groupEnd();
-    return { messages, chatHistory: "" };
-  }
-
-  messages = Array.isArray(resp.messages) ? resp.messages : [];
-  console.groupCollapsed(`[LEF][chat][${reqId}] popup received messages`);
-  console.log("rawCount", messages.length);
-  console.log("ordering_meta", {
-    hasAnySortTsIso: false,
-    dayHeadingSample:
-      messages.find((m) => (m?.dateLabel || "").trim())?.dateLabel || "",
-    sortTsIsoSample: "",
-  });
-  messages.forEach((m, i) => {
-    const entry = toChatLogEntry(m, i);
-    if (!entry.dt_label) {
-      console.error(
-        `[LEF][chat][${reqId}] missing dt_label at index ${i}`,
-        entry,
-      );
-    }
-    const previewText =
-      entry.text.length > 120
-        ? `${entry.text.slice(0, 117).trim()}...`
-        : entry.text;
-    console.log(
-      `[LEF][chat][${reqId}] [li:${entry.liIndex}] ${entry.dayHeading || "NO_HEADING"} | ${entry.name || "Unknown"} | ${entry.time || "NO_TIME"} | ${previewText}`,
-    );
-  });
-  console.log("render", { extractedCount: messages.length });
-  console.groupEnd();
-  console.groupEnd();
-  return { messages, chatHistory: formatChatHistory(messages) };
+  const messages = Array.isArray(resp?.data?.messages)
+    ? resp.data.messages
+    : [];
+  const chatHistory =
+    typeof resp?.data?.chat_history === "string"
+      ? resp.data.chat_history
+      : formatChatHistory(messages);
+  return { messages, chatHistory };
 }
 
 function setMessagePromptCollapsed(collapsed) {
@@ -1103,15 +1006,10 @@ async function openLinkedIn(url) {
       ? LEF_UTILS.isLinkedInProfileLikeUrl(targetUrl)
       : /^https:\/\/www\.linkedin\.com\/(in|company)\/[^/?#]+/i.test(targetUrl);
   if (!isLinkedInTarget) return;
-  const [activeTab] = await chrome.tabs.query({
-    active: true,
-    currentWindow: true,
+  await chrome.runtime.sendMessage({
+    type: "OPEN_LINKEDIN_URL",
+    payload: { url: targetUrl },
   });
-  if (activeTab?.id) {
-    await chrome.tabs.update(activeTab.id, { url: targetUrl, active: true });
-    return;
-  }
-  await chrome.tabs.create({ url: targetUrl, active: true });
 }
 
 async function archiveRow(url) {
@@ -1250,20 +1148,15 @@ function getFullNameFromContext(profileContext) {
 }
 
 async function extractProfileContextFromActiveTab() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id) {
-    throw new Error("No active tab found.");
+  const resp = await chrome.runtime.sendMessage({
+    type: "SCRAPE_PROFILE_CONTEXT",
+  });
+  if (!resp?.ok || !resp?.data?.profile) {
+    throw new Error(
+      getErrorMessage(resp?.error) || "profile extraction failed",
+    );
   }
-
-  const ctx = await chrome.tabs
-    .sendMessage(tab.id, { type: "EXTRACT_PROFILE_CONTEXT" })
-    .catch(() => null);
-
-  if (!ctx?.ok) {
-    throw new Error(getErrorMessage(ctx?.error) || "profile extraction failed");
-  }
-
-  return getProfileForGeneration(ctx.profile);
+  return getProfileForGeneration(resp.data.profile);
 }
 
 async function loadProfileContextOnOpen() {
@@ -1435,9 +1328,10 @@ function showFollowupCopySuccessCheck() {
 }
 
 function updateInviteCopyIconVisibility() {
-  const normalizedPreview = String(previewEl.textContent || "")
-    .replace(/\s+/g, " ")
-    .trim();
+  const normalizedPreview =
+    typeof normalizeWhitespace === "function"
+      ? normalizeWhitespace(previewEl.textContent || "")
+      : String(previewEl.textContent || "").trim();
   if (!normalizedPreview && copyInviteIconEl) {
     copyInviteIconEl.textContent = "\u29c9";
   }
@@ -2183,11 +2077,10 @@ function bindOpenSidePanelClickHandler() {
     setFooterFetchingStatus();
     try {
       console.log("[sidepanel] open requested from popup click");
-      const [tab] = await chrome.tabs.query({
-        active: true,
-        currentWindow: true,
+      const activeTabResp = await chrome.runtime.sendMessage({
+        type: "GET_ACTIVE_TAB_CONTEXT",
       });
-      const tabId = tab?.id;
+      const tabId = activeTabResp?.data?.tabId;
       if (!Number.isInteger(tabId)) {
         statusEl.textContent = UI_TEXT.sidePanelNotAvailable;
         return;
