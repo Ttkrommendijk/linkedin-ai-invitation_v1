@@ -216,11 +216,10 @@ Structure:
     strategyText,
     chatHistory,
   } = {}) {
-    void objective;
-    void includeStrategy;
-    void strategyText;
-    void chatHistory;
     const languageRule = normalizeText(language) || "auto";
+    const objectiveHint = normalizeText(objective);
+    const strategyHint = includeStrategy ? normalizeText(strategyText) : "";
+    const hasChatHistory = normalizeText(chatHistory).length > 0;
     return `Write a reply message for an ongoing LinkedIn conversation.
 
 Language rules:
@@ -239,6 +238,9 @@ Constraints:
 - Use only the provided context.
 - Do not invent facts.
 - Focus strictly on the user's objective.
+${objectiveHint ? "- The objective is provided and must be prioritized." : ""}
+${strategyHint ? "- Apply the provided strategy guidance." : ""}
+${hasChatHistory ? "- Use the provided chat history to stay consistent with the thread." : ""}
 
 Output plain text only.`;
   }
@@ -275,6 +277,7 @@ ${profileContextBlock(profile)}
     strategy,
     includeStrategy,
     contextLast10,
+    chatHistory,
     profileContext,
   }) {
     const contextBlock = (Array.isArray(contextLast10) ? contextLast10 : [])
@@ -297,6 +300,8 @@ Objective:
 ${objective || "(none)"}
 
 ${includeStrategy && strategy ? `Strategy:\n${strategy}` : ""}
+
+${normalizeText(chatHistory) ? `Chat history:\n${normalizeText(chatHistory)}` : ""}
 
 Context (last 10 messages, chronological):
 ${contextBlock || "(none)"}

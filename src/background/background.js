@@ -188,13 +188,19 @@ function firstMessageInstruction(
   });
 }
 
-function followupMessageInstruction(language = "auto") {
+function followupMessageInstruction(
+  language = "auto",
+  objective = "",
+  includeStrategy = false,
+  strategyText = "",
+  chatHistory = "",
+) {
   return LEF_PROMPTS.buildFollowupPrompt({
     language,
-    objective: "",
-    includeStrategy: false,
-    strategyText: "",
-    chatHistory: [],
+    objective,
+    includeStrategy,
+    strategyText,
+    chatHistory,
   });
 }
 
@@ -430,6 +436,7 @@ function buildFollowupUserInput({
   strategy,
   includeStrategy,
   contextLast10,
+  chatHistory,
   profileContext,
 }) {
   return LEF_PROMPTS.buildFollowupUserInput({
@@ -437,6 +444,7 @@ function buildFollowupUserInput({
     strategy,
     includeStrategy,
     contextLast10,
+    chatHistory,
     profileContext,
   });
 }
@@ -684,7 +692,9 @@ async function callOpenAIFollowupMessage({
   objective,
   strategy,
   includeStrategy,
+  chat_history,
   contextLast10,
+  profile_context,
   profileContext,
   language,
 }) {
@@ -706,7 +716,13 @@ async function callOpenAIFollowupMessage({
               {
                 type: "input_text",
                 // prompt: buildFollowupPrompt (Generate follow-up action)
-                text: followupMessageInstruction(language || "Portuguese"),
+                text: followupMessageInstruction(
+                  language || "Portuguese",
+                  objective || "",
+                  Boolean(includeStrategy),
+                  strategy || "",
+                  chat_history || "",
+                ),
               },
             ],
           },
@@ -720,7 +736,8 @@ async function callOpenAIFollowupMessage({
                   strategy,
                   includeStrategy,
                   contextLast10,
-                  profileContext,
+                  chatHistory: chat_history,
+                  profileContext: profile_context || profileContext,
                 }),
               },
             ],

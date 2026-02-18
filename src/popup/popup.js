@@ -24,8 +24,6 @@ const markMessageSentBtnEl =
   document.getElementById("markMessageSent");
 const copyFirstMessageBtnEl = document.getElementById("copyFirstMessage");
 const saveFirstMessageIconEl = document.getElementById("saveFirstMessageIcon");
-const chatHistoryEl = document.getElementById("chatHistory");
-const refreshChatHistoryBtnEl = document.getElementById("refreshChatHistory");
 const initialMessageSectionEl = document.getElementById(
   "initialMessageSection",
 );
@@ -40,7 +38,8 @@ const includeStrategyEl = document.getElementById("includeStrategy");
 const generateFollowupBtnEl = document.getElementById("generateFollowup");
 const commStatusEl =
   document.getElementById("commStatusBar") ||
-  document.getElementById("commStatus");
+  document.getElementById("commStatus") ||
+  document.getElementById("commFooterText");
 const footerStatusEl = document.getElementById("commFooterText");
 const followupPreviewEl = document.getElementById("followupPreview");
 const copyFollowupBtnEl = document.getElementById("copyFollowup");
@@ -204,6 +203,7 @@ let statusForwardTarget = null;
 let currentLanguage = "Portuguese";
 let inviteCopyIconResetTimer = null;
 let firstMessageCopyIconResetTimer = null;
+let followupCopyIconResetTimer = null;
 const OVERVIEW_ENABLED = Boolean(
   IS_SIDE_PANEL_CONTEXT && tabOverviewBtn && tabOverview,
 );
@@ -246,16 +246,8 @@ function getOutreachStatusFromDbRow() {
 }
 
 function renderMessageTab(status) {
-  const isFirstMessageSent = status === "first_message_sent";
-  if (acceptedModeEl) acceptedModeEl.hidden = isFirstMessageSent;
-  if (firstMessageSentModeEl)
-    firstMessageSentModeEl.hidden = !isFirstMessageSent;
-  if (initialMessageSectionEl)
-    initialMessageSectionEl.hidden = isFirstMessageSent;
-  if (firstMessagePreviewSectionEl) {
-    firstMessagePreviewSectionEl.hidden = isFirstMessageSent;
-  }
-  if (followupSectionEl) followupSectionEl.hidden = !isFirstMessageSent;
+  // First/Follow visibility is controlled only by inner tab selection.
+  // Status must not hide first-message UI.
   if (commStatusEl) commStatusEl.textContent = status;
 }
 
@@ -548,9 +540,12 @@ function isMessageBoxMissingError(errorText) {
 }
 
 async function refreshChatHistoryFromActiveTab() {
-  if (!chatHistoryEl) return;
-  chatHistoryEl.value = "Loading chat history...";
-  extractedChatMessages = [];
+  const result = await fetchChatHistory();
+  extractedChatMessages = result.messages;
+}
+
+async function fetchChatHistory() {
+  let messages = [];
   const reqId = `chat_${Date.now()}_${++chatExtractSeq}`;
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -562,101 +557,88 @@ async function refreshChatHistoryFromActiveTab() {
   console.groupEnd();
 
   if (!tab?.id) {
-    chatHistoryEl.value = "Could not find active tab.";
-    return;
+    return { messages, chatHistory: "" };
   }
 
-  chrome.tabs.sendMessage(
-    tab.id,
-    { type: "EXTRACT_CHAT_HISTORY", reqId },
-    (resp) => {
-      console.groupCollapsed(`[LEF][chat][${reqId}] response`);
-      console.log("ok", resp?.ok);
-      console.log("error", resp?.error);
-      console.log("meta", resp?.meta || null);
-      console.log("extract_meta", resp?.meta || null);
-      console.log(
-        "count_raw",
-        Array.isArray(resp?.messages) ? resp.messages.length : null,
-      );
-      const lastErr = chrome.runtime.lastError;
-      if (lastErr) {
-        console.error("[LEF][chat] sendMessage lastError", lastErr.message);
-        chatHistoryEl.value = `sendMessage error: ${lastErr.message}`;
-        console.groupEnd();
-        return;
-      }
+  const resp = await new Promise((resolve) => {
+    chrome.tabs.sendMessage(
+      tab.id,
+      { type: "EXTRACT_CHAT_HISTORY", reqId },
+      (r) => resolve(r),
+    );
+  });
 
-      if (!resp) {
-        console.warn("[LEF][chat] no response from content script");
-        chatHistoryEl.value =
-          "No response from content script. Ensure you're on https://www.linkedin.com/in/* and reload the extension/page.";
-        console.groupEnd();
-        return;
-      }
-
-      if (!resp.ok) {
-        if (resp?.code === "NO_MESSAGE_BOX" || resp?.user_warning) {
-          chatHistoryEl.value =
-            resp?.user_warning || "Please open a message box.";
-          console.log("[LEF][chat] warning", {
-            code: resp?.code || null,
-            user_warning: resp?.user_warning || null,
-          });
-          console.groupEnd();
-          return;
-        }
-        console.warn("[LEF][chat] extract failed", resp.error);
-        if (resp.stack) console.warn("[LEF][chat] stack", resp.stack);
-        if (isMessageBoxMissingError(resp.error)) {
-          chatHistoryEl.value = "Please open a message box.";
-          console.groupEnd();
-          return;
-        }
-        chatHistoryEl.value = `extract error: ${resp.error || "unknown"}${
-          resp.stack ? `\n\nstack:\n${resp.stack}` : ""
-        }`;
-        console.groupEnd();
-        return;
-      }
-
-      const messages = Array.isArray(resp.messages) ? resp.messages : [];
-      console.groupCollapsed(`[LEF][chat][${reqId}] popup received messages`);
-      console.log("rawCount", messages.length);
-      console.log("ordering_meta", {
-        hasAnySortTsIso: false,
-        dayHeadingSample:
-          messages.find((m) => (m?.dateLabel || "").trim())?.dateLabel || "",
-        sortTsIsoSample: "",
-      });
-      messages.forEach((m, i) => {
-        const entry = toChatLogEntry(m, i);
-        const datetime = entry.datetimeForDebug;
-        if (!entry.dt_label) {
-          console.error(
-            `[LEF][chat][${reqId}] missing dt_label at index ${i}`,
-            entry,
-          );
-        }
-        const previewText =
-          entry.text.length > 120
-            ? `${entry.text.slice(0, 117).trim()}...`
-            : entry.text;
-        console.log(
-          `[LEF][chat][${reqId}] [${String(i).padStart(2, "0")}] [li:${entry.liIndex}] ${entry.dayHeading || "NO_HEADING"} | ${entry.name || "Unknown"} | ${entry.time || "NO_TIME"} | ${previewText}`,
-        );
-        console.log(entry);
-      });
-      extractedChatMessages = messages;
-      chatHistoryEl.value = formatChatHistory(messages);
-      console.log("render", {
-        extractedCount: extractedChatMessages.length,
-        renderedChars: (chatHistoryEl.value || "").length,
-      });
-      console.groupEnd();
-      console.groupEnd();
-    },
+  console.groupCollapsed(`[LEF][chat][${reqId}] response`);
+  console.log("ok", resp?.ok);
+  console.log("error", resp?.error);
+  console.log("meta", resp?.meta || null);
+  console.log("extract_meta", resp?.meta || null);
+  console.log(
+    "count_raw",
+    Array.isArray(resp?.messages) ? resp.messages.length : null,
   );
+
+  const lastErr = chrome.runtime.lastError;
+  if (lastErr) {
+    console.error("[LEF][chat] sendMessage lastError", lastErr.message);
+    console.groupEnd();
+    return { messages, chatHistory: "" };
+  }
+
+  if (!resp) {
+    console.warn("[LEF][chat] no response from content script");
+    console.groupEnd();
+    return { messages, chatHistory: "" };
+  }
+
+  if (!resp.ok) {
+    if (resp?.code === "NO_MESSAGE_BOX" || resp?.user_warning) {
+      console.log("[LEF][chat] warning", {
+        code: resp?.code || null,
+        user_warning: resp?.user_warning || null,
+      });
+      console.groupEnd();
+      return { messages, chatHistory: "" };
+    }
+    console.warn("[LEF][chat] extract failed", resp.error);
+    if (resp.stack) console.warn("[LEF][chat] stack", resp.stack);
+    if (isMessageBoxMissingError(resp.error)) {
+      console.groupEnd();
+      return { messages, chatHistory: "" };
+    }
+    console.groupEnd();
+    return { messages, chatHistory: "" };
+  }
+
+  messages = Array.isArray(resp.messages) ? resp.messages : [];
+  console.groupCollapsed(`[LEF][chat][${reqId}] popup received messages`);
+  console.log("rawCount", messages.length);
+  console.log("ordering_meta", {
+    hasAnySortTsIso: false,
+    dayHeadingSample:
+      messages.find((m) => (m?.dateLabel || "").trim())?.dateLabel || "",
+    sortTsIsoSample: "",
+  });
+  messages.forEach((m, i) => {
+    const entry = toChatLogEntry(m, i);
+    if (!entry.dt_label) {
+      console.error(
+        `[LEF][chat][${reqId}] missing dt_label at index ${i}`,
+        entry,
+      );
+    }
+    const previewText =
+      entry.text.length > 120
+        ? `${entry.text.slice(0, 117).trim()}...`
+        : entry.text;
+    console.log(
+      `[LEF][chat][${reqId}] [li:${entry.liIndex}] ${entry.dayHeading || "NO_HEADING"} | ${entry.name || "Unknown"} | ${entry.time || "NO_TIME"} | ${previewText}`,
+    );
+  });
+  console.log("render", { extractedCount: messages.length });
+  console.groupEnd();
+  console.groupEnd();
+  return { messages, chatHistory: formatChatHistory(messages) };
 }
 
 function setMessagePromptCollapsed(collapsed) {
@@ -1438,6 +1420,20 @@ function showFirstMessageCopySuccessCheck() {
   }, 1000);
 }
 
+function showFollowupCopySuccessCheck() {
+  if (!copyFollowupBtnEl) return;
+  copyFollowupBtnEl.textContent = "\u2713";
+  if (followupCopyIconResetTimer) {
+    clearTimeout(followupCopyIconResetTimer);
+  }
+  followupCopyIconResetTimer = setTimeout(() => {
+    if (copyFollowupBtnEl) {
+      copyFollowupBtnEl.textContent = "\u29c9";
+    }
+    followupCopyIconResetTimer = null;
+  }, 1000);
+}
+
 function updateInviteCopyIconVisibility() {
   const normalizedPreview = String(previewEl.textContent || "")
     .replace(/\s+/g, " ")
@@ -1448,6 +1444,15 @@ function updateInviteCopyIconVisibility() {
   const hasPreview = Boolean(normalizedPreview);
   setCopyButtonEnabled(hasPreview);
   setInviteSaveButtonEnabled(hasPreview);
+}
+
+function updateFollowupCopyIconVisibility() {
+  if (!copyFollowupBtnEl || !followupPreviewEl) return;
+  const hasText = (followupPreviewEl.value || "").trim().length > 0;
+  if (!hasText) {
+    copyFollowupBtnEl.textContent = "\u29c9";
+  }
+  copyFollowupBtnEl.hidden = !hasText;
 }
 
 async function onInvitationTabOpenedByUser() {
@@ -1517,14 +1522,6 @@ tabOverviewBtn?.addEventListener("click", () =>
 tabConfigBtn.addEventListener("click", () =>
   setActiveTab("config", { userInitiated: true }),
 );
-refreshChatHistoryBtnEl?.addEventListener("click", async () => {
-  setFooterFetchingStatus();
-  try {
-    await refreshMessagesTab({ reason: "manual_refresh" });
-  } finally {
-    setFooterStatus("Ready");
-  }
-});
 
 async function loadSettings() {
   const [{ apiKey, webhookSecret }, { model, strategyCore, webhookBaseUrl }] =
@@ -1590,6 +1587,7 @@ detailTabFollowBtnEl?.addEventListener("click", async () => {
 });
 setCopyButtonEnabled(false);
 updateInviteCopyIconVisibility();
+updateFollowupCopyIconVisibility();
 setMessagePromptCollapsed(true);
 updateMessageTabControls();
 if (OVERVIEW_ENABLED) {
@@ -2230,27 +2228,46 @@ markMessageSentBtnEl?.addEventListener("click", async () => {
   }
 });
 
-generateFollowupBtnEl?.addEventListener("click", async () => {
-  setFooterFetchingStatus();
+if (!generateFollowupBtnEl) {
+  console.error("[followup] missing #generateFollowup");
+}
+
+async function handleGenerateFollowupClick() {
+  setFooterLlmStatus();
   try {
     const objective = (followupObjectiveEl?.value || "").trim();
-    const last10 = extractedChatMessages.slice(-10);
     const strategy = (strategyEl.value || "").trim();
     const includeStrategy = includeStrategyEl
       ? includeStrategyEl.checked
       : true;
     const language = getLanguage();
+    const chatResult = await fetchChatHistory().catch((e) => {
+      console.warn("[followup] chat history fetch failed", e);
+      return { messages: [], chatHistory: "" };
+    });
+    extractedChatMessages = Array.isArray(chatResult.messages)
+      ? chatResult.messages
+      : [];
+    const chatHistory = (chatResult.chatHistory || "").trim();
+    const last10 = extractedChatMessages.slice(-10);
     console.log("[LEF][chat] followup includeStrategy", includeStrategy);
     console.log("[LEF][chat] followup generate clicked", {
       language,
       objectiveLen: objective.length,
       last10Count: last10.length,
+      chatHistoryChars: chatHistory.length,
     });
 
     if (!objective) {
+      if (followupObjectiveEl) {
+        followupObjectiveEl.classList.add("is-invalid");
+        followupObjectiveEl.focus();
+      }
       if (commStatusEl) commStatusEl.textContent = "Objective is required.";
+      setFooterStatus("Objective is required.");
       return;
     }
+    followupObjectiveEl?.classList.remove("is-invalid");
 
     if (!hasMessageProfileUrl()) {
       if (commStatusEl)
@@ -2266,7 +2283,6 @@ generateFollowupBtnEl?.addEventListener("click", async () => {
     }
 
     if (commStatusEl) commStatusEl.textContent = "Generating...";
-    setFooterLlmStatus();
 
     const [{ apiKey: apiKeyLocal }, { model }] = await Promise.all([
       chrome.storage.local.get(["apiKey"]),
@@ -2313,7 +2329,9 @@ generateFollowupBtnEl?.addEventListener("click", async () => {
         objective,
         strategy: includeStrategy ? strategy : "",
         includeStrategy,
+        chat_history: chatHistory,
         contextLast10,
+        profile_context: { ...currentProfileContext },
         profileContext: { ...currentProfileContext },
         language,
       },
@@ -2326,11 +2344,13 @@ generateFollowupBtnEl?.addEventListener("click", async () => {
       console.error("[LEF][chat] followup generate failed", msg);
       if (commStatusEl) commStatusEl.textContent = msg;
       if (followupPreviewEl) followupPreviewEl.value = msg;
+      updateFollowupCopyIconVisibility();
       return;
     }
 
     const text = (resp.text || resp.first_message || "").trim();
     if (followupPreviewEl) followupPreviewEl.value = text;
+    updateFollowupCopyIconVisibility();
     if (commStatusEl) commStatusEl.textContent = "Ready";
     console.log("[LEF][chat] followup generated", { chars: text.length });
   } catch (e) {
@@ -2338,18 +2358,39 @@ generateFollowupBtnEl?.addEventListener("click", async () => {
     console.error("[LEF][chat] followup exception", e);
     if (commStatusEl) commStatusEl.textContent = msg;
     if (followupPreviewEl) followupPreviewEl.value = msg;
+    updateFollowupCopyIconVisibility();
   } finally {
     setFooterStatus("Ready");
   }
-});
+}
+
+function bindGenerateFollowupClickHandler() {
+  if (!generateFollowupBtnEl) return;
+  if (generateFollowupBtnEl.dataset.followupBound === "1") return;
+  generateFollowupBtnEl.dataset.followupBound = "1";
+  generateFollowupBtnEl.addEventListener("click", handleGenerateFollowupClick);
+}
+
+bindGenerateFollowupClickHandler();
 
 copyFollowupBtnEl?.addEventListener("click", async () => {
   try {
     await copyToClipboard((followupPreviewEl?.value || "").trim());
+    showFollowupCopySuccessCheck();
     if (commStatusEl) commStatusEl.textContent = "Copied";
   } catch (e) {
     const msg = getErrorMessage(e);
     if (commStatusEl) commStatusEl.textContent = msg;
     console.error("[LEF][chat] followup copy failed", e);
+  }
+});
+
+followupPreviewEl?.addEventListener("input", () => {
+  updateFollowupCopyIconVisibility();
+});
+
+followupObjectiveEl?.addEventListener("input", () => {
+  if ((followupObjectiveEl.value || "").trim()) {
+    followupObjectiveEl.classList.remove("is-invalid");
   }
 });

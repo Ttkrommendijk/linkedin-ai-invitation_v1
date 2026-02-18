@@ -306,17 +306,6 @@
                     </div>
 
                     <div id="firstMessageSentMode" hidden>
-                        <div class="row">
-                            <label><small>Chat history</small></label>
-                            <textarea
-                                id="chatHistory"
-                                readonly
-                                placeholder="Chat history will appear here…"
-                            ></textarea>
-                            <button id="refreshChatHistory" type="button">
-                                Refresh history
-                            </button>
-                        </div>
                         <div id="followupSection">
                             <div class="row">
                                 <label><small>Objective</small></label>
@@ -340,16 +329,27 @@
                                 Generate follow-up
                             </button>
                             <div class="row">
-                                <small>Communication status</small>
-                                <div id="commStatusBar">Idle</div>
+                                <div class="invite-preview-block">
+                                    <div class="invite-preview-header">
+                                        <div class="invite-preview-title">
+                                            Preview
+                                        </div>
+                                        <button
+                                            id="copyFollowup"
+                                            type="button"
+                                            class="copy-icon"
+                                            hidden
+                                            title="Copy"
+                                        >
+                                            ⧉
+                                        </button>
+                                    </div>
+                                    <textarea
+                                        id="followupPreview"
+                                        class="invite-preview-content followup-preview-content"
+                                    ></textarea>
+                                </div>
                             </div>
-                            <div class="row">
-                                <small>Generated message preview</small>
-                                <textarea id="followupPreview"></textarea>
-                            </div>
-                            <button id="copyFollowup" type="button">
-                                Copy
-                            </button>
                         </div>
                     </div>
                 </div>
