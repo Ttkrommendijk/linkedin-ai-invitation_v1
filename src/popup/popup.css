@@ -23,7 +23,7 @@ body {
 }
 /* keep header fixed */
 #topTabs {
-    flex: 0 0 auto;
+    flex: 0 0 60px;
     height: 60px;
     padding: 0px; /* move padding here */
     box-sizing: border-box;
@@ -621,6 +621,10 @@ body.is-sidepanel #innerContentContainer {
     overflow-x: hidden;
     padding: 12px;
     max-height: none;
+}
+body.is-sidepanel #topTabs {
+    height: 26px;
+    flex: 0 0 26px;
 }
 body.is-sidepanel .tabs,
 body.is-sidepanel .comm-status-footer {
