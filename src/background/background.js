@@ -176,9 +176,16 @@ function characterLimitInstruction(maxChars) {
   });
 }
 
-function firstMessageInstruction(maxChars, language = "auto") {
+function firstMessageInstruction(
+  maxChars,
+  language = "auto",
+  additionalPrompt = "",
+) {
   void maxChars;
-  return LEF_PROMPTS.buildFirstMessagePrompt({ language, userPrompt: "" });
+  return LEF_PROMPTS.buildFirstMessageTextPrompt({
+    language,
+    additionalPrompt,
+  });
 }
 
 function followupMessageInstruction(language = "auto") {
@@ -608,7 +615,13 @@ async function callOpenAIProfileExtraction({ apiKey, model, profile }) {
   return result.parsed;
 }
 
-async function callOpenAIFirstMessage({ apiKey, model, profile, language }) {
+async function callOpenAIFirstMessage({
+  apiKey,
+  model,
+  profile,
+  language,
+  additionalPrompt,
+}) {
   const res = await fetchOpenAIWithRetry(
     "https://api.openai.com/v1/responses",
     {
@@ -626,8 +639,12 @@ async function callOpenAIFirstMessage({ apiKey, model, profile, language }) {
             content: [
               {
                 type: "input_text",
-                // prompt: buildFirstMessagePrompt (Generate first message action)
-                text: firstMessageInstruction(600, language || "Portuguese"),
+                // prompt: buildFirstMessageTextPrompt (Generate first message action)
+                text: firstMessageInstruction(
+                  600,
+                  language || "Portuguese",
+                  additionalPrompt || "",
+                ),
               },
             ],
           },
@@ -908,7 +925,7 @@ async function supabaseUpdateProfileDetailsOnly({
 
 async function supabaseGetInvitationByLinkedinUrl(linkedin_url) {
   const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
-  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}&select=linkedin_url,status,message,generated_at,invited_at,accepted_at,first_message,first_message_generated_at,first_message_sent_at,company,headline,language,full_name,focus,positioning`;
+  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}&select=linkedin_url,status,message,generated_at,invited_at,accepted_at,first_message,first_message_generated_at,first_message_sent_at,company,headline,language,full_name`;
 
   const res = await fetchWithTimeout(
     url,
@@ -1213,7 +1230,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Sending to LLM…");
       try {
-        // prompt: buildFirstMessagePrompt
+        // prompt: buildFirstMessageTextPrompt
         const first_message = await callOpenAIFirstMessage(msg.payload);
         sendResponse({ ok: true, first_message });
       } catch (e) {

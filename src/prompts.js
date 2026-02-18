@@ -86,35 +86,49 @@ Rules:
     const inviteLanguage = normalizeText(language) || "Portuguese";
     const prompt = `Write a LinkedIn connection invitation in ${inviteLanguage} with MAX 300 characters (including spaces). STRICT.
 
-Primary objective: maximize connection acceptance rate (not replies).
-The invitation must be a single paragraph (no line breaks). Aim for 220-280 characters.
+   Primary objective: maximize connection acceptance rate (not replies).
+   The invitation must be a single paragraph (no line breaks). Aim for 220-280 characters.
 
-MANDATORY STRUCTURE:
-1. Start with "Ol� {first name from profile}". If first name is missing/unknown, start with "Ol�,".
-2. Brief factual reference from the profile.
-3. Causal linkage sentence connecting their profile to my own atua��o.
-4. Close with a short low-friction sentence about connecting.
+   KEY PRINCIPLES (optimize acceptance):
+   - Relevance beats cleverness: a concrete, verifiable hook increases trust.
+   - Notes that feel generic/salesy can reduce acceptance; if you lack a real hook, prefer sending WITHOUT a note.
 
-Tone: peer-level, neutral, specific, not salesy.
-Avoid praise/flattery/emotional adjectives.
-Use profile-observation verbs and never invent facts.
+   MANDATORY STRUCTURE (when invite_text is not empty):
+   1) Start with "Olá {first name from profile}". If first name is missing/unknown, start with "Olá,".
+   2) Brief factual reference (ONLY verifiable).
+   3) One causal linkage sentence connecting their profile/context to my atuação (neutral, peer-level).
+   4) Close with a short low-friction sentence about connecting (NO question mark).
 
-CLOSING RULES:
-- Do NOT end with a question.
-- Do NOT mention meetings, calls, agenda, or presenting services.
-- Closing should only express openness to connect.
+   CONTEXT PRIORITIZATION (pick the FIRST available and DO NOT mix multiple weak hooks):
+   A) If user indicates they know the person (met/worked together/same client/class/community) → use that specific context (event + date or setting if provided).
+   B) Else if user provides a mutual connection name or “via X” → use that.
+   C) Else if user provides shared group/community/program/company overlap (alumni, group, accelerator, event, forum) → use that.
+   D) Else if user provides common ground inputs (topic, stack, domain, initiative) → use that.
+   E) Else use ONE specific profile fact (role, company, post topic, project/keyword) → keep it factual.
+   F) Else (no real hook at all) → return an empty note (invite_text = "") to signal “send without note”.
 
-Output format:
-Return valid JSON only (no markdown, no extra text):
-{
-  "invite_text": string
-}`;
+   HARD RULES:
+   - Single paragraph, no emojis, no hashtags.
+   - Avoid praise/flattery/emotional adjectives (e.g., “incrível”, “admiro”, “sensacional”).
+   - Use profile-observation verbs and never invent facts.
+   - Do NOT end with a question.
+   - Do NOT mention meetings, calls, agenda, demos, proposals, pricing, or presenting services.
+   - Closing should only express openness to connect (e.g., “Vamos nos conectar por aqui.” / “Fico à disposição para conectar por aqui.”).
+
+   Output format:
+   Return valid JSON only (no markdown, no extra text):
+   {
+     "invite_text": string
+   }
+
+   Validation:
+   - If invite_text is not empty: must start with "Olá" and must NOT end with "?".
+   - Character count must be <= 300 (including spaces).`;
 
     const appended = normalizeText(additionalPrompt);
     if (!appended) return prompt;
     return `${prompt}\n\nAdditional context from user:\n${appended}`;
   }
-
   /**
    * Purpose: Backward-compatible alias for invitation prompt builder.
    * Used when: Legacy call sites still reference buildInvitePrompt.
@@ -126,20 +140,18 @@ Return valid JSON only (no markdown, no extra text):
   }
 
   /**
-   * Purpose: Build the first-message system prompt.
+   * Purpose: Build a first-message writing-only system prompt.
    * Used when: Clicking Generate first message.
-   * Inputs: { language?: string, userPrompt?: string }
+   * Inputs: { language?: string, additionalPrompt?: string }
    * Output: string (system prompt text)
    */
-  function buildFirstMessagePrompt({ language, userPrompt } = {}) {
-    const overridePrompt = normalizeText(userPrompt);
-    if (overridePrompt) return overridePrompt;
+  function buildFirstMessageTextPrompt({ language, additionalPrompt } = {}) {
     const langRule =
       normalizeText(language) && normalizeText(language) !== "auto"
         ? normalizeText(language)
         : "the dominant language of the provided profile_context and profile_excerpt_fallback";
 
-    return `Write a natural and socially intelligent first LinkedIn message in ${langRule} after connection acceptance.
+    const basePrompt = `Write a natural and socially intelligent first LinkedIn message in ${langRule} after connection acceptance.
 
 The message must feel like something a real professional would write.
 
@@ -169,6 +181,26 @@ Structure:
 - No emojis.
 - No hashtags.
 - Plain text only.`;
+
+    const appended = normalizeText(additionalPrompt);
+    if (!appended) return basePrompt;
+    return `${basePrompt}\n\nAdditional context from user:\n${appended}`;
+  }
+
+  /**
+   * Purpose: Backward-compatible alias for first-message prompt builder.
+   * Used when: Legacy call sites still reference buildFirstMessagePrompt.
+   * Inputs: { language?: string, userPrompt?: string, additionalPrompt?: string }
+   * Output: string (system prompt text)
+   */
+  function buildFirstMessagePrompt({
+    language,
+    userPrompt,
+    additionalPrompt,
+  } = {}) {
+    const overridePrompt = normalizeText(userPrompt);
+    if (overridePrompt) return overridePrompt;
+    return buildFirstMessageTextPrompt({ language, additionalPrompt });
   }
 
   /**
@@ -283,6 +315,7 @@ ${profileContextBlock(profileContext || {})}
     buildProfileExtractionPrompt,
     buildInviteTextPrompt,
     buildInvitePrompt,
+    buildFirstMessageTextPrompt,
     buildFirstMessagePrompt,
     buildFollowupPrompt,
     buildEnrichProfilePrompt,
