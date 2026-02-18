@@ -2068,18 +2068,36 @@ copyInviteIconEl?.addEventListener("click", async () => {
   }
 });
 
-copyFirstMessageBtnEl?.addEventListener("click", async () => {
-  try {
-    await copyToClipboard(
-      firstMessage || firstMessagePreviewEl.textContent || "",
-    );
-    showFirstMessageCopySuccessCheck();
-    messageStatusEl.textContent = UI_TEXT.copiedToClipboard;
-  } catch (e) {
-    messageStatusEl.textContent = `${UI_TEXT.copyFailedPrefix} ${getErrorMessage(e)}`;
+function bindFirstMessageCopyHandler() {
+  if (!copyFirstMessageBtnEl) {
+    console.warn("[copy] missing #copyFirstMessage");
+    return;
   }
-  updateMessageTabControls();
-});
+  if (!firstMessagePreviewEl) {
+    console.warn("[copy] missing #firstMessagePreview");
+    return;
+  }
+  if (copyFirstMessageBtnEl.dataset.bound === "1") return;
+  copyFirstMessageBtnEl.dataset.bound = "1";
+  copyFirstMessageBtnEl.addEventListener("click", async () => {
+    try {
+      const previewText =
+        firstMessage ||
+        ("value" in firstMessagePreviewEl
+          ? firstMessagePreviewEl.value
+          : firstMessagePreviewEl.textContent) ||
+        "";
+      await copyToClipboard(previewText);
+      showFirstMessageCopySuccessCheck();
+      messageStatusEl.textContent = UI_TEXT.copiedToClipboard;
+    } catch (e) {
+      messageStatusEl.textContent = `${UI_TEXT.copyFailedPrefix} ${getErrorMessage(e)}`;
+    }
+    updateMessageTabControls();
+  });
+}
+
+bindFirstMessageCopyHandler();
 
 async function handleSaveInviteClick() {
   setFooterDbStatus();
@@ -2192,6 +2210,82 @@ function bindOpenSidePanelClickHandler() {
 }
 
 bindOpenSidePanelClickHandler();
+
+if (!document.getElementById("generate")) {
+  console.error("[invite] missing #generate button");
+}
+
+async function handleGenerateInviteClick() {
+  setFooterLlmStatus();
+  try {
+    previewEl.textContent = "";
+    updateInviteCopyIconVisibility();
+
+    const [{ apiKey: apiKeyLocal }, { model, positioning, strategyCore }] =
+      await Promise.all([
+        chrome.storage.local.get(["apiKey"]),
+        chrome.storage.sync.get(["model", "positioning", "strategyCore"]),
+      ]);
+
+    let apiKey = (apiKeyLocal || "").trim();
+    if (!apiKey) {
+      const typed = (apiKeyEl.value || "").trim();
+      if (typed) {
+        apiKey = typed;
+        await chrome.storage.local.set({ apiKey });
+      }
+    }
+    if (!apiKey) {
+      statusEl.textContent = UI_TEXT.setApiKeyInConfig;
+      return;
+    }
+
+    const profileContext = await extractProfileContextFromActiveTab();
+    currentProfileContext = profileContext;
+    lastProfileContextSent = profileContext;
+    lastProfileContextEnriched = null;
+    renderDetailHeader();
+
+    const resp = await chrome.runtime.sendMessage({
+      // prompt: buildInviteTextPrompt (Generate invite button)
+      type: "GENERATE_INVITE",
+      payload: {
+        apiKey,
+        model: (model || "gpt-4.1").trim(),
+        positioning: positioning || "",
+        focus: (focusEl?.value || "").trim(),
+        language: getLanguage(),
+        strategyCore: strategyCore || "",
+        profile: { ...profileContext },
+      },
+    });
+
+    if (!resp?.ok) {
+      throw new Error(getErrorMessage(resp?.error));
+    }
+
+    previewEl.textContent = (resp.invite_text || "").trim();
+    updateInviteCopyIconVisibility();
+    statusEl.textContent = previewEl.textContent
+      ? UI_TEXT.generatedClickCopy
+      : UI_TEXT.noMessageGenerated;
+  } catch (e) {
+    console.error("[invite] generate failed", e);
+    statusEl.textContent = `${UI_TEXT.errorPrefix} ${getErrorMessage(e)}`;
+  } finally {
+    setFooterStatus("Ready");
+  }
+}
+
+function bindGenerateInviteClickHandler() {
+  const generateInviteBtnEl = document.getElementById("generate");
+  if (!generateInviteBtnEl) return;
+  if (generateInviteBtnEl.dataset.generateInviteBound === "1") return;
+  generateInviteBtnEl.dataset.generateInviteBound = "1";
+  generateInviteBtnEl.addEventListener("click", handleGenerateInviteClick);
+}
+
+bindGenerateInviteClickHandler();
 
 markMessageSentBtnEl?.addEventListener("click", async () => {
   setFooterDbStatus();
@@ -2373,17 +2467,35 @@ function bindGenerateFollowupClickHandler() {
 
 bindGenerateFollowupClickHandler();
 
-copyFollowupBtnEl?.addEventListener("click", async () => {
-  try {
-    await copyToClipboard((followupPreviewEl?.value || "").trim());
-    showFollowupCopySuccessCheck();
-    if (commStatusEl) commStatusEl.textContent = "Copied";
-  } catch (e) {
-    const msg = getErrorMessage(e);
-    if (commStatusEl) commStatusEl.textContent = msg;
-    console.error("[LEF][chat] followup copy failed", e);
+function bindFollowupCopyHandler() {
+  if (!copyFollowupBtnEl) {
+    console.warn("[copy] missing #copyFollowup");
+    return;
   }
-});
+  if (!followupPreviewEl) {
+    console.warn("[copy] missing #followupPreview");
+    return;
+  }
+  if (copyFollowupBtnEl.dataset.bound === "1") return;
+  copyFollowupBtnEl.dataset.bound = "1";
+  copyFollowupBtnEl.addEventListener("click", async () => {
+    try {
+      const previewText =
+        ("value" in followupPreviewEl
+          ? followupPreviewEl.value
+          : followupPreviewEl.textContent) || "";
+      await copyToClipboard(previewText);
+      showFollowupCopySuccessCheck();
+      if (commStatusEl) commStatusEl.textContent = "Copied";
+    } catch (e) {
+      const msg = getErrorMessage(e);
+      if (commStatusEl) commStatusEl.textContent = msg;
+      console.error("[LEF][chat] followup copy failed", e);
+    }
+  });
+}
+
+bindFollowupCopyHandler();
 
 followupPreviewEl?.addEventListener("input", () => {
   updateFollowupCopyIconVisibility();
