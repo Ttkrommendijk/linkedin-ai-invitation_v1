@@ -1333,8 +1333,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           ok: false,
           error: normalizeError(e, "GENERATION_FAILED", details),
         });
-      } finally {
-        emitUiStatus("Ready");
       }
     })();
     return true;
@@ -1357,8 +1355,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           ok: false,
           error: normalizeError(e, "GENERATION_FAILED"),
         });
-      } finally {
-        emitUiStatus("Ready");
       }
     })();
     return true;
@@ -1376,8 +1372,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           ok: false,
           error: normalizeError(e, "GENERATION_FAILED"),
         });
-      } finally {
-        emitUiStatus("Ready");
       }
     })();
     return true;
@@ -1395,8 +1389,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           ok: false,
           error: normalizeError(e, "GENERATION_FAILED"),
         });
-      } finally {
-        emitUiStatus("Ready");
       }
     })();
     return true;
@@ -1413,8 +1405,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           ok: false,
           error: normalizeError(e, "SUPABASE_UPSERT_FAILED"),
         });
-      } finally {
-        emitUiStatus("Ready");
       }
     })();
     return true;
@@ -1431,8 +1421,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           ok: false,
           error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
         });
-      } finally {
-        emitUiStatus("Ready");
       }
     })();
     return true;
@@ -1449,8 +1437,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           ok: false,
           error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
         });
-      } finally {
-        emitUiStatus("Ready");
       }
     })();
     return true;
@@ -1467,8 +1453,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           ok: false,
           error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
         });
-      } finally {
-        emitUiStatus("Ready");
       }
     })();
     return true;
@@ -1485,8 +1469,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           ok: false,
           error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
         });
-      } finally {
-        emitUiStatus("Ready");
       }
     })();
     return true;
@@ -1505,8 +1487,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           ok: false,
           error: normalizeError(e, "SUPABASE_GET_FAILED"),
         });
-      } finally {
-        emitUiStatus("Ready");
       }
     })();
     return true;
@@ -1525,8 +1505,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           ok: false,
           error: normalizeError(e, "SUPABASE_GET_FAILED"),
         });
-      } finally {
-        emitUiStatus("Ready");
       }
     })();
     return true;
@@ -1543,8 +1521,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           ok: false,
           error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
         });
-      } finally {
-        emitUiStatus("Ready");
       }
     })();
     return true;

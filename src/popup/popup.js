@@ -36,11 +36,8 @@ const followupSectionEl = document.getElementById("followupSection");
 const followupObjectiveEl = document.getElementById("followupObjective");
 const includeStrategyEl = document.getElementById("includeStrategy");
 const generateFollowupBtnEl = document.getElementById("generateFollowup");
-const commStatusEl =
-  document.getElementById("commStatusBar") ||
-  document.getElementById("commStatus") ||
-  document.getElementById("commFooterText");
 const footerStatusEl = document.getElementById("commFooterText");
+// DO NOT write to .textContent directly; use setFooterStatus()
 const followupPreviewEl = document.getElementById("followupPreview");
 const copyFollowupBtnEl = document.getElementById("copyFollowup");
 
@@ -133,9 +130,6 @@ function debug(...args) {
   debugLog(...args);
 }
 
-const statusEl = document.getElementById("status") || commStatusEl;
-const messageStatusEl =
-  document.getElementById("messageStatus") || commStatusEl;
 const previewEl = document.getElementById("preview");
 const firstMessagePreviewEl = document.getElementById("firstMessagePreview");
 const copyInviteIconEl = document.getElementById("copyInviteIcon");
@@ -233,6 +227,7 @@ let currentLanguage = "Portuguese";
 let inviteCopyIconResetTimer = null;
 let firstMessageCopyIconResetTimer = null;
 let followupCopyIconResetTimer = null;
+let readyResetTimer = null;
 const OVERVIEW_ENABLED = Boolean(
   IS_SIDE_PANEL_CONTEXT && tabOverviewBtn && tabOverview,
 );
@@ -277,7 +272,7 @@ function getOutreachStatusFromDbRow() {
 function renderMessageTab(status) {
   // First/Follow visibility is controlled only by inner tab selection.
   // Status must not hide first-message UI.
-  if (commStatusEl) commStatusEl.textContent = status;
+  void status;
 }
 
 function coalesceDbThenScraped(dbValue, scrapedValue) {
@@ -585,13 +580,35 @@ function setMessagePromptCollapsed(collapsed) {
 
 function setCommunicationStatus(text) {
   setFooterStatus(text || "Ready");
-  if (!commStatusEl) return;
-  commStatusEl.textContent = text || "Ready";
+}
+
+function isInProgressFooterStatus(text) {
+  return (
+    text === "Sending to LLM\u2026" ||
+    text === "Fetching\u2026" ||
+    text === "Updating\u2026" ||
+    text === "Communicating to database\u2026"
+  );
 }
 
 function setFooterStatus(text) {
   if (!footerStatusEl) return;
-  footerStatusEl.textContent = text || "Ready";
+  const nextText = (text || "Ready").toString().trim() || "Ready";
+  if (readyResetTimer) {
+    clearTimeout(readyResetTimer);
+    readyResetTimer = null;
+  }
+  footerStatusEl.textContent = nextText;
+  if (nextText === "Ready") return;
+  if (isInProgressFooterStatus(nextText)) return;
+  readyResetTimer = setTimeout(() => {
+    setFooterStatus("Ready");
+  }, 2000);
+}
+
+function setFooterReady() {
+  if (readyResetTimer) return;
+  setFooterStatus("Ready");
 }
 
 function setFooterFetchingStatus() {
@@ -612,6 +629,7 @@ function setFooterLlmStatus() {
 
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg?.type !== "ui_status") return;
+  if (msg?.text === "Ready") return;
   setFooterStatus(msg?.text || "Ready");
 });
 
@@ -748,7 +766,7 @@ async function refreshInvitationRowFromDb({ preserveTabs = false } = {}) {
     renderMessageTab(outreachMessageStatus);
     renderDetailHeader();
     updatePhaseButtons();
-    setFooterStatus("Ready");
+    setFooterReady();
     return;
   }
 
@@ -789,7 +807,7 @@ async function refreshInvitationRowFromDb({ preserveTabs = false } = {}) {
     renderDetailHeader();
     updatePhaseButtons();
   } finally {
-    setFooterStatus("Ready");
+    setFooterReady();
   }
 }
 
@@ -1019,7 +1037,7 @@ async function fetchOverviewPage() {
     overviewTbodyEl.appendChild(tr);
   } finally {
     overviewLoadingEl.hidden = true;
-    setFooterStatus("Ready");
+    setFooterReady();
   }
 }
 
@@ -1040,7 +1058,7 @@ async function archiveRow(url) {
   setFooterDbStatus();
   const target = String(url || "").trim();
   if (!target) {
-    setFooterStatus("Ready");
+    setFooterReady();
     return;
   }
   try {
@@ -1048,12 +1066,14 @@ async function archiveRow(url) {
       payload: { url: target },
     });
     if (!result.ok) {
-      statusEl.textContent = `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(result.error)}`;
+      setFooterStatus(
+        `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(result.error)}`,
+      );
       return;
     }
     await fetchOverviewPage();
   } finally {
-    setFooterStatus("Ready");
+    setFooterReady();
   }
 }
 
@@ -1373,13 +1393,13 @@ function updateFollowupCopyIconVisibility() {
 }
 
 async function onInvitationTabOpenedByUser() {
-  statusEl.textContent = UI_TEXT.preparingProfile;
+  setFooterStatus(UI_TEXT.preparingProfile);
   await loadProfileContextOnOpen();
 }
 
 async function refreshMessagesTab({ reason = "manual_refresh" } = {}) {
   debug("refreshMessagesTab:", reason);
-  messageStatusEl.textContent = UI_TEXT.preparingProfile;
+  setFooterStatus(UI_TEXT.preparingProfile);
   await loadProfileContextOnOpen();
   outreachMessageStatus = getOutreachStatusFromDbRow();
   renderMessageTab(outreachMessageStatus);
@@ -1420,7 +1440,7 @@ tabMainBtn.addEventListener("click", async () => {
     setActiveTab("detail", { userInitiated: true });
     await onInvitationTabOpenedByUser();
   } finally {
-    setFooterStatus("Ready");
+    setFooterReady();
   }
 });
 tabMessageBtn?.addEventListener("click", async () => {
@@ -1430,7 +1450,7 @@ tabMessageBtn?.addEventListener("click", async () => {
     await onMessagesTabOpenedByUser();
     setDetailInnerTab("first");
   } finally {
-    setFooterStatus("Ready");
+    setFooterReady();
   }
 });
 tabOverviewBtn?.addEventListener("click", () =>
@@ -1481,7 +1501,7 @@ detailTabInviteBtnEl?.addEventListener("click", async () => {
     await onInvitationTabOpenedByUser();
     setDetailInnerTab("invite");
   } finally {
-    setFooterStatus("Ready");
+    setFooterReady();
   }
 });
 detailTabFirstMessageBtnEl?.addEventListener("click", async () => {
@@ -1490,7 +1510,7 @@ detailTabFirstMessageBtnEl?.addEventListener("click", async () => {
     await onMessagesTabOpenedByUser();
     setDetailInnerTab("first");
   } finally {
-    setFooterStatus("Ready");
+    setFooterReady();
   }
 });
 detailTabFollowBtnEl?.addEventListener("click", async () => {
@@ -1499,7 +1519,7 @@ detailTabFollowBtnEl?.addEventListener("click", async () => {
     await onMessagesTabOpenedByUser();
     setDetailInnerTab("follow");
   } finally {
-    setFooterStatus("Ready");
+    setFooterReady();
   }
 });
 setCopyButtonEnabled(false);
@@ -1513,7 +1533,7 @@ if (OVERVIEW_ENABLED) {
   renderOverviewSortIndicators();
   renderOverviewPagination();
 }
-setFooterStatus("Ready");
+setFooterReady();
 setCommunicationStatus("Ready");
 applyLifecycleUiState(dbInvitationRow);
 renderMessageTab(outreachMessageStatus);
@@ -1551,9 +1571,9 @@ saveMessagePromptBtnEl?.addEventListener("click", async () => {
     });
     lastSavedFirstMessagePrompt = promptValue;
     updateSavePromptButtonState();
-    messageStatusEl.textContent = UI_TEXT.promptSaved;
+    setFooterStatus(UI_TEXT.promptSaved);
   } finally {
-    setFooterStatus("Ready");
+    setFooterReady();
   }
 });
 
@@ -1561,7 +1581,7 @@ resetMessagePromptBtnEl?.addEventListener("click", () => {
   if (!messagePromptEl) return;
   messagePromptEl.value = DEFAULT_FIRST_MESSAGE_PROMPT;
   updateSavePromptButtonState();
-  messageStatusEl.textContent = UI_TEXT.promptReset;
+  setFooterStatus(UI_TEXT.promptReset);
 });
 
 async function saveConfig() {
@@ -1577,8 +1597,7 @@ async function saveConfig() {
   await chrome.storage.local.set({ apiKey, webhookSecret });
   await chrome.storage.sync.set({ model, strategyCore, webhookBaseUrl });
 
-  statusEl.textContent = UI_TEXT.configSaved;
-  messageStatusEl.textContent = UI_TEXT.configSaved;
+  setFooterStatus(UI_TEXT.configSaved);
 }
 
 document.getElementById("saveConfig").addEventListener("click", async () => {
@@ -1586,7 +1605,7 @@ document.getElementById("saveConfig").addEventListener("click", async () => {
   try {
     await saveConfig();
   } finally {
-    setFooterStatus("Ready");
+    setFooterReady();
   }
 });
 
@@ -1595,7 +1614,7 @@ async function handleGenerateFirstMessageClick() {
   let hadError = false;
   setFooterLlmStatus();
   try {
-    messageStatusEl.textContent = UI_TEXT.generatingFirstMessage;
+    setFooterStatus(UI_TEXT.generatingFirstMessage);
     if (firstMessagePreviewEl) {
       firstMessagePreviewEl.textContent = "";
     }
@@ -1620,7 +1639,6 @@ async function handleGenerateFirstMessageClick() {
     }
     if (!apiKey) {
       const msg = UI_TEXT.setApiKeyInConfig;
-      messageStatusEl.textContent = msg;
       setFooterStatus(msg);
       return;
     }
@@ -1631,7 +1649,6 @@ async function handleGenerateFirstMessageClick() {
     } catch (e) {
       const msg = UI_TEXT.couldNotExtractProfileContext;
       console.error("[first-message] scrape failed", e);
-      messageStatusEl.textContent = msg;
       setFooterStatus(msg);
       return;
     }
@@ -1639,7 +1656,6 @@ async function handleGenerateFirstMessageClick() {
     const linkedinUrl = getLinkedinUrlFromContext(profileContextForGeneration);
     if (!linkedinUrl) {
       const msg = UI_TEXT.openLinkedInProfileFirst;
-      messageStatusEl.textContent = msg;
       setFooterStatus(msg);
       return;
     }
@@ -1668,7 +1684,7 @@ async function handleGenerateFirstMessageClick() {
       firstMessagePreviewEl.textContent = firstMessage;
     }
     updateMessageTabControls();
-    messageStatusEl.textContent = UI_TEXT.firstMessageGenerated;
+    setFooterStatus(UI_TEXT.firstMessageGenerated);
 
     if (!isPostSendMode()) {
       setFooterUpdatingStatus();
@@ -1681,7 +1697,9 @@ async function handleGenerateFirstMessageClick() {
       });
       const dbResp = dbResult.data || {};
       if (!dbResult.ok || !dbResp?.ok) {
-        messageStatusEl.textContent = `${UI_TEXT.generatedButDbErrorPrefix} ${getErrorMessage(dbResult.error || dbResp?.error)}`;
+        setFooterStatus(
+          `${UI_TEXT.generatedButDbErrorPrefix} ${getErrorMessage(dbResult.error || dbResp?.error)}`,
+        );
       } else {
         await refreshInvitationRowFromDb({ preserveTabs: true });
         updateMessageTabControls();
@@ -1690,10 +1708,14 @@ async function handleGenerateFirstMessageClick() {
   } catch (e) {
     hadError = true;
     console.error("[first-message] generate failed", e);
-    messageStatusEl.textContent = `${UI_TEXT.errorPrefix} ${getErrorMessage(e)}`;
+    setFooterStatus(`${UI_TEXT.errorPrefix} ${getErrorMessage(e)}`);
   } finally {
     restoreActiveTabState(activeTabsBeforeGeneration);
-    setFooterStatus(hadError ? "Error" : "Ready");
+    if (hadError) {
+      setFooterStatus("Error");
+    } else {
+      setFooterReady();
+    }
   }
 }
 
@@ -1822,9 +1844,9 @@ if (!enrichProfileBtnEl) {
       renderDetailHeader();
     } catch (e) {
       console.error("[LEF] enrichProfile failed", e);
-      statusEl.textContent = `${UI_TEXT.errorPrefix} ${getErrorMessage(e)}`;
+      setFooterStatus(`${UI_TEXT.errorPrefix} ${getErrorMessage(e)}`);
     } finally {
-      setFooterStatus("Ready");
+      setFooterReady();
     }
   });
 }
@@ -1846,8 +1868,6 @@ async function upsertCurrentProfileWithStatus(statusValue) {
       headline: currentProfileContext.headline || null,
       language: getLanguage(),
       message,
-      focus: (focusEl.value || "").trim(),
-      positioning: positioning || "",
       generated_at: new Date().toISOString(),
       status: statusValue,
     },
@@ -1857,6 +1877,7 @@ async function upsertCurrentProfileWithStatus(statusValue) {
 
 async function onStepRegisterClick() {
   const activeTabsBeforeRegister = captureActiveTabState();
+  let footerHandled = false;
   setFooterLlmStatus();
   try {
     const extracted = await extractProfileDetailsFromLlm();
@@ -1872,17 +1893,27 @@ async function onStepRegisterClick() {
       },
     });
     const resp = result.data || {};
-    statusEl.textContent = resp?.ok
-      ? "Registered"
-      : `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`;
+    setFooterStatus(
+      resp?.ok
+        ? "Registered"
+        : `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`,
+    );
     if (resp?.ok) {
       await refreshInvitationRowFromDb({ preserveTabs: true });
+      setFooterStatus("Successfully set status registered");
+      footerHandled = true;
+    } else {
+      setFooterStatus(
+        `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`,
+      );
+      footerHandled = true;
     }
   } catch (e) {
-    statusEl.textContent = `${UI_TEXT.errorPrefix} ${getErrorMessage(e)}`;
+    setFooterStatus(`${UI_TEXT.errorPrefix} ${getErrorMessage(e)}`);
+    footerHandled = true;
   } finally {
     restoreActiveTabState(activeTabsBeforeRegister);
-    setFooterStatus("Ready");
+    if (!footerHandled) setFooterReady();
   }
 }
 
@@ -1909,11 +1940,13 @@ async function onStepMessageRespondedClick() {
 }
 
 async function setStatusOnlyForStepper(statusValue, successText) {
+  let footerHandled = false;
   setFooterDbStatus();
   try {
     const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
     if (!linkedin_url) {
-      statusEl.textContent = UI_TEXT.openLinkedInProfileFirst;
+      setFooterStatus(UI_TEXT.openLinkedInProfileFirst);
+      footerHandled = true;
       return;
     }
     const payloadStatus =
@@ -1922,12 +1955,23 @@ async function setStatusOnlyForStepper(statusValue, successText) {
       payload: { linkedin_url, status: payloadStatus },
     });
     const resp = result.data || {};
-    statusEl.textContent = resp?.ok
-      ? successText
-      : `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`;
-    if (resp?.ok) await refreshInvitationRowFromDb();
+    setFooterStatus(
+      resp?.ok
+        ? successText
+        : `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`,
+    );
+    if (resp?.ok) {
+      await refreshInvitationRowFromDb();
+      setFooterStatus(`Successfully set status ${payloadStatus}`);
+      footerHandled = true;
+    } else {
+      setFooterStatus(
+        `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`,
+      );
+      footerHandled = true;
+    }
   } finally {
-    setFooterStatus("Ready");
+    if (!footerHandled) setFooterReady();
   }
 }
 
@@ -1981,9 +2025,9 @@ copyInviteIconEl?.addEventListener("click", async () => {
   try {
     await copyToClipboard(previewEl.textContent || "");
     showInviteCopySuccessCheck();
-    statusEl.textContent = UI_TEXT.copiedToClipboard;
+    setFooterStatus(UI_TEXT.copiedToClipboard);
   } catch (e) {
-    statusEl.textContent = `${UI_TEXT.copyFailedPrefix} ${getErrorMessage(e)}`;
+    setFooterStatus(`${UI_TEXT.copyFailedPrefix} ${getErrorMessage(e)}`);
   }
 });
 
@@ -2008,9 +2052,9 @@ function bindFirstMessageCopyHandler() {
         "";
       await copyToClipboard(previewText);
       showFirstMessageCopySuccessCheck();
-      messageStatusEl.textContent = UI_TEXT.copiedToClipboard;
+      setFooterStatus(UI_TEXT.copiedToClipboard);
     } catch (e) {
-      messageStatusEl.textContent = `${UI_TEXT.copyFailedPrefix} ${getErrorMessage(e)}`;
+      setFooterStatus(`${UI_TEXT.copyFailedPrefix} ${getErrorMessage(e)}`);
     }
     updateMessageTabControls();
   });
@@ -2023,13 +2067,15 @@ async function handleSaveInviteClick() {
   try {
     const resp = await upsertCurrentProfileWithStatus("generated");
     if (!resp?.ok) {
-      statusEl.textContent = `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`;
+      setFooterStatus(
+        `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`,
+      );
       return;
     }
-    statusEl.textContent = "Saved.";
+    setFooterStatus("Saved.");
     await refreshInvitationRowFromDb();
   } finally {
-    setFooterStatus("Ready");
+    setFooterReady();
   }
 }
 
@@ -2055,7 +2101,7 @@ async function handleSaveFirstMessageClick() {
 
     const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
     if (!linkedin_url) {
-      messageStatusEl.textContent = UI_TEXT.openLinkedInProfileFirst;
+      setFooterStatus(UI_TEXT.openLinkedInProfileFirst);
       return;
     }
 
@@ -2072,15 +2118,15 @@ async function handleSaveFirstMessageClick() {
       throw new Error(getErrorMessage(result.error || resp?.error));
     }
 
-    messageStatusEl.textContent = "Saved.";
+    setFooterStatus("Saved.");
     await refreshInvitationRowFromDb({ preserveTabs: true });
     updateMessageTabControls();
   } catch (e) {
     console.error("[first-message] save failed", e);
-    messageStatusEl.textContent = `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(e)}`;
+    setFooterStatus(`${UI_TEXT.dbErrorPrefix} ${getErrorMessage(e)}`);
   } finally {
     restoreActiveTabState(activeTabsBeforeSave);
-    setFooterStatus("Ready");
+    setFooterReady();
   }
 }
 
@@ -2108,7 +2154,7 @@ function bindOpenSidePanelClickHandler() {
       const activeTabResp = activeTabResult.data || {};
       const tabId = activeTabResp?.data?.tabId;
       if (!Number.isInteger(tabId)) {
-        statusEl.textContent = UI_TEXT.sidePanelNotAvailable;
+        setFooterStatus(UI_TEXT.sidePanelNotAvailable);
         return;
       }
       await chrome.sidePanel.setOptions({
@@ -2117,13 +2163,13 @@ function bindOpenSidePanelClickHandler() {
         enabled: true,
       });
       await chrome.sidePanel.open({ tabId });
-      statusEl.textContent = UI_TEXT.openedSidePanel;
+      setFooterStatus(UI_TEXT.openedSidePanel);
       window.close();
     } catch (e) {
       console.error("[sidepanel] open failed", e);
-      statusEl.textContent = UI_TEXT.sidePanelNotAvailable;
+      setFooterStatus(UI_TEXT.sidePanelNotAvailable);
     } finally {
-      setFooterStatus("Ready");
+      setFooterReady();
     }
   });
 }
@@ -2155,7 +2201,7 @@ async function handleGenerateInviteClick() {
       }
     }
     if (!apiKey) {
-      statusEl.textContent = UI_TEXT.setApiKeyInConfig;
+      setFooterStatus(UI_TEXT.setApiKeyInConfig);
       return;
     }
 
@@ -2185,14 +2231,16 @@ async function handleGenerateInviteClick() {
 
     previewEl.textContent = (resp.invite_text || "").trim();
     updateInviteCopyIconVisibility();
-    statusEl.textContent = previewEl.textContent
-      ? UI_TEXT.generatedClickCopy
-      : UI_TEXT.noMessageGenerated;
+    setFooterStatus(
+      previewEl.textContent
+        ? UI_TEXT.generatedClickCopy
+        : UI_TEXT.noMessageGenerated,
+    );
   } catch (e) {
     console.error("[invite] generate failed", e);
-    statusEl.textContent = `${UI_TEXT.errorPrefix} ${getErrorMessage(e)}`;
+    setFooterStatus(`${UI_TEXT.errorPrefix} ${getErrorMessage(e)}`);
   } finally {
-    setFooterStatus("Ready");
+    setFooterReady();
   }
 }
 
@@ -2210,13 +2258,13 @@ markMessageSentBtnEl?.addEventListener("click", async () => {
   setFooterDbStatus();
   try {
     if (!currentProfileContext) {
-      messageStatusEl.textContent = UI_TEXT.openLinkedInProfileFirst;
+      setFooterStatus(UI_TEXT.openLinkedInProfileFirst);
       return;
     }
 
     const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
     if (!linkedin_url) {
-      messageStatusEl.textContent = UI_TEXT.missingLinkedinUrl;
+      setFooterStatus(UI_TEXT.missingLinkedinUrl);
       return;
     }
 
@@ -2225,9 +2273,11 @@ markMessageSentBtnEl?.addEventListener("click", async () => {
     });
     const resp = result.data || {};
 
-    messageStatusEl.textContent = resp?.ok
-      ? UI_TEXT.markedFirstMessageSent
-      : `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`;
+    setFooterStatus(
+      resp?.ok
+        ? UI_TEXT.markedFirstMessageSent
+        : `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`,
+    );
 
     if (resp?.ok) {
       outreachMessageStatus = "first_message_sent";
@@ -2237,7 +2287,7 @@ markMessageSentBtnEl?.addEventListener("click", async () => {
     }
     updateMessageTabControls();
   } finally {
-    setFooterStatus("Ready");
+    setFooterReady();
   }
 });
 
@@ -2278,26 +2328,22 @@ async function handleGenerateFollowupClick() {
         followupObjectiveEl.classList.add("is-invalid");
         followupObjectiveEl.focus();
       }
-      if (commStatusEl) commStatusEl.textContent = "Objective is required.";
       setFooterStatus("Objective is required.");
       return;
     }
     followupObjectiveEl?.classList.remove("is-invalid");
 
     if (!hasMessageProfileUrl()) {
-      if (commStatusEl)
-        commStatusEl.textContent = UI_TEXT.openLinkedInProfileFirst;
+      setFooterStatus(UI_TEXT.openLinkedInProfileFirst);
       return;
     }
 
     if (!currentProfileContext) {
-      if (commStatusEl) {
-        commStatusEl.textContent = UI_TEXT.couldNotExtractProfileContext;
-      }
+      setFooterStatus(UI_TEXT.couldNotExtractProfileContext);
       return;
     }
 
-    if (commStatusEl) commStatusEl.textContent = "Generating...";
+    setFooterStatus("Generating...");
 
     const [{ apiKey: apiKeyLocal }, { model }] = await Promise.all([
       chrome.storage.local.get(["apiKey"]),
@@ -2314,7 +2360,7 @@ async function handleGenerateFollowupClick() {
     }
 
     if (!apiKey) {
-      if (commStatusEl) commStatusEl.textContent = UI_TEXT.setApiKeyInConfig;
+      setFooterStatus(UI_TEXT.setApiKeyInConfig);
       setActiveTab("config");
       return;
     }
@@ -2360,7 +2406,7 @@ async function handleGenerateFollowupClick() {
     if (!result.ok || !resp?.ok) {
       const msg = getErrorMessage(result.error || resp?.error);
       console.error("[LEF][chat] followup generate failed", msg);
-      if (commStatusEl) commStatusEl.textContent = msg;
+      setFooterStatus(msg);
       if (followupPreviewEl) followupPreviewEl.value = msg;
       updateFollowupCopyIconVisibility();
       return;
@@ -2369,16 +2415,16 @@ async function handleGenerateFollowupClick() {
     const text = (resp.text || resp.first_message || "").trim();
     if (followupPreviewEl) followupPreviewEl.value = text;
     updateFollowupCopyIconVisibility();
-    if (commStatusEl) commStatusEl.textContent = "Ready";
+    setFooterStatus("Generated.");
     debugLog("[LEF][chat] followup generated", { chars: text.length });
   } catch (e) {
     const msg = getErrorMessage(e);
     console.error("[LEF][chat] followup exception", e);
-    if (commStatusEl) commStatusEl.textContent = msg;
+    setFooterStatus(msg);
     if (followupPreviewEl) followupPreviewEl.value = msg;
     updateFollowupCopyIconVisibility();
   } finally {
-    setFooterStatus("Ready");
+    setFooterReady();
   }
 }
 
@@ -2410,10 +2456,10 @@ function bindFollowupCopyHandler() {
           : followupPreviewEl.textContent) || "";
       await copyToClipboard(previewText);
       showFollowupCopySuccessCheck();
-      if (commStatusEl) commStatusEl.textContent = "Copied";
+      setFooterStatus("Copied");
     } catch (e) {
       const msg = getErrorMessage(e);
-      if (commStatusEl) commStatusEl.textContent = msg;
+      setFooterStatus(msg);
       console.error("[LEF][chat] followup copy failed", e);
     }
   });
