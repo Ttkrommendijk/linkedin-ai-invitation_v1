@@ -1863,13 +1863,9 @@ async function upsertCurrentProfileWithStatus(statusValue) {
   const result = await sendRuntimeMessage("DB_UPSERT_GENERATED", {
     payload: {
       linkedin_url: linkedinUrl,
-      full_name: fullName,
-      company: currentProfileContext.company || null,
-      headline: currentProfileContext.headline || null,
       language: getLanguage(),
       message,
       generated_at: new Date().toISOString(),
-      status: statusValue,
     },
   });
   return result.data || {};
