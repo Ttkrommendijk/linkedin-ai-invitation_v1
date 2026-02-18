@@ -195,10 +195,6 @@ pre {
     padding: 8px;
     border-radius: 6px;
 }
-#profileContextPreview {
-    max-height: 140px;
-    overflow: auto;
-}
 #messagePrompt {
     height: 160px;
 }
@@ -206,7 +202,10 @@ pre {
     max-height: 180px;
     overflow: auto;
 }
-#toggleProfileContextPreview {
+#invitePromptPreview {
+    height: 120px;
+}
+#toggleInvitePrompt {
     width: auto;
     margin-top: 0;
     margin-left: 6px;
@@ -217,6 +216,15 @@ pre {
     margin-top: 0;
     margin-left: 6px;
     padding: 2px 8px;
+}
+.field-help {
+    display: block;
+    margin-top: 4px;
+}
+.invite-tip {
+    display: block;
+    margin-top: 4px;
+    color: #6b7280;
 }
 
 .tabs {

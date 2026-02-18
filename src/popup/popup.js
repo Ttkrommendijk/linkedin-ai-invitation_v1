@@ -10,6 +10,9 @@ const messagePromptWrapEl =
 const toggleMessagePromptBtnEl =
   document.getElementById("togglePrompt") ||
   document.getElementById("toggleMessagePrompt");
+const toggleInvitePromptBtnEl = document.getElementById("toggleInvitePrompt");
+const invitePromptWrapEl = document.getElementById("invitePromptWrap");
+const invitePromptPreviewEl = document.getElementById("invitePromptPreview");
 const saveMessagePromptBtnEl = document.getElementById("saveMessagePrompt");
 const resetMessagePromptBtnEl = document.getElementById("resetMessagePrompt");
 const generateFirstMessageBtnEl = document.getElementById(
@@ -84,6 +87,7 @@ const STORAGE_KEY_FIRST_MESSAGE_PROMPT = "firstMessagePrompt";
 const STORAGE_KEY_MESSAGE_LANGUAGE = "message_language";
 const DEFAULT_FIRST_MESSAGE_PROMPT = messagePromptEl.value;
 const LEF_UTILS = globalThis.LEFUtils || {};
+const LEF_PROMPTS = globalThis.LEFPrompts || {};
 const IS_SIDE_PANEL_CONTEXT = (() => {
   try {
     return (
@@ -104,15 +108,6 @@ const messageStatusEl =
   document.getElementById("messageStatus") || commStatusEl;
 const previewEl = document.getElementById("preview");
 const firstMessagePreviewEl = document.getElementById("firstMessagePreview");
-const profileContextPreviewEl = document.getElementById(
-  "profileContextPreview",
-);
-const profileContextPreviewWrapEl = document.getElementById(
-  "profileContextPreviewWrap",
-);
-const toggleProfileContextPreviewBtnEl = document.getElementById(
-  "toggleProfileContextPreview",
-);
 const copyBtnEl = document.getElementById("copyBtn");
 const openSidePanelBtnEl = document.getElementById("openSidePanel");
 const detailPersonNameEl = document.getElementById("detailPersonName");
@@ -171,7 +166,7 @@ let lastProfileContextEnriched = null;
 let currentProfileContext = null;
 let firstMessage = "";
 let lastSavedFirstMessagePrompt = "";
-let isProfileContextCollapsed = true;
+let isInvitePromptCollapsed = true;
 let isMessagePromptCollapsed = true;
 let dbInvitationRow = null;
 let extractedChatMessages = [];
@@ -621,27 +616,6 @@ async function refreshChatHistoryFromActiveTab() {
   );
 }
 
-function renderProfileContext() {
-  profileContextPreviewEl.textContent = JSON.stringify(
-    {
-      sent_to_ai: lastProfileContextSent || {},
-      enriched_from_llm: lastProfileContextEnriched,
-    },
-    null,
-    2,
-  );
-}
-
-function setProfileContextPreviewCollapsed(collapsed) {
-  isProfileContextCollapsed = collapsed;
-  profileContextPreviewWrapEl.hidden = collapsed;
-  toggleProfileContextPreviewBtnEl.textContent = collapsed ? "Show" : "Hide";
-  toggleProfileContextPreviewBtnEl.setAttribute(
-    "aria-expanded",
-    collapsed ? "false" : "true",
-  );
-}
-
 function setMessagePromptCollapsed(collapsed) {
   isMessagePromptCollapsed = collapsed;
   messagePromptWrapEl.hidden = collapsed;
@@ -652,6 +626,31 @@ function setMessagePromptCollapsed(collapsed) {
     "aria-expanded",
     collapsed ? "false" : "true",
   );
+}
+
+function setInvitePromptCollapsed(collapsed) {
+  isInvitePromptCollapsed = collapsed;
+  if (invitePromptWrapEl) {
+    invitePromptWrapEl.hidden = collapsed;
+  }
+  if (!toggleInvitePromptBtnEl) return;
+  toggleInvitePromptBtnEl.textContent = collapsed ? "Show" : "Hide";
+  toggleInvitePromptBtnEl.setAttribute(
+    "aria-expanded",
+    collapsed ? "false" : "true",
+  );
+}
+
+async function loadInvitePromptPreview() {
+  if (!invitePromptPreviewEl) return;
+  const promptText =
+    typeof LEF_PROMPTS.buildInviteTextPrompt === "function"
+      ? LEF_PROMPTS.buildInviteTextPrompt({
+          language: "Portuguese",
+          additionalPrompt: "",
+        })
+      : "";
+  invitePromptPreviewEl.value = String(promptText).trim();
 }
 
 function setCommunicationStatus(text) {
@@ -1235,7 +1234,6 @@ async function loadProfileContextOnOpen() {
     currentProfileContext = profileContext;
     lastProfileContextSent = profileContext;
     lastProfileContextEnriched = null;
-    renderProfileContext();
     updateMessageTabControls();
     await refreshInvitationRowFromDb();
     renderDetailHeader();
@@ -1248,7 +1246,6 @@ async function loadProfileContextOnOpen() {
     lastProfileContextSent = {};
     lastProfileContextEnriched = null;
     dbInvitationRow = null;
-    renderProfileContext();
     updateMessageTabControls();
     setCommunicationStatus(UI_TEXT.lifecycleOpenLinkedInProfileFirst);
     renderDetailHeader();
@@ -1454,8 +1451,7 @@ detailTabFollowBtnEl?.addEventListener("click", async () => {
   }
 });
 setCopyButtonEnabled(false);
-renderProfileContext();
-setProfileContextPreviewCollapsed(true);
+setInvitePromptCollapsed(true);
 setMessagePromptCollapsed(true);
 updateMessageTabControls();
 if (OVERVIEW_ENABLED) {
@@ -1472,14 +1468,15 @@ setDetailInnerTab("invite");
 renderDetailHeader();
 updatePhaseButtons();
 loadProfileContextOnOpen();
+loadInvitePromptPreview().catch((_e) => {});
 loadFirstMessagePrompt().catch((_e) => {
   lastSavedFirstMessagePrompt = messagePromptEl.value;
   updateSavePromptButtonState();
 });
 loadMessageLanguage().catch((_e) => {});
 
-toggleProfileContextPreviewBtnEl.addEventListener("click", () => {
-  setProfileContextPreviewCollapsed(!isProfileContextCollapsed);
+toggleInvitePromptBtnEl?.addEventListener("click", () => {
+  setInvitePromptCollapsed(!isInvitePromptCollapsed);
 });
 
 toggleMessagePromptBtnEl.addEventListener("click", () => {
@@ -1553,7 +1550,6 @@ if (!enrichProfileBtnEl) {
       currentProfileContext = profileContext;
       lastProfileContextSent = profileContext;
       lastProfileContextEnriched = null;
-      renderProfileContext();
       renderDetailHeader();
 
       const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
@@ -1562,11 +1558,10 @@ if (!enrichProfileBtnEl) {
         return;
       }
 
-      const [{ apiKey: apiKeyLocal }, { model, positioning, strategyCore }] =
-        await Promise.all([
-          chrome.storage.local.get(["apiKey"]),
-          chrome.storage.sync.get(["model", "positioning", "strategyCore"]),
-        ]);
+      const [{ apiKey: apiKeyLocal }, { model }] = await Promise.all([
+        chrome.storage.local.get(["apiKey"]),
+        chrome.storage.sync.get(["model"]),
+      ]);
 
       let apiKey = (apiKeyLocal || "").trim();
       if (!apiKey) {
@@ -1584,13 +1579,11 @@ if (!enrichProfileBtnEl) {
       }
 
       const enrichResp = await chrome.runtime.sendMessage({
-        type: "GENERATE_INVITE",
+        // prompt: buildProfileExtractionPrompt (Enrich)
+        type: "ENRICH_PROFILE",
         payload: {
           apiKey,
           model: (model || "gpt-4.1").trim(),
-          positioning: positioning || "",
-          focus: (focusEl.value || "").trim(),
-          strategyCore: strategyCore || "",
           profile: { ...currentProfileContext },
         },
       });
@@ -1602,6 +1595,7 @@ if (!enrichProfileBtnEl) {
 
       const llmCompany = (enrichResp.company || "").trim();
       const llmHeadline = sanitizeHeadlineJobTitle(enrichResp.headline || "");
+      const llmLanguage = (enrichResp.language || "").trim();
       if (!llmCompany && !llmHeadline) {
         return;
       }
@@ -1613,6 +1607,9 @@ if (!enrichProfileBtnEl) {
       if (llmHeadline) {
         currentProfileContext.headline = llmHeadline;
         if (detailHeadlineEl) detailHeadlineEl.textContent = llmHeadline;
+      }
+      if (llmLanguage) {
+        currentProfileContext.language = llmLanguage;
       }
 
       setFooterUpdatingStatus();
@@ -1800,7 +1797,13 @@ document.getElementById("generate").addEventListener("click", async () => {
       strategyCore: (strategyEl.value || "").trim(),
     });
 
-    const focus = (focusEl.value || "").trim();
+    const additionalPrompt = (focusEl.value || "").trim();
+    const inviteLanguage =
+      (
+        currentProfileContext?.language ||
+        messageLanguageEl?.value ||
+        ""
+      ).trim() || "Portuguese";
 
     const [{ apiKey: apiKeyLocal }, { model, positioning, strategyCore }] =
       await Promise.all([
@@ -1831,18 +1834,19 @@ document.getElementById("generate").addEventListener("click", async () => {
     const profileContextForGeneration = { ...currentProfileContext };
     lastProfileContextSent = profileContextForGeneration;
     lastProfileContextEnriched = null;
-    renderProfileContext();
 
     statusEl.textContent = UI_TEXT.callingOpenAI;
     setFooterLlmStatus();
     debug("Sending minimized profile context to invitation generation.");
     const resp = await chrome.runtime.sendMessage({
+      // prompt: buildInviteTextPrompt (Generate invite)
       type: "GENERATE_INVITE",
       payload: {
         apiKey,
         model: (model || "gpt-4.1").trim(),
         positioning: positioning || "",
-        focus,
+        focus: additionalPrompt,
+        language: inviteLanguage,
         strategyCore: strategyCore || "",
         profile: profileContextForGeneration,
       },
@@ -1856,22 +1860,6 @@ document.getElementById("generate").addEventListener("click", async () => {
     debug("GENERATE_INVITE full response:", resp);
 
     const inviteText = (resp.invite_text || "").trim();
-    const llmCompany = (resp.company || "").trim();
-    const llmHeadline = (resp.headline || "").trim();
-
-    lastProfileContextEnriched = {
-      company: llmCompany,
-      headline: llmHeadline,
-    };
-    debug("enriched_from_llm assigned:", lastProfileContextEnriched);
-    renderProfileContext();
-
-    if (!currentProfileContext.company && llmCompany) {
-      currentProfileContext.company = llmCompany;
-    }
-    if (!currentProfileContext.headline && llmHeadline) {
-      currentProfileContext.headline = llmHeadline;
-    }
 
     previewEl.textContent = inviteText;
     setCopyButtonEnabled(Boolean(inviteText));
@@ -1928,10 +1916,10 @@ document
 
       const profileContextForGeneration = { ...currentProfileContext };
       lastProfileContextSent = profileContextForGeneration;
-      renderProfileContext();
 
       setFooterLlmStatus();
       const resp = await chrome.runtime.sendMessage({
+        // prompt: buildFirstMessagePrompt (Generate first message button)
         type: "GENERATE_FIRST_MESSAGE",
         payload: {
           apiKey,
@@ -2108,6 +2096,7 @@ generateFollowupBtnEl?.addEventListener("click", async () => {
     });
 
     const request = {
+      // prompt: buildFollowupPrompt (Generate follow-up button)
       type: "GENERATE_FOLLOWUP_MESSAGE",
       payload: {
         apiKey,

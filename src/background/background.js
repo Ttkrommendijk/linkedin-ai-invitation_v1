@@ -3,8 +3,14 @@ try {
 } catch (_e) {
   // Optional shared helper; background keeps local fallbacks.
 }
+try {
+  importScripts("../prompts.js");
+} catch (_e) {
+  // Optional shared helper; background keeps local fallbacks.
+}
 
 const LEF_UTILS = globalThis.LEFUtils || {};
+const LEF_PROMPTS = globalThis.LEFPrompts || {};
 
 const DEBUG = false;
 
@@ -163,163 +169,26 @@ function clampText(text, maxChars) {
 }
 
 function characterLimitInstruction(maxChars) {
-  return `YOU MUST PRODUCE THREE SEPARATE OUTPUTS:
-1) invite_text (the LinkedIn invitation)
-2) company (extracted company name)
-3) headline (job-description style headline)
-
-IMPORTANT SEPARATION OF RULES:
-- The invitation rules apply ONLY to invite_text.
-- The extraction rules apply ONLY to company and headline.
-- Do NOT leave company/headline empty just because invite_text has restrictions.
-- company/headline must be derived only from profile_context and profile_excerpt_fallback, but they are NOT limited by invite_text constraints (e.g., questions/closing).
-
-invite_text rules (STRICT):
-Write a LinkedIn connection invitation in Portuguese with MAX ${maxChars} characters (including spaces). STRICT.
-
-Primary objective: maximize connection acceptance rate (not replies).
-invite_text must be a single paragraph (no line breaks). Aim for 220-280 characters.
-
-MANDATORY STRUCTURE FOR invite_text:
-1. Start with "Olá {first name from profile}". If first name is missing/unknown, start with "Olá," (no name).
-2. Brief factual reference from the profile.
-3. CAUSAL LINKAGE sentence that connects their profile to my own atuação using a cause-and-effect connector.
-   - Must use a connector like: "e como também atuo...", "e como eu também atuo...", "por eu também atuar...", "como também atuo...", "por também atuar..."
-   - The linkage MUST clearly express: because of (2) + because I also do (3) => it makes sense/it's interesting to connect.
-4. Close with a short, low-friction sentence ONLY about connecting OR integrate the closing into the causal linkage (single-sentence close allowed).
-
-STYLE TARGET (VERY IMPORTANT):
-Prefer a single flowing sentence where possible, using commas to connect clauses, similar to:
-"Olá {nome}, notei ... , e como também atuo ... achei interessante conectar."
-This is allowed even if it merges steps (2)-(4), as long as all intents are present.
-
-Tone: peer-level, neutral, specific, not salesy.
-Avoid praise, flattery, or emotional adjectives.
-Use profile-observation verbs only (e.g., "vi no seu perfil", "notei", "observei").
-Never invent facts.
-
-CLOSING RULES (STRICT):
-- Do NOT end with a question.
-- Do NOT mention meetings, calls, troca de experiências, agenda, conversar, apresentar.
-- Closing must only express openness to connect, or the implicit "achei interessante conectar" style.
-Examples:
-"Seria um prazer conectar."
-"Seria ótimo adicionar você à minha rede."
-"Vamos nos conectar."
-"Achei interessante conectar."
-"Faz sentido a gente se conectar."
-
-Do NOT ask deep conceptual or technical questions.
-Do NOT introduce new themes in the final sentence.
-No emojis. No bullet points.
-
-company extraction rules (STRICT):
-- Goal: return ONLY the company/organization name (no role, no extra words).
-- Prefer profile_context.company if present and non-empty.
-- Otherwise derive from profile_excerpt_fallback using common LinkedIn patterns:
-  a) "<cargo> no <empresa>" => company = <empresa>
-  b) "<cargo> na <empresa>" => company = <empresa>
-  c) "<nome> • <cargo> | <empresa>" => company = <empresa> (the organization immediately after "|")
-  d) If multiple orgs appear, prefer the one tied to the current role/title line (top-card style).
-- Remove trailing location, separators, follower counts, and UI noise.
-- If not confidently identifiable, return "".
-
-headline rules (STRICT):
-- Goal: return a job-description style headline for the person (role-focused), not a sales pitch.
-- "headline" means the person's current job title/role (cargo) as shown on LinkedIn.
-- Do NOT return a generic marketing headline, slogan, or promotional phrase.
-- Ignore/remove leading ordinal or line-prefix markers such as "2º", "1º", "3º", "I", "II", "III", "#2", and similar.
-- Return only the clean job title text (example: "TI Manager", never "2º TI Manager").
-- retunr only the clean job title, do not include the company name (example "TI Manager", never "TI Manager na Messer Gases Brasil")
-- Prefer profile_context.headline if present and non-empty; clean it (remove location/noise).
-- Otherwise derive from profile_excerpt_fallback:
-  - Extract the current role/title from the top-card style line.
-  - If company is known, format as: "<cargo> na/no <company>".
-  - Keep it concise (typically 50-120 chars).
-  - Do NOT include location, follower counts, “mais de 500 conexões”, or other UI noise.
-- If not confidently identifiable, return "".
-
-OUTPUT FORMAT (STRICT):
-Return valid JSON only (no markdown, no extra text) with exactly these keys:
-{
-  "invite_text": string,
-  "company": string,
-  "headline": string
-}
-- In this schema, "headline" must be the job title / role (cargo).
-- company/headline must be "" when unknown.
-- Never invent facts for company/headline; derive only from profile_context and profile_excerpt_fallback.`;
+  void maxChars;
+  return LEF_PROMPTS.buildInviteTextPrompt({
+    language: "Portuguese",
+    additionalPrompt: "",
+  });
 }
 
 function firstMessageInstruction(maxChars, language = "auto") {
-  const langRule =
-    language === "auto"
-      ? "the dominant language of the provided profile_context and profile_excerpt_fallback"
-      : language;
-
-  return `Write a natural and socially intelligent first LinkedIn message in ${langRule} after connection acceptance.
-
-The message must feel like something a real Brazilian professional would write — not a template, not a corporate press release, and not a sales script.
-
-Core behavior:
-- Start with greeting and appreciation.
-- If there is an explicit recognition, award, or public achievement in the profile, you may briefly say "Parabéns por..." in a simple and neutral way. Do not exaggerate.
-- If there is a clear technology theme (IA, dados, automação, digital, etc.), you may relate naturally (e.g., "Também acompanho bastante esse tema").
-- Do not overpraise.
-- Do not narrate the person's career.
-- Do not infer transitions, timing, or intentions.
-- Do not sound impressed. Sound respectful and normal.
-
-Tone calibration:
-- Write as a peer.
-- Calm.
-- Understated.
-- Intelligent but relaxed.
-- Brazilian conversational style.
-- No hype language.
-- No consultant tone.
-
-Engagement:
-- A question is optional, but only if it feels natural and light.
-- Do not ask strategic or diagnostic questions.
-- No forced engagement.
-- No meeting suggestion.
-
-Fact usage:
-- Use only facts explicitly present in the profile.
-- Never invent context.
-- Avoid storytelling about their trajectory.
-
-Structure:
-- Max ${maxChars} characters.
-- 2–3 short paragraphs.
-- No emojis.
-- No hashtags.
-- Plain text only.
-
-The message should feel effortless and socially calibrated — like a real human reaching out, not a prompt-generated structure.`;
+  void maxChars;
+  return LEF_PROMPTS.buildFirstMessagePrompt({ language, userPrompt: "" });
 }
 
 function followupMessageInstruction(language = "auto") {
-  return `Write a reply message for an ongoing LinkedIn conversation.
-
-Language rules:
-- If a specific language is provided, respond in that language.
-- If language is set to "auto", detect the dominant language used in the conversation context and respond in that same language.
-- Never default to English unless the conversation itself is in English.
-
-Tone and style:
-- Peer-level, neutral, specific, non-salesy.
-- Keep it concise (1–2 short paragraphs).
-- Maintain the natural tone of the existing conversation.
-- Do not switch language mid-response.
-
-Constraints:
-- Use only the provided context.
-- Do not invent facts.
-- Focus strictly on the user's objective.
-
-Output plain text only.`;
+  return LEF_PROMPTS.buildFollowupPrompt({
+    language,
+    objective: "",
+    includeStrategy: false,
+    strategyText: "",
+    chatHistory: [],
+  });
 }
 
 function parseInviteGenerationJson(rawText) {
@@ -338,11 +207,10 @@ function parseInviteGenerationJson(rawText) {
     throw err;
   }
 
-  const allowedKeys = new Set(["invite_text", "company", "headline"]);
+  const allowedKeys = new Set(["invite_text"]);
   const keys = Object.keys(parsed);
   const hasInvalidKeys = keys.some((k) => !allowedKeys.has(k));
-  const hasRequiredKeys =
-    "invite_text" in parsed && "company" in parsed && "headline" in parsed;
+  const hasRequiredKeys = "invite_text" in parsed;
 
   if (hasInvalidKeys || !hasRequiredKeys) {
     const err = new Error("Model returned unexpected JSON schema.");
@@ -352,8 +220,41 @@ function parseInviteGenerationJson(rawText) {
 
   return {
     invite_text: clampText(normalizeProfileField(parsed.invite_text), 300),
+  };
+}
+
+function parseProfileExtractionJson(rawText) {
+  let parsed;
+  try {
+    parsed = JSON.parse(rawText);
+  } catch (_e) {
+    const err = new Error("Model returned invalid JSON.");
+    err.details = { reason: "invalid_json" };
+    throw err;
+  }
+
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    const err = new Error("Model returned invalid JSON object.");
+    err.details = { reason: "invalid_json" };
+    throw err;
+  }
+
+  const allowedKeys = new Set(["company", "headline", "language"]);
+  const keys = Object.keys(parsed);
+  const hasInvalidKeys = keys.some((k) => !allowedKeys.has(k));
+  const hasRequiredKeys =
+    "company" in parsed && "headline" in parsed && "language" in parsed;
+
+  if (hasInvalidKeys || !hasRequiredKeys) {
+    const err = new Error("Model returned unexpected JSON schema.");
+    err.details = { reason: "invalid_json" };
+    throw err;
+  }
+
+  return {
     company: normalizeProfileField(parsed.company),
     headline: sanitizeHeadlineJobTitle(parsed.headline),
+    language: normalizeProfileField(parsed.language),
   };
 }
 
@@ -394,8 +295,6 @@ function parseInviteGenerationFromResponseData(data) {
   if (data?.output_parsed && typeof data.output_parsed === "object") {
     const parsed = {
       invite_text: data.output_parsed.invite_text,
-      company: data.output_parsed.company,
-      headline: data.output_parsed.headline,
     };
     return {
       parsed: parseInviteGenerationJson(JSON.stringify(parsed)),
@@ -433,69 +332,90 @@ function parseInviteGenerationFromResponseData(data) {
   }
 }
 
-function profileContextBlock(profile) {
-  const fullName =
-    normalizeProfileField(profile?.full_name) ||
-    normalizeProfileField(profile?.name) ||
-    normalizeProfileField(profile?.fullName);
-  const headline = normalizeProfileField(profile?.headline);
-  const company =
-    normalizeProfileField(profile?.company) ||
-    normalizeProfileField(profile?.current_company) ||
-    normalizeProfileField(profile?.company_name);
-  const location = normalizeProfileField(profile?.location);
-  const about =
-    normalizeProfileField(profile?.about) ||
-    normalizeProfileField(profile?.summary);
-  const recentExperience =
-    normalizeProfileField(profile?.recent_experience) ||
-    normalizeProfileField(profile?.recentExperience) ||
-    normalizeProfileField(profile?.experience);
-  const profileUrl =
-    normalizeProfileField(profile?.profile_url) ||
-    normalizeProfileField(profile?.url) ||
-    normalizeProfileField(profile?.linkedin_url);
-  const missingKeyFields = !company || !headline || !about;
-  const fallbackExcerpt = missingKeyFields
-    ? normalizeProfileField(profile?.excerpt_fallback)
-    : "";
+function parseProfileExtractionFromResponseData(data) {
+  const primaryText = normalizeProfileField(
+    data?.output?.[0]?.content?.[0]?.text || "",
+  );
+  if (primaryText) {
+    try {
+      const parsed = JSON.parse(primaryText);
+      return {
+        parsed: parseProfileExtractionJson(JSON.stringify(parsed)),
+        rawText: primaryText,
+        usedOutputParsed: false,
+      };
+    } catch (_e) {
+      const err = new Error("Model returned invalid JSON.");
+      err.details = {
+        reason: "invalid_json",
+        source: "output.0.content.0.text",
+      };
+      throw err;
+    }
+  }
 
-  return `
-profile_context:
-- profile_url: ${profileUrl || "(unknown)"}
-- full_name: ${fullName || "(unknown)"}
-- headline: ${headline || "(unknown)"}
-- company: ${company || "(unknown)"}
-- location: ${location || "(unknown)"}
-- about: ${about || "(unknown)"}
-- recent_experience: ${recentExperience || "(unknown)"}${
-    fallbackExcerpt
-      ? `
+  if (data?.output_parsed && typeof data.output_parsed === "object") {
+    const parsed = {
+      company: data.output_parsed.company,
+      headline: data.output_parsed.headline,
+      language: data.output_parsed.language,
+    };
+    return {
+      parsed: parseProfileExtractionJson(JSON.stringify(parsed)),
+      rawText: extractRawModelText(data),
+      usedOutputParsed: true,
+    };
+  }
 
-profile_excerpt_fallback (sanitized, max 800 chars):
-${fallbackExcerpt}`
-      : ""
-  }`;
+  const rawText = extractRawModelText(data);
+  if (!rawText) {
+    const err = new Error("Model returned empty output.");
+    err.details = { reason: "empty_output" };
+    throw err;
+  }
+
+  try {
+    return {
+      parsed: parseProfileExtractionJson(rawText),
+      rawText,
+      usedOutputParsed: false,
+    };
+  } catch (_directErr) {
+    const firstBrace = rawText.indexOf("{");
+    const lastBrace = rawText.lastIndexOf("}");
+    if (firstBrace >= 0 && lastBrace > firstBrace) {
+      const jsonSlice = rawText.slice(firstBrace, lastBrace + 1);
+      return {
+        parsed: parseProfileExtractionJson(jsonSlice),
+        rawText,
+        usedOutputParsed: false,
+      };
+    }
+    throw _directErr;
+  }
 }
 
-function buildInviteUserInput({ positioning, focus, profile, strategyCore }) {
-  return `
-strategy_core:
-${strategyCore || "(none)"}
+function profileContextBlock(profile) {
+  return LEF_PROMPTS.buildFirstMessageUserInput({ profile });
+}
 
-my_positioning:
-${positioning || "(none)"}
+function buildInviteUserInput({ positioning, profile, strategyCore }) {
+  return LEF_PROMPTS.buildInviteUserInput({
+    positioning,
+    profile,
+    strategyCore,
+  });
+}
 
-profile_focus (optional):
-${focus || "(none)"}
-${profileContextBlock(profile)}
-`;
+function buildStandardInvitePrompt(focus) {
+  return LEF_PROMPTS.buildInviteTextPrompt({
+    language: "Portuguese",
+    additionalPrompt: normalizeProfileField(focus),
+  });
 }
 
 function buildFirstMessageUserInput({ profile }) {
-  return `
-${profileContextBlock(profile)}
-`;
+  return LEF_PROMPTS.buildFirstMessageUserInput({ profile });
 }
 
 function buildFollowupUserInput({
@@ -505,43 +425,13 @@ function buildFollowupUserInput({
   contextLast10,
   profileContext,
 }) {
-  const contextBlock = (Array.isArray(contextLast10) ? contextLast10 : [])
-    .slice(-10)
-    .map((m) => {
-      const direction =
-        m?.direction === "them"
-          ? "them"
-          : m?.direction === "me"
-            ? "me"
-            : "unknown";
-      const text = normalizeProfileField(m?.text);
-      return text ? `- ${direction}: ${text}` : "";
-    })
-    .filter(Boolean)
-    .join("\n");
-
-  return `
-Objective:
-${objective || "(none)"}
-
-${
-  includeStrategy && strategy
-    ? `Strategy:
-${strategy}`
-    : ""
-}
-
-Context (last 10 messages, chronological):
-${contextBlock || "(none)"}
-
-Instruction:
-${
-  includeStrategy && strategy
-    ? "Respond with this objective using this context (last 10 messages) and respecting this strategy. Output ONLY the message text."
-    : "Respond with this objective using this context (last 10 messages). Output ONLY the message text."
-}
-${profileContextBlock(profileContext || {})}
-`;
+  return LEF_PROMPTS.buildFollowupUserInput({
+    objective,
+    strategy,
+    includeStrategy,
+    contextLast10,
+    profileContext,
+  });
 }
 
 async function callOpenAIInviteGeneration({
@@ -551,6 +441,7 @@ async function callOpenAIInviteGeneration({
   focus,
   strategyCore,
   profile,
+  language,
 }) {
   const res = await fetchOpenAIWithRetry(
     "https://api.openai.com/v1/responses",
@@ -573,10 +464,8 @@ async function callOpenAIInviteGeneration({
               additionalProperties: false,
               properties: {
                 invite_text: { type: "string" },
-                company: { type: "string" },
-                headline: { type: "string" },
               },
-              required: ["invite_text", "company", "headline"],
+              required: ["invite_text"],
             },
           },
         },
@@ -584,7 +473,14 @@ async function callOpenAIInviteGeneration({
           {
             role: "system",
             content: [
-              { type: "input_text", text: characterLimitInstruction(300) },
+              // prompt: buildInviteTextPrompt (Generate invite)
+              {
+                type: "input_text",
+                text: LEF_PROMPTS.buildInviteTextPrompt({
+                  language: normalizeProfileField(language) || "Portuguese",
+                  additionalPrompt: normalizeProfileField(focus),
+                }),
+              },
             ],
           },
           {
@@ -594,7 +490,6 @@ async function callOpenAIInviteGeneration({
                 type: "input_text",
                 text: buildInviteUserInput({
                   positioning,
-                  focus,
                   profile,
                   strategyCore,
                 }),
@@ -639,8 +534,6 @@ async function callOpenAIInviteGeneration({
     debug("GENERATE_INVITE parse succeeded:", {
       used_output_parsed: result.usedOutputParsed,
       keys: Object.keys(parsedPayload || {}),
-      company: parsedPayload.company,
-      headline: parsedPayload.headline,
     });
   } catch (e) {
     debug("GENERATE_INVITE parse succeeded:", false);
@@ -649,6 +542,70 @@ async function callOpenAIInviteGeneration({
 
   debug("GENERATE_INVITE parse succeeded:", parseSucceeded);
   return parsedPayload;
+}
+
+async function callOpenAIProfileExtraction({ apiKey, model, profile }) {
+  const res = await fetchOpenAIWithRetry(
+    "https://api.openai.com/v1/responses",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        max_output_tokens: 120,
+        text: {
+          format: {
+            type: "json_schema",
+            name: "profile_extraction",
+            strict: true,
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                company: { type: "string" },
+                headline: { type: "string" },
+                language: { type: "string" },
+              },
+              required: ["company", "headline", "language"],
+            },
+          },
+        },
+        input: [
+          {
+            role: "system",
+            content: [
+              // prompt: buildProfileExtractionPrompt (Enrich)
+              {
+                type: "input_text",
+                text: LEF_PROMPTS.buildProfileExtractionPrompt(),
+              },
+            ],
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text: buildFirstMessageUserInput({ profile }),
+              },
+            ],
+          },
+        ],
+      }),
+    },
+  );
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("openai", res.status, txt || res.statusText);
+  }
+
+  const data = await res.json();
+  const result = parseProfileExtractionFromResponseData(data);
+  return result.parsed;
 }
 
 async function callOpenAIFirstMessage({ apiKey, model, profile, language }) {
@@ -669,6 +626,7 @@ async function callOpenAIFirstMessage({ apiKey, model, profile, language }) {
             content: [
               {
                 type: "input_text",
+                // prompt: buildFirstMessagePrompt (Generate first message action)
                 text: firstMessageInstruction(600, language || "Portuguese"),
               },
             ],
@@ -730,6 +688,7 @@ async function callOpenAIFollowupMessage({
             content: [
               {
                 type: "input_text",
+                // prompt: buildFollowupPrompt (Generate follow-up action)
                 text: followupMessageInstruction(language || "Portuguese"),
               },
             ],
@@ -1194,16 +1153,20 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     console.log("[LEF][chat] LLM type", msg?.type);
   }
 
+  if (msg?.type === "GET_STANDARD_INVITE_PROMPT") {
+    sendResponse({ ok: true, prompt: buildStandardInvitePrompt("") });
+    return false;
+  }
+
   if (msg?.type === "GENERATE_INVITE") {
     (async () => {
       emitUiStatus("Sending to LLM…");
       try {
+        // prompt: buildInviteTextPrompt (Generate invite)
         const generation = await callOpenAIInviteGeneration(msg.payload);
         sendResponse({
           ok: true,
           invite_text: generation.invite_text,
-          company: generation.company,
-          headline: generation.headline,
         });
       } catch (e) {
         const details =
@@ -1219,10 +1182,35 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
 
+  if (msg?.type === "ENRICH_PROFILE") {
+    (async () => {
+      emitUiStatus("Sending to LLM…");
+      try {
+        // prompt: buildProfileExtractionPrompt (Enrich)
+        const extraction = await callOpenAIProfileExtraction(msg.payload || {});
+        sendResponse({
+          ok: true,
+          company: extraction.company || "",
+          headline: sanitizeHeadlineJobTitle(extraction.headline || ""),
+          language: extraction.language || "",
+        });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "GENERATION_FAILED"),
+        });
+      } finally {
+        emitUiStatus("Ready");
+      }
+    })();
+    return true;
+  }
+
   if (msg?.type === "GENERATE_FIRST_MESSAGE") {
     (async () => {
       emitUiStatus("Sending to LLM…");
       try {
+        // prompt: buildFirstMessagePrompt
         const first_message = await callOpenAIFirstMessage(msg.payload);
         sendResponse({ ok: true, first_message });
       } catch (e) {
@@ -1241,6 +1229,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Sending to LLM…");
       try {
+        // prompt: buildFollowupPrompt
         const text = await callOpenAIFollowupMessage(req.payload);
         sendResponse({ ok: true, text });
       } catch (e) {
@@ -1432,3 +1421,5 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   });
   return false;
 });
+
+

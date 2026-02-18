@@ -119,26 +119,42 @@
 
                     <div id="detailInviteSection">
                         <div class="row">
-                            <small
-                                >Profile context sent to AI
-                                <button
-                                    id="toggleProfileContextPreview"
-                                    type="button"
-                                >
-                                    Show
-                                </button></small
+                            <label
+                                ><small
+                                    >Standard invite prompt
+                                    <button
+                                        id="toggleInvitePrompt"
+                                        type="button"
+                                        aria-expanded="false"
+                                    >
+                                        Show
+                                    </button></small
+                                ></label
                             >
-                            <div id="profileContextPreviewWrap">
-                                <pre id="profileContextPreview">{}</pre>
+                            <div id="invitePromptWrap" hidden>
+                                <textarea
+                                    id="invitePromptPreview"
+                                    readonly
+                                ></textarea>
                             </div>
                         </div>
 
                         <div class="row">
                             <label
                                 ><small
-                                    >Specific focus for this profile
-                                    (optional)</small
+                                    >Additional prompt (optional)</small
                                 ></label
+                            >
+                            <small class="field-help"
+                                >Use this to guide the invite context for this
+                                person. This text will be appended to the
+                                standard prompt.</small
+                            >
+                            <small class="invite-tip"
+                                >Tip: Invites have the highest success when
+                                there are no extra notes. Only add a note when
+                                you genuinely know the person from somewhere,
+                                then reference that specific occurrence.</small
                             >
                             <input
                                 id="focus"
@@ -509,6 +525,7 @@ A pergunta final deve reduzir friccao e facilitar resposta rapida. Sem emojis, h
         </div>
 
         <script src="../shared/utils.js"></script>
+        <script src="../prompts.js"></script>
         <script src="popup.js"></script>
     </body>
 </html>
