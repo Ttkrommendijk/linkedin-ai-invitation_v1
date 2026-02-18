@@ -46,7 +46,6 @@ const copyFollowupBtnEl = document.getElementById("copyFollowup");
 
 const EMOJI_CHECK = "\u2705";
 const SYMBOL_ELLIPSIS = "\u2026";
-const DEBUG = false;
 const UI_TEXT = {
   unexpectedError: "Unexpected error.",
   configSaved: "Config saved.",
@@ -92,6 +91,8 @@ const LEF_UTILS = globalThis.LEFUtils || {};
 const safeTrim = LEF_UTILS.safeTrim;
 const normalizeWhitespace = LEF_UTILS.normalizeWhitespace;
 const sanitizeHeadlineJobTitle = LEF_UTILS.sanitizeHeadlineJobTitle;
+const debugLog =
+  typeof LEF_UTILS.debugLog === "function" ? LEF_UTILS.debugLog : () => {};
 const IS_SIDE_PANEL_CONTEXT = (() => {
   try {
     return (
@@ -104,7 +105,7 @@ const IS_SIDE_PANEL_CONTEXT = (() => {
 })();
 
 function debug(...args) {
-  if (DEBUG) console.log(...args);
+  debugLog(...args);
 }
 
 const statusEl = document.getElementById("status") || commStatusEl;
@@ -1964,11 +1965,11 @@ copyInviteIconEl?.addEventListener("click", async () => {
 
 function bindFirstMessageCopyHandler() {
   if (!copyFirstMessageBtnEl) {
-    console.warn("[copy] missing #copyFirstMessage");
+    debugLog("[copy] missing #copyFirstMessage");
     return;
   }
   if (!firstMessagePreviewEl) {
-    console.warn("[copy] missing #firstMessagePreview");
+    debugLog("[copy] missing #firstMessagePreview");
     return;
   }
   if (copyFirstMessageBtnEl.dataset.bound === "1") return;
@@ -2076,7 +2077,7 @@ function bindOpenSidePanelClickHandler() {
   openSidePanelBtnEl.addEventListener("click", async () => {
     setFooterFetchingStatus();
     try {
-      console.log("[sidepanel] open requested from popup click");
+      debugLog("[sidepanel] open requested from popup click");
       const activeTabResp = await chrome.runtime.sendMessage({
         type: "GET_ACTIVE_TAB_CONTEXT",
       });
@@ -2229,7 +2230,9 @@ async function handleGenerateFollowupClick() {
       : true;
     const language = getLanguage();
     const chatResult = await fetchChatHistory().catch((e) => {
-      console.warn("[followup] chat history fetch failed", e);
+      debugLog("[followup] chat history fetch failed", {
+        message: getErrorMessage(e),
+      });
       return { messages: [], chatHistory: "" };
     });
     extractedChatMessages = Array.isArray(chatResult.messages)
@@ -2237,8 +2240,8 @@ async function handleGenerateFollowupClick() {
       : [];
     const chatHistory = (chatResult.chatHistory || "").trim();
     const last10 = extractedChatMessages.slice(-10);
-    console.log("[LEF][chat] followup includeStrategy", includeStrategy);
-    console.log("[LEF][chat] followup generate clicked", {
+    debugLog("[LEF][chat] followup generate clicked", {
+      includeStrategy,
       language,
       objectiveLen: objective.length,
       last10Count: last10.length,
@@ -2301,7 +2304,7 @@ async function handleGenerateFollowupClick() {
       text: (m?.text || "").trim(),
       ts: (m?.ts || "").trim(),
     }));
-    console.log("[LEF][chat] followup payload", {
+    debugLog("[LEF][chat] followup payload", {
       language,
       objectiveLen: objective.length,
       ctxCount: contextLast10.length,
@@ -2323,7 +2326,7 @@ async function handleGenerateFollowupClick() {
         language,
       },
     };
-    console.log("[LEF][chat] sending type", request.type);
+    debugLog("[LEF][chat] sending type", request.type);
     const resp = await chrome.runtime.sendMessage(request);
 
     if (!resp?.ok) {
@@ -2339,7 +2342,7 @@ async function handleGenerateFollowupClick() {
     if (followupPreviewEl) followupPreviewEl.value = text;
     updateFollowupCopyIconVisibility();
     if (commStatusEl) commStatusEl.textContent = "Ready";
-    console.log("[LEF][chat] followup generated", { chars: text.length });
+    debugLog("[LEF][chat] followup generated", { chars: text.length });
   } catch (e) {
     const msg = getErrorMessage(e);
     console.error("[LEF][chat] followup exception", e);
@@ -2362,11 +2365,11 @@ bindGenerateFollowupClickHandler();
 
 function bindFollowupCopyHandler() {
   if (!copyFollowupBtnEl) {
-    console.warn("[copy] missing #copyFollowup");
+    debugLog("[copy] missing #copyFollowup");
     return;
   }
   if (!followupPreviewEl) {
-    console.warn("[copy] missing #followupPreview");
+    debugLog("[copy] missing #followupPreview");
     return;
   }
   if (copyFollowupBtnEl.dataset.bound === "1") return;

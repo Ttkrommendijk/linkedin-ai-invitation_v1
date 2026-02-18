@@ -1,4 +1,11 @@
 (function initLEFUtils(globalObj) {
+  const DEBUG = false;
+
+  function debugLog(...args) {
+    if (!DEBUG) return;
+    console.log(...args);
+  }
+
   function safeTrim(value) {
     if (value == null) return "";
     return String(value).trim();
@@ -43,6 +50,8 @@
   }
 
   globalObj.LEFUtils = Object.freeze({
+    DEBUG,
+    debugLog,
     safeTrim,
     normalizeWhitespace,
     isLinkedInProfileLikeUrl,

@@ -1,3 +1,7 @@
+const LEF_UTILS = globalThis.LEFUtils || {};
+const debugLog =
+  typeof LEF_UTILS.debugLog === "function" ? LEF_UTILS.debugLog : () => {};
+
 function cleanText(s) {
   return (s || "")
     .replace(/\u00A0/g, " ")
@@ -216,7 +220,7 @@ function extractChatHistoryFromInteropShadow() {
     "p.msg-s-event-listitem__body",
     ".msg-s-event-listitem__body",
   ];
-  console.log("[LEF][chat] interop", {
+  debugLog("[LEF][chat] interop", {
     hostFound: !!host,
     shadowRootFound: !!root,
   });
@@ -293,7 +297,7 @@ function extractChatHistoryFromInteropShadow() {
       inheritedTimeCount += 1;
     } else {
       skippedMissingTime += 1;
-      console.warn("[LEF][chat][extract] skip missing time", {
+      debugLog("[LEF][chat][extract] skip missing time", {
         liIndex,
         hasHeading: Boolean(currentHeadingText),
         hasEvent: true,
@@ -350,7 +354,7 @@ function extractChatHistoryFromInteropShadow() {
 
     if (!currentHeadingText) {
       skippedMissingHeading += bodyEls.length || 1;
-      console.warn("[LEF][chat][extract] skip missing heading", {
+      debugLog("[LEF][chat][extract] skip missing heading", {
         liIndex,
         hasHeading: false,
         hasTime: Boolean(effectiveTimeText),
@@ -379,33 +383,27 @@ function extractChatHistoryFromInteropShadow() {
       };
       messages.push(message);
 
-      const preview = bodyText.replace(/\s+/g, " ").slice(0, 80);
-      console.log(
-        `[LEF][chat][extract] [li:${liIndex}] ${message.dt_label} | ${message.name || "unknown"} | ${preview}`,
-      );
+      debugLog("[LEF][chat][extract] message captured", {
+        liIndex,
+        textLen: bodyText.length,
+      });
     });
   });
 
-  console.groupCollapsed("[LEF][chat][extract] summary");
-  console.log("totalLiItems", items.length);
-  console.log("eventCount", eventCount);
-  console.log("bodyCount", bodyCount);
-  console.log("messagesProduced", messages.length);
-  console.log("headingLiCount", headingLiCount);
-  console.log("liWithHeadingAndEventCount", liWithHeadingAndEventCount);
-  console.log("skippedMissingHeading", skippedMissingHeading);
-  console.log("skippedMissingTime", skippedMissingTime);
-  console.log("skippedEmptyBody", skippedEmptyBody);
-  console.log("skippedMissingEvent", skippedMissingEvent);
-  console.log("inheritedTimeCount", inheritedTimeCount);
-  console.log("inheritedNameCount", inheritedNameCount);
-  messages.forEach((m, i) => {
-    const preview = (m.text || "").replace(/\s+/g, " ").slice(0, 80);
-    console.log(
-      `[${i}] [li:${m.liIndex}] ${m.dt_label} | ${m.name || "unknown"} | ${preview}`,
-    );
+  debugLog("[LEF][chat][extract] summary", {
+    totalLiItems: items.length,
+    eventCount,
+    bodyCount,
+    messagesProduced: messages.length,
+    headingLiCount,
+    liWithHeadingAndEventCount,
+    skippedMissingHeading,
+    skippedMissingTime,
+    skippedEmptyBody,
+    skippedMissingEvent,
+    inheritedTimeCount,
+    inheritedNameCount,
   });
-  console.groupEnd();
 
   return {
     messages,
@@ -459,12 +457,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === "EXTRACT_CHAT_HISTORY") {
     const reqId = String(msg?.reqId || "no_req_id");
-    console.log("[LEF][chat] handler entry", { reqId, href: location.href });
+    debugLog("[LEF][chat] handler entry", { reqId, href: location.href });
     try {
       const result = extractChatHistoryFromInteropShadow();
       if (result?.noMessageBox) {
-        console.groupCollapsed(`[LEF][chat][${reqId}] content messages (raw)`);
-        console.log("context", {
+        debugLog("[LEF][chat] no message box", {
+          reqId,
           href: location.href,
           selectorsUsed: result?.meta?.selectorsUsed || [],
           domNodesFound: result?.meta?.domNodesFound || 0,
@@ -472,7 +470,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           traversalOrder: "top-to-bottom",
           reversed: false,
         });
-        console.groupEnd();
         sendResponse({
           ok: false,
           code: "NO_MESSAGE_BOX",
@@ -483,8 +480,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         return true;
       }
       const { messages, diag } = result;
-      console.groupCollapsed(`[LEF][chat][${reqId}] content messages (raw)`);
-      console.log("context", {
+      debugLog("[LEF][chat] extracted messages", {
+        reqId,
         href: location.href,
         selectorsUsed: diag?.selectorsUsed || [],
         domNodesFound: diag?.domNodesFound || 0,
@@ -493,10 +490,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         traversalOrder: diag?.traversalOrder || "top-to-bottom",
         reversed: Boolean(diag?.reversedOrder),
       });
-      (Array.isArray(messages) ? messages : []).forEach((m, i) => {
-        console.log(toChatLogEntry(m, i));
-      });
-      console.groupEnd();
       const meta = {
         reqId,
         ...(result?.meta || {}),
@@ -504,7 +497,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           result?.meta?.extractedCount ??
           (Array.isArray(messages) ? messages.length : 0),
       };
-      console.log("[LEF][chat] handler success", meta);
+      debugLog("[LEF][chat] handler success", meta);
       sendResponse({ ok: true, messages, diag, meta });
     } catch (e) {
       console.error(
