@@ -51,7 +51,8 @@ ${fallbackExcerpt}`
   }
 
   /**
-   * Purpose: Build an extraction-only system prompt for profile enrichment.
+--------------------------------EXTRACT PROFILE ------------------------------------------
+  * Purpose: Build an extraction-only system prompt for profile enrichment.
    * Used when: Clicking ?? Enrich data.
    * Inputs: none
    * Output: string (system prompt text)
@@ -77,7 +78,8 @@ Rules:
   }
 
   /**
-   * Purpose: Build an invitation-writing-only system prompt.
+ --------------------------------CREATE INVITATION ------------------------------------------
+  * Purpose: Build an invitation-writing-only system prompt.
    * Used when: Clicking Generate invite.
    * Inputs: { language?: string, additionalPrompt?: string }
    * Output: string (system prompt text)
@@ -129,18 +131,10 @@ Rules:
     if (!appended) return prompt;
     return `${prompt}\n\nAdditional context from user:\n${appended}`;
   }
-  /**
-   * Purpose: Backward-compatible alias for invitation prompt builder.
-   * Used when: Legacy call sites still reference buildInvitePrompt.
-   * Inputs: { language?: string, additionalPrompt?: string }
-   * Output: string (system prompt text)
-   */
-  function buildInvitePrompt({ language, additionalPrompt } = {}) {
-    return buildInviteTextPrompt({ language, additionalPrompt });
-  }
 
   /**
-   * Purpose: Build a first-message writing-only system prompt.
+  --------------------------------FIRST MESSAGE ------------------------------------------
+  * Purpose: Build a first-message writing-only system prompt.
    * Used when: Clicking Generate first message.
    * Inputs: { language?: string, additionalPrompt?: string }
    * Output: string (system prompt text)
@@ -151,56 +145,58 @@ Rules:
         ? normalizeText(language)
         : "the dominant language of the provided profile_context and profile_excerpt_fallback";
 
-    const basePrompt = `Write a natural and socially intelligent first LinkedIn message in ${langRule} after connection acceptance.
+    const userContext = normalizeText(additionalPrompt);
 
-The message must feel like something a real professional would write.
+    const basePrompt = `Write a simple, natural first LinkedIn message in ${langRule} after connection acceptance.
 
-Core behavior:
-- Start with greeting and appreciation.
-- Keep it factual, respectful, and concise.
-- Do not overpraise.
-- Do not infer transitions, timing, or intentions.
+   Tone:
+   - Calm, direct, human.
+   - No corporate language, no enthusiasm, no flattery, no profile analysis.
 
-Tone calibration:
-- Peer-level, calm, understated.
-- No hype language.
-- No consultant tone.
+   NON-NEGOTIABLE USER CONTEXT RULE:
+   - If user context is present, you MUST base the message on a SHARED SIMILARITY using "nós" / "a gente" framing.
+   - Do NOT frame it as "eu me interesso" or "meu interesse".
+   - Transform the user context into a single sentence starting with something like:
+     - "Parece que compartilhamos..."
+     - "Pelo que vi, temos em comum..."
+     - "Parece que estamos alinhados em..."
+   - Do not quote the context verbatim if it sounds unnatural; rewrite it in a human way.
+   - No technical detail; keep it relational and high-level.
+   - The message is INVALID if it ignores the user context when provided.
 
-Engagement:
-- A question is optional, only if natural and light.
-- No forced engagement.
-- No meeting suggestion.
+   USER CONTEXT (must use if present):
+   ${userContext ? userContext : "(none)"}
 
-Fact usage:
-- Use only facts explicitly present in the profile.
-- Never invent context.
+   Primary structure (keep it short, 3 lines):
+   1) Greeting + appreciation for accepting the connection.
+   2) Shared similarity sentence using "nós/a gente" and the USER CONTEXT (mandatory if context is present).
+   3) Light, optional invitation phrased as mutual interest:
+      - Use "podemos" / "a gente pode" / "vale trocar uma ideia"
+      - End with "se você achar interessante" (or equivalent)
+      - Do NOT say "fico à disposição" or anything that sounds submissive.
 
-Structure:
-- Max 600 characters.
-- 2-3 short paragraphs.
-- No emojis.
-- No hashtags.
-- Plain text only.`;
+   Critical do-not rules:
+   - Do NOT use intensifiers like "muito", "super", "bastante", "extremamente".
+   - Avoid redundancy (do not repeat the same idea twice).
+   - No praise, no awards, no CV language.
+   - No consultant tone.
+   - No agenda justification.
+   - No strategic/technical questions.
+   - Prefer ZERO questions.
 
-    const appended = normalizeText(additionalPrompt);
-    if (!appended) return basePrompt;
-    return `${basePrompt}\n\nAdditional context from user:\n${appended}`;
-  }
+   Constraints:
+   - Max 600 characters.
+   - 2–3 short lines.
+   - No emojis.
+   - No hashtags.
+   - Plain text only.
 
-  /**
-   * Purpose: Backward-compatible alias for first-message prompt builder.
-   * Used when: Legacy call sites still reference buildFirstMessagePrompt.
-   * Inputs: { language?: string, userPrompt?: string, additionalPrompt?: string }
-   * Output: string (system prompt text)
-   */
-  function buildFirstMessagePrompt({
-    language,
-    userPrompt,
-    additionalPrompt,
-  } = {}) {
-    const overridePrompt = normalizeText(userPrompt);
-    if (overridePrompt) return overridePrompt;
-    return buildFirstMessageTextPrompt({ language, additionalPrompt });
+   Target vibe (match this style, do not copy literally):
+   "Oi Ricardo, obrigado por aceitar a conexão.
+   Parece que compartilhamos essa visão de transformação mais profunda nas organizações.
+   Se você achar interessante, podemos trocar uma ideia sobre isso."`;
+
+    return basePrompt;
   }
 
   /**
@@ -319,9 +315,7 @@ ${profileContextBlock(profileContext || {})}
   global.LEFPrompts = {
     buildProfileExtractionPrompt,
     buildInviteTextPrompt,
-    buildInvitePrompt,
     buildFirstMessageTextPrompt,
-    buildFirstMessagePrompt,
     buildFollowupPrompt,
     buildEnrichProfilePrompt,
     buildInviteUserInput,

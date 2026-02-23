@@ -53,6 +53,7 @@ const UI_TEXT = {
   dbErrorPrefix: "DB error:",
   copiedToClipboard: "Copied to clipboard.",
   copyFailedPrefix: "Copy failed:",
+  nothingToCopy: "Nothing to copy.",
   preparingProfile: `Preparing profile${SYMBOL_ELLIPSIS}`,
   setApiKeyInConfig: "Please set your API key in Config.",
   couldNotExtractProfileContext:
@@ -84,34 +85,92 @@ const STORAGE_KEY_FIRST_MESSAGE_PROMPT = "firstMessagePrompt";
 const STORAGE_KEY_MESSAGE_LANGUAGE = "message_language";
 const SUPPORTED_LANGUAGES = ["Portuguese", "English", "Dutch", "Spanish"];
 const DEFAULT_FIRST_MESSAGE_PROMPT = messagePromptEl?.value || "";
-const LEF_UTILS = globalThis.LEFUtils || {};
-const safeTrim = LEF_UTILS.safeTrim;
-const normalizeWhitespace = LEF_UTILS.normalizeWhitespace;
-const sanitizeHeadlineJobTitle = LEF_UTILS.sanitizeHeadlineJobTitle;
+const LEF_UTILS_SOURCE = globalThis.LEFUtils;
+if (
+  (!LEF_UTILS_SOURCE || typeof LEF_UTILS_SOURCE !== "object") &&
+  !globalThis.__LEFUTILS_MISSING_WARNED__
+) {
+  globalThis.__LEFUTILS_MISSING_WARNED__ = true;
+  console.warn("[lefutils] not found; using local fallbacks");
+}
+const LEF_UTILS =
+  LEF_UTILS_SOURCE && typeof LEF_UTILS_SOURCE === "object"
+    ? LEF_UTILS_SOURCE
+    : {};
+function safeTrimFallback(v) {
+  return v == null ? "" : String(v).trim();
+}
+function normalizeWhitespaceFallback(v) {
+  return safeTrimFallback(v).replace(/\s+/g, " ");
+}
+function sanitizeHeadlineJobTitleFallback(v) {
+  return normalizeWhitespaceFallback(v);
+}
+const safeTrim =
+  typeof LEF_UTILS.safeTrim === "function"
+    ? LEF_UTILS.safeTrim
+    : safeTrimFallback;
+const normalizeWhitespace =
+  typeof LEF_UTILS.normalizeWhitespace === "function"
+    ? LEF_UTILS.normalizeWhitespace
+    : normalizeWhitespaceFallback;
+const sanitizeHeadlineJobTitle =
+  typeof LEF_UTILS.sanitizeHeadlineJobTitle === "function"
+    ? LEF_UTILS.sanitizeHeadlineJobTitle
+    : sanitizeHeadlineJobTitleFallback;
 const sendRuntimeMessage =
   typeof LEF_UTILS.sendRuntimeMessage === "function"
     ? LEF_UTILS.sendRuntimeMessage
-    : async (type, payload = {}) => {
-        try {
-          const response = await chrome.runtime.sendMessage({
-            type,
-            ...(payload && typeof payload === "object" ? payload : {}),
-          });
-          if (response?.ok === false || response?.error) {
-            const errorText =
-              typeof response?.error === "string"
-                ? response.error
-                : response?.error?.message || "unknown error";
-            return { ok: false, error: errorText, data: response || null };
-          }
-          return { ok: true, data: response };
-        } catch (e) {
-          return {
-            ok: false,
-            error: e instanceof Error ? e.message : String(e || ""),
-            data: null,
+    : (type, payload = {}, options = {}) => {
+        const timeoutMs =
+          Number.isFinite(options?.timeoutMs) && options.timeoutMs > 0
+            ? options.timeoutMs
+            : 20000;
+        return new Promise((resolve) => {
+          let settled = false;
+          const done = (result) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timeoutId);
+            resolve(result);
           };
-        }
+          const timeoutId = setTimeout(() => {
+            console.error(`[msg] ${type} failed: timeout`);
+            done({ ok: false, error: "timeout", data: null });
+          }, timeoutMs);
+          try {
+            chrome.runtime.sendMessage(
+              {
+                type,
+                ...(payload && typeof payload === "object" ? payload : {}),
+              },
+              (response) => {
+                const runtimeError = chrome.runtime?.lastError;
+                if (runtimeError) {
+                  const errorText = String(
+                    runtimeError.message || runtimeError,
+                  );
+                  console.error(`[msg] ${type} failed: ${errorText}`);
+                  done({ ok: false, error: errorText, data: null });
+                  return;
+                }
+                if (response?.ok === false || response?.error) {
+                  const errorText =
+                    typeof response?.error === "string"
+                      ? response.error
+                      : response?.error?.message || "unknown error";
+                  console.error(`[msg] ${type} failed: ${errorText}`);
+                  done({ ok: false, error: errorText, data: response || null });
+                  return;
+                }
+                done({ ok: true, data: response });
+              },
+            );
+          } catch (e) {
+            const errorText = e instanceof Error ? e.message : String(e || "");
+            done({ ok: false, error: errorText, data: null });
+          }
+        });
       };
 const debugLog =
   typeof LEF_UTILS.debugLog === "function" ? LEF_UTILS.debugLog : () => {};
@@ -228,6 +287,9 @@ let inviteCopyIconResetTimer = null;
 let firstMessageCopyIconResetTimer = null;
 let followupCopyIconResetTimer = null;
 let readyResetTimer = null;
+const COPY_ICON_GLYPH = "\u29c9";
+const COPY_TOOLTIP_DEFAULT = "Copy to clipboard";
+const COPY_TOOLTIP_SUCCESS = "Copied";
 const OVERVIEW_ENABLED = Boolean(
   IS_SIDE_PANEL_CONTEXT && tabOverviewBtn && tabOverview,
 );
@@ -829,9 +891,10 @@ function updateFirstMessageCopyIconVisibility() {
   if (!copyFirstMessageBtnEl || !firstMessagePreviewEl) return;
   const hasText = (firstMessagePreviewEl.textContent || "").trim().length > 0;
   if (!hasText) {
-    copyFirstMessageBtnEl.textContent = "\u29c9";
+    setCopyIconDefaultState(copyFirstMessageBtnEl);
   }
   copyFirstMessageBtnEl.hidden = !hasText;
+  copyFirstMessageBtnEl.disabled = !hasText;
 }
 
 function updateFirstMessageSaveIconVisibility() {
@@ -1289,36 +1352,48 @@ async function loadMessageLanguage() {
 }
 
 async function copyToClipboard(text) {
-  const value = (text || "").trim();
-  if (!value) throw new Error("Nothing to copy.");
+  const value = typeof text === "string" ? text : String(text ?? "");
 
-  try {
-    await navigator.clipboard.writeText(value);
-    return;
-  } catch (_err) {
-    // Fallback below
+  if (
+    navigator?.clipboard &&
+    typeof navigator.clipboard.writeText === "function"
+  ) {
+    try {
+      await navigator.clipboard.writeText(value);
+      return { ok: true };
+    } catch (_err) {
+      // Fallback below.
+    }
   }
 
-  const ta = document.createElement("textarea");
-  ta.value = value;
-  ta.setAttribute("readonly", "");
-  ta.style.position = "fixed";
-  ta.style.left = "-9999px";
-  ta.style.top = "-9999px";
-  document.body.appendChild(ta);
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = value;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    ta.style.top = "-9999px";
+    document.body.appendChild(ta);
 
-  ta.select();
-  ta.setSelectionRange(0, ta.value.length);
+    ta.select();
+    ta.setSelectionRange(0, ta.value.length);
 
-  const ok = document.execCommand("copy");
-  document.body.removeChild(ta);
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
 
-  if (!ok) throw new Error("Copy failed (execCommand).");
+    if (!ok) {
+      return { ok: false, error: "Copy failed (execCommand)." };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: getErrorMessage(e) };
+  }
 }
 
 function setCopyButtonEnabled(enabled) {
   if (copyInviteIconEl) {
     copyInviteIconEl.hidden = !enabled;
+    copyInviteIconEl.disabled = !enabled;
   }
 }
 
@@ -1330,44 +1405,60 @@ function setInviteSaveButtonEnabled(enabled) {
 
 function showInviteCopySuccessCheck() {
   if (!copyInviteIconEl) return;
-  copyInviteIconEl.textContent = "\u2713";
+  setCopyIconSuccessState(copyInviteIconEl);
   if (inviteCopyIconResetTimer) {
     clearTimeout(inviteCopyIconResetTimer);
   }
   inviteCopyIconResetTimer = setTimeout(() => {
     if (copyInviteIconEl) {
-      copyInviteIconEl.textContent = "\u29c9";
+      setCopyIconDefaultState(copyInviteIconEl);
     }
     inviteCopyIconResetTimer = null;
-  }, 1000);
+  }, 900);
 }
 
-function showFirstMessageCopySuccessCheck() {
-  if (!copyFirstMessageBtnEl) return;
-  copyFirstMessageBtnEl.textContent = "\u2713";
+function showFirstMessageCopySuccessCheck(buttonEl) {
+  const btn = buttonEl || copyFirstMessageBtnEl;
+  if (!btn) return;
+  setCopyIconSuccessState(btn);
   if (firstMessageCopyIconResetTimer) {
     clearTimeout(firstMessageCopyIconResetTimer);
   }
   firstMessageCopyIconResetTimer = setTimeout(() => {
-    if (copyFirstMessageBtnEl) {
-      copyFirstMessageBtnEl.textContent = "\u29c9";
+    if (btn) {
+      setCopyIconDefaultState(btn);
     }
     firstMessageCopyIconResetTimer = null;
-  }, 1000);
+  }, 800);
 }
 
-function showFollowupCopySuccessCheck() {
-  if (!copyFollowupBtnEl) return;
-  copyFollowupBtnEl.textContent = "\u2713";
+function showFollowupCopySuccessCheck(buttonEl) {
+  const btn = buttonEl || copyFollowupBtnEl;
+  if (!btn) return;
+  setCopyIconSuccessState(btn);
   if (followupCopyIconResetTimer) {
     clearTimeout(followupCopyIconResetTimer);
   }
   followupCopyIconResetTimer = setTimeout(() => {
-    if (copyFollowupBtnEl) {
-      copyFollowupBtnEl.textContent = "\u29c9";
+    if (btn) {
+      setCopyIconDefaultState(btn);
     }
     followupCopyIconResetTimer = null;
-  }, 1000);
+  }, 800);
+}
+
+function setCopyIconDefaultState(buttonEl) {
+  if (!buttonEl) return;
+  buttonEl.textContent = COPY_ICON_GLYPH;
+  buttonEl.title = COPY_TOOLTIP_DEFAULT;
+  buttonEl.setAttribute("aria-label", COPY_TOOLTIP_DEFAULT);
+}
+
+function setCopyIconSuccessState(buttonEl) {
+  if (!buttonEl) return;
+  buttonEl.textContent = "\u2713";
+  buttonEl.title = COPY_TOOLTIP_SUCCESS;
+  buttonEl.setAttribute("aria-label", COPY_TOOLTIP_SUCCESS);
 }
 
 function updateInviteCopyIconVisibility() {
@@ -1376,7 +1467,7 @@ function updateInviteCopyIconVisibility() {
       ? normalizeWhitespace(previewEl.textContent || "")
       : String(previewEl.textContent || "").trim();
   if (!normalizedPreview && copyInviteIconEl) {
-    copyInviteIconEl.textContent = "\u29c9";
+    setCopyIconDefaultState(copyInviteIconEl);
   }
   const hasPreview = Boolean(normalizedPreview);
   setCopyButtonEnabled(hasPreview);
@@ -1387,9 +1478,10 @@ function updateFollowupCopyIconVisibility() {
   if (!copyFollowupBtnEl || !followupPreviewEl) return;
   const hasText = (followupPreviewEl.value || "").trim().length > 0;
   if (!hasText) {
-    copyFollowupBtnEl.textContent = "\u29c9";
+    setCopyIconDefaultState(copyFollowupBtnEl);
   }
   copyFollowupBtnEl.hidden = !hasText;
+  copyFollowupBtnEl.disabled = !hasText;
 }
 
 async function onInvitationTabOpenedByUser() {
@@ -1413,6 +1505,9 @@ async function onMessagesTabOpenedByUser() {
 
 function setActiveTab(which, { userInitiated = false } = {}) {
   if (IS_SIDE_PANEL_CONTEXT && !userInitiated) {
+    return;
+  }
+  if (!tabMainBtn || !tabConfigBtn || !tabMain || !tabConfig) {
     return;
   }
   const detailActive = which === "detail" || which === "invitation";
@@ -1467,99 +1562,154 @@ async function loadSettings() {
       chrome.storage.sync.get(["model", "strategyCore", "webhookBaseUrl"]),
     ]);
 
-  if (apiKey) apiKeyEl.value = apiKey;
-  if (webhookSecret) webhookSecretEl.value = webhookSecret;
+  if (apiKeyEl && apiKey) apiKeyEl.value = apiKey;
+  if (webhookSecretEl && webhookSecret) webhookSecretEl.value = webhookSecret;
 
-  modelEl.value = model || "gpt-4.1";
-  if (strategyCore) strategyEl.value = strategyCore;
-  if (webhookBaseUrl) webhookBaseUrlEl.value = webhookBaseUrl;
+  if (modelEl) modelEl.value = model || "gpt-4.1";
+  if (strategyEl && strategyCore) strategyEl.value = strategyCore;
+  if (webhookBaseUrlEl && webhookBaseUrl)
+    webhookBaseUrlEl.value = webhookBaseUrl;
 }
-loadSettings();
-if (IS_SIDE_PANEL_CONTEXT) {
-  document.body.classList.add("is-sidepanel");
-}
-if (IS_SIDE_PANEL_CONTEXT && openSidePanelBtnEl) {
-  openSidePanelBtnEl.classList.add("is-hidden");
-}
-if (!OVERVIEW_ENABLED) {
-  tabOverviewBtn?.classList.add("is-hidden");
-  tabOverview?.classList.remove("active");
-  tabOverview?.classList.add("is-hidden");
-}
-if (detailMessageMountEl && tabMessage) {
-  tabMessage.classList.remove("tab-panel");
-  tabMessage.classList.add("detail-inner-panel");
-  detailMessageMountEl.appendChild(tabMessage);
-}
-if (markMessageSentBtnEl) {
-  markMessageSentBtnEl.hidden = true;
-}
-detailTabInviteBtnEl?.addEventListener("click", async () => {
-  setFooterFetchingStatus();
-  try {
-    setDetailInnerTab("invite");
-    await onInvitationTabOpenedByUser();
-    setDetailInnerTab("invite");
-  } finally {
-    setFooterReady();
+let popupInitErrorLogged = false;
+function logPopupInitError(error) {
+  if (popupInitErrorLogged) return;
+  popupInitErrorLogged = true;
+  console.error(`[LEF][init] popup init failed: ${getErrorMessage(error)}`);
+  if (error && typeof error === "object" && typeof error.stack === "string") {
+    console.error(error.stack);
   }
-});
-detailTabFirstMessageBtnEl?.addEventListener("click", async () => {
-  setFooterFetchingStatus();
-  try {
-    await onMessagesTabOpenedByUser();
-    setDetailInnerTab("first");
-  } finally {
-    setFooterReady();
-  }
-});
-detailTabFollowBtnEl?.addEventListener("click", async () => {
-  setFooterFetchingStatus();
-  try {
-    await onMessagesTabOpenedByUser();
-    setDetailInnerTab("follow");
-  } finally {
-    setFooterReady();
-  }
-});
-setCopyButtonEnabled(false);
-updateInviteCopyIconVisibility();
-updateFollowupCopyIconVisibility();
-setMessagePromptCollapsed(true);
-updateMessageTabControls();
-if (OVERVIEW_ENABLED) {
-  wireOverviewEvents();
-  overviewPageSize = Number(overviewPageSizeEl?.value || 25);
-  renderOverviewSortIndicators();
-  renderOverviewPagination();
 }
-setFooterReady();
-setCommunicationStatus("Ready");
-applyLifecycleUiState(dbInvitationRow);
-renderMessageTab(outreachMessageStatus);
-setDetailInnerTab("invite");
-renderDetailHeader();
-updatePhaseButtons();
-loadProfileContextOnOpen();
-loadFirstMessagePrompt().catch((_e) => {
-  lastSavedFirstMessagePrompt = messagePromptEl?.value || "";
-  updateSavePromptButtonState();
-});
-loadMessageLanguage().catch((_e) => {});
 
-toggleMessagePromptBtnEl?.addEventListener("click", () => {
-  setMessagePromptCollapsed(!isMessagePromptCollapsed);
-});
-
-messagePromptEl?.addEventListener("input", () => {
-  updateSavePromptButtonState();
-});
-
-getLanguageSelectElements().forEach((el) => {
-  el.addEventListener("change", async () => {
-    await setLanguage(el.value);
+function runPopupInit() {
+  tabMainBtn?.addEventListener("click", async () => {
+    setFooterFetchingStatus();
+    try {
+      setActiveTab("detail", { userInitiated: true });
+      await onInvitationTabOpenedByUser();
+    } finally {
+      setFooterReady();
+    }
   });
-});
+  tabMessageBtn?.addEventListener("click", async () => {
+    setFooterFetchingStatus();
+    try {
+      setActiveTab("detail", { userInitiated: true });
+      await onMessagesTabOpenedByUser();
+      setDetailInnerTab("first");
+    } finally {
+      setFooterReady();
+    }
+  });
+  tabOverviewBtn?.addEventListener("click", () =>
+    setActiveTab("overview", { userInitiated: true }),
+  );
+  tabConfigBtn?.addEventListener("click", () =>
+    setActiveTab("config", { userInitiated: true }),
+  );
+
+  loadSettings().catch((_e) => {});
+  if (IS_SIDE_PANEL_CONTEXT) {
+    document.body.classList.add("is-sidepanel");
+  }
+  if (IS_SIDE_PANEL_CONTEXT && openSidePanelBtnEl) {
+    openSidePanelBtnEl.classList.add("is-hidden");
+  }
+  if (!OVERVIEW_ENABLED) {
+    tabOverviewBtn?.classList.add("is-hidden");
+    tabOverview?.classList.remove("active");
+    tabOverview?.classList.add("is-hidden");
+  }
+  if (detailMessageMountEl && tabMessage) {
+    tabMessage.classList.remove("tab-panel");
+    tabMessage.classList.add("detail-inner-panel");
+    detailMessageMountEl.appendChild(tabMessage);
+  }
+  if (markMessageSentBtnEl) {
+    markMessageSentBtnEl.hidden = true;
+  }
+  detailTabInviteBtnEl?.addEventListener("click", async () => {
+    setFooterFetchingStatus();
+    try {
+      setDetailInnerTab("invite");
+      await onInvitationTabOpenedByUser();
+      setDetailInnerTab("invite");
+    } finally {
+      setFooterReady();
+    }
+  });
+  detailTabFirstMessageBtnEl?.addEventListener("click", async () => {
+    setFooterFetchingStatus();
+    try {
+      await onMessagesTabOpenedByUser();
+      setDetailInnerTab("first");
+    } finally {
+      setFooterReady();
+    }
+  });
+  detailTabFollowBtnEl?.addEventListener("click", async () => {
+    setFooterFetchingStatus();
+    try {
+      await onMessagesTabOpenedByUser();
+      setDetailInnerTab("follow");
+    } finally {
+      setFooterReady();
+    }
+  });
+  setCopyButtonEnabled(false);
+  updateInviteCopyIconVisibility();
+  updateFollowupCopyIconVisibility();
+  setMessagePromptCollapsed(true);
+  updateMessageTabControls();
+  if (OVERVIEW_ENABLED) {
+    wireOverviewEvents();
+    overviewPageSize = Number(overviewPageSizeEl?.value || 25);
+    renderOverviewSortIndicators();
+    renderOverviewPagination();
+  }
+  setFooterReady();
+  setCommunicationStatus("Ready");
+  applyLifecycleUiState(dbInvitationRow);
+  renderMessageTab(outreachMessageStatus);
+  setDetailInnerTab("invite");
+  renderDetailHeader();
+  updatePhaseButtons();
+  loadProfileContextOnOpen().catch((_e) => {});
+  loadFirstMessagePrompt().catch((_e) => {
+    lastSavedFirstMessagePrompt = messagePromptEl?.value || "";
+    updateSavePromptButtonState();
+  });
+  loadMessageLanguage().catch((_e) => {});
+
+  toggleMessagePromptBtnEl?.addEventListener("click", () => {
+    setMessagePromptCollapsed(!isMessagePromptCollapsed);
+  });
+
+  messagePromptEl?.addEventListener("input", () => {
+    updateSavePromptButtonState();
+  });
+
+  getLanguageSelectElements().forEach((el) => {
+    el.addEventListener("change", async () => {
+      await setLanguage(el.value);
+    });
+  });
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", () => {
+    try {
+      runPopupInit();
+    } catch (error) {
+      logPopupInitError(error);
+    }
+  });
+} else {
+  try {
+    runPopupInit();
+  } catch (error) {
+    logPopupInitError(error);
+  }
+}
 
 saveMessagePromptBtnEl?.addEventListener("click", async () => {
   if (!messagePromptEl) return;
@@ -1600,14 +1750,17 @@ async function saveConfig() {
   setFooterStatus(UI_TEXT.configSaved);
 }
 
-document.getElementById("saveConfig").addEventListener("click", async () => {
-  setFooterUpdatingStatus();
-  try {
-    await saveConfig();
-  } finally {
-    setFooterReady();
-  }
-});
+const saveConfigBtnEl = document.getElementById("saveConfig");
+if (saveConfigBtnEl) {
+  saveConfigBtnEl.addEventListener("click", async () => {
+    setFooterUpdatingStatus();
+    try {
+      await saveConfig();
+    } finally {
+      setFooterReady();
+    }
+  });
+}
 
 async function handleGenerateFirstMessageClick() {
   const activeTabsBeforeGeneration = captureActiveTabState();
@@ -2018,42 +2171,76 @@ statusForwardBtnEl?.addEventListener("click", async () => {
 });
 
 copyInviteIconEl?.addEventListener("click", async () => {
-  try {
-    await copyToClipboard(previewEl.textContent || "");
+  const copyResult = await copyToClipboard(previewEl.textContent || "");
+  if (copyResult.ok) {
     showInviteCopySuccessCheck();
     setFooterStatus(UI_TEXT.copiedToClipboard);
-  } catch (e) {
-    setFooterStatus(`${UI_TEXT.copyFailedPrefix} ${getErrorMessage(e)}`);
+  } else {
+    setFooterStatus(
+      `${UI_TEXT.copyFailedPrefix} ${getErrorMessage(copyResult.error)}`,
+    );
   }
 });
+
+function bindMessagePreviewCopyHandlers() {
+  if (document.documentElement.dataset.messageCopyBound === "1") return;
+  document.documentElement.dataset.messageCopyBound = "1";
+  document.addEventListener("click", async (event) => {
+    const eventTarget = event.target;
+    const targetEl =
+      eventTarget instanceof Element
+        ? eventTarget
+        : eventTarget instanceof Node
+          ? eventTarget.parentElement
+          : null;
+    const clickedBtn = targetEl?.closest("#copyFirstMessage, #copyFollowup");
+    if (!clickedBtn) return;
+
+    const isFirstMessageCopy = clickedBtn.id === "copyFirstMessage";
+    const previewNode = document.getElementById(
+      isFirstMessageCopy ? "firstMessagePreview" : "followupPreview",
+    );
+    if (!previewNode) {
+      setFooterStatus(
+        `${UI_TEXT.copyFailedPrefix} ${getErrorMessage("Missing preview element.")}`,
+      );
+      return;
+    }
+
+    const previewText = isFirstMessageCopy
+      ? previewNode.textContent || ""
+      : previewNode.value || "";
+    if (!previewText.trim()) {
+      setFooterStatus(UI_TEXT.nothingToCopy);
+      return;
+    }
+
+    const copyResult = await copyToClipboard(previewText);
+    if (!copyResult.ok) {
+      const errorText = getErrorMessage(copyResult.error);
+      setFooterStatus(`${UI_TEXT.copyFailedPrefix} ${errorText}`);
+      if (!isFirstMessageCopy) {
+        console.error("[LEF][chat] followup copy failed", errorText);
+      }
+      return;
+    }
+
+    if (isFirstMessageCopy) {
+      showFirstMessageCopySuccessCheck(clickedBtn);
+      updateMessageTabControls();
+    } else {
+      showFollowupCopySuccessCheck(clickedBtn);
+    }
+    setFooterStatus(UI_TEXT.copiedToClipboard);
+  });
+}
 
 function bindFirstMessageCopyHandler() {
   if (!copyFirstMessageBtnEl) {
     debugLog("[copy] missing #copyFirstMessage");
     return;
   }
-  if (!firstMessagePreviewEl) {
-    debugLog("[copy] missing #firstMessagePreview");
-    return;
-  }
-  if (copyFirstMessageBtnEl.dataset.bound === "1") return;
-  copyFirstMessageBtnEl.dataset.bound = "1";
-  copyFirstMessageBtnEl.addEventListener("click", async () => {
-    try {
-      const previewText =
-        firstMessage ||
-        ("value" in firstMessagePreviewEl
-          ? firstMessagePreviewEl.value
-          : firstMessagePreviewEl.textContent) ||
-        "";
-      await copyToClipboard(previewText);
-      showFirstMessageCopySuccessCheck();
-      setFooterStatus(UI_TEXT.copiedToClipboard);
-    } catch (e) {
-      setFooterStatus(`${UI_TEXT.copyFailedPrefix} ${getErrorMessage(e)}`);
-    }
-    updateMessageTabControls();
-  });
+  bindMessagePreviewCopyHandlers();
 }
 
 bindFirstMessageCopyHandler();
@@ -2438,30 +2625,13 @@ function bindFollowupCopyHandler() {
     debugLog("[copy] missing #copyFollowup");
     return;
   }
-  if (!followupPreviewEl) {
-    debugLog("[copy] missing #followupPreview");
-    return;
-  }
-  if (copyFollowupBtnEl.dataset.bound === "1") return;
-  copyFollowupBtnEl.dataset.bound = "1";
-  copyFollowupBtnEl.addEventListener("click", async () => {
-    try {
-      const previewText =
-        ("value" in followupPreviewEl
-          ? followupPreviewEl.value
-          : followupPreviewEl.textContent) || "";
-      await copyToClipboard(previewText);
-      showFollowupCopySuccessCheck();
-      setFooterStatus("Copied");
-    } catch (e) {
-      const msg = getErrorMessage(e);
-      setFooterStatus(msg);
-      console.error("[LEF][chat] followup copy failed", e);
-    }
-  });
+  bindMessagePreviewCopyHandlers();
 }
 
 bindFollowupCopyHandler();
+setCopyIconDefaultState(copyInviteIconEl);
+setCopyIconDefaultState(copyFirstMessageBtnEl);
+setCopyIconDefaultState(copyFollowupBtnEl);
 
 followupPreviewEl?.addEventListener("input", () => {
   updateFollowupCopyIconVisibility();

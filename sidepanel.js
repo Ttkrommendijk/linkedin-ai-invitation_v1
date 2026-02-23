@@ -1,7 +1,73 @@
 const refreshNowBtnEl = document.getElementById("refreshNow");
 const refreshStatusEl = document.getElementById("refreshStatus");
 const panelFrameEl = document.getElementById("panelFrame");
-const LEF_UTILS = globalThis.LEFUtils || {};
+const LEF_UTILS_SOURCE = globalThis.LEFUtils;
+if (
+  (!LEF_UTILS_SOURCE || typeof LEF_UTILS_SOURCE !== "object") &&
+  !globalThis.__LEFUTILS_MISSING_WARNED__
+) {
+  globalThis.__LEFUTILS_MISSING_WARNED__ = true;
+  console.warn("[lefutils] not found; using local fallbacks");
+}
+const LEF_UTILS =
+  LEF_UTILS_SOURCE && typeof LEF_UTILS_SOURCE === "object"
+    ? LEF_UTILS_SOURCE
+    : {};
+const sendRuntimeMessage =
+  typeof LEF_UTILS.sendRuntimeMessage === "function"
+    ? LEF_UTILS.sendRuntimeMessage
+    : (type, payload = {}, options = {}) => {
+        const timeoutMs =
+          Number.isFinite(options?.timeoutMs) && options.timeoutMs > 0
+            ? options.timeoutMs
+            : 20000;
+        return new Promise((resolve) => {
+          let settled = false;
+          const done = (result) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timeoutId);
+            resolve(result);
+          };
+          const timeoutId = setTimeout(() => {
+            console.error(`[msg] ${type} failed: timeout`);
+            done({ ok: false, error: "timeout", data: null });
+          }, timeoutMs);
+          try {
+            chrome.runtime.sendMessage(
+              {
+                type,
+                ...(payload && typeof payload === "object" ? payload : {}),
+              },
+              (response) => {
+                const runtimeError = chrome.runtime?.lastError;
+                if (runtimeError) {
+                  const errorText = String(
+                    runtimeError.message || runtimeError,
+                  );
+                  console.error(`[msg] ${type} failed: ${errorText}`);
+                  done({ ok: false, error: errorText, data: null });
+                  return;
+                }
+                if (response?.ok === false || response?.error) {
+                  const errorText =
+                    typeof response?.error === "string"
+                      ? response.error
+                      : response?.error?.message || "unknown error";
+                  console.error(`[msg] ${type} failed: ${errorText}`);
+                  done({ ok: false, error: errorText, data: response || null });
+                  return;
+                }
+                done({ ok: true, data: response });
+              },
+            );
+          } catch (e) {
+            const errorText = e instanceof Error ? e.message : String(e || "");
+            console.error(`[msg] ${type} failed: ${errorText}`);
+            done({ ok: false, error: errorText, data: null });
+          }
+        });
+      };
 
 const REFRESH_DEBOUNCE_MS = 500;
 let refreshTimer = null;
@@ -16,7 +82,7 @@ function isLinkedInProfileLikeUrl(url) {
 }
 
 function setRefreshStatus(text) {
-  refreshStatusEl.textContent = text;
+  if (refreshStatusEl) refreshStatusEl.textContent = text;
 }
 
 async function getActiveTab() {
@@ -129,12 +195,10 @@ async function clearPreviewIfNotInDb(frameDocument, profile) {
   const linkedin_url = getLinkedinUrlFromProfile(profile);
   if (!linkedin_url) return;
 
-  const dbResp = await chrome.runtime
-    .sendMessage({
-      type: "DB_GET_INVITATION",
-      payload: { linkedin_url },
-    })
-    .catch(() => null);
+  const dbResult = await sendRuntimeMessage("DB_GET_INVITATION", {
+    payload: { linkedin_url },
+  });
+  const dbResp = dbResult.data || null;
 
   if (dbResp?.ok && !dbResp.row) {
     const previewEl = frameDocument.getElementById("preview");
@@ -156,36 +220,36 @@ async function clearPreviewIfNotInDb(frameDocument, profile) {
 }
 
 async function refreshFromIframe(reason = "manual") {
-  setRefreshStatus(`Refreshing (${reason})...`);
-
-  const activeTab = await getActiveTab();
-  const tabId = activeTab?.id;
-  const tabUrl = activeTab?.url || "";
-
-  if (!tabId) {
-    setRefreshStatus("No active tab.");
-    return;
-  }
-
-  if (!isLinkedInProfileLikeUrl(tabUrl)) {
-    setRefreshStatus("Open a LinkedIn profile/company page.");
-    return;
-  }
-
-  const frameWindow = panelFrameEl?.contentWindow;
-  const frameDocument = frameWindow?.document;
-  if (
-    !frameWindow ||
-    !frameDocument ||
-    typeof frameWindow.loadProfileContextOnOpen !== "function"
-  ) {
-    setRefreshStatus("Popup UI not ready yet.");
-    return;
-  }
-
-  resetIframeUiState(frameDocument, frameWindow);
-
   try {
+    setRefreshStatus(`Refreshing (${reason})...`);
+
+    const activeTab = await getActiveTab();
+    const tabId = activeTab?.id;
+    const tabUrl = activeTab?.url || "";
+
+    if (!tabId) {
+      setRefreshStatus("No active tab.");
+      return;
+    }
+
+    if (!isLinkedInProfileLikeUrl(tabUrl)) {
+      setRefreshStatus("Open a LinkedIn profile/company page.");
+      return;
+    }
+
+    const frameWindow = panelFrameEl?.contentWindow;
+    const frameDocument = frameWindow?.document;
+    if (
+      !frameWindow ||
+      !frameDocument ||
+      typeof frameWindow.loadProfileContextOnOpen !== "function"
+    ) {
+      setRefreshStatus("Popup UI not ready yet.");
+      return;
+    }
+
+    resetIframeUiState(frameDocument, frameWindow);
+
     const extractResp = await extractProfileWithInjectionFallback(tabId);
     if (!extractResp.ok) {
       setRefreshStatus(extractResp.error || "Refresh failed.");
@@ -205,33 +269,63 @@ async function refreshFromIframe(reason = "manual") {
 function scheduleRefresh(reason) {
   if (refreshTimer) clearTimeout(refreshTimer);
   refreshTimer = setTimeout(() => {
-    refreshFromIframe(reason).catch(() => {
-      setRefreshStatus("Refresh failed.");
+    refreshFromIframe(reason).catch((error) => {
+      const msg = error instanceof Error ? error.message : "Refresh failed.";
+      setRefreshStatus(msg || "Refresh failed.");
     });
   }, REFRESH_DEBOUNCE_MS);
 }
 
-refreshNowBtnEl.addEventListener("click", () => {
-  scheduleRefresh("manual");
-});
+let sidePanelInitErrorLogged = false;
+function logSidePanelInitError(error) {
+  if (sidePanelInitErrorLogged) return;
+  sidePanelInitErrorLogged = true;
+  const msg = error instanceof Error ? error.message : String(error || "");
+  console.error(`[LEF][init] sidepanel init failed: ${msg}`);
+  if (error && typeof error === "object" && typeof error.stack === "string") {
+    console.error(error.stack);
+  }
+}
 
-panelFrameEl.addEventListener("load", () => {
-  scheduleRefresh("frame-load");
-});
+function runSidePanelInit() {
+  if (!panelFrameEl) return;
 
-chrome.runtime.onMessage.addListener((msg) => {
-  if (msg?.type !== "SIDEPANEL_REFRESH_CONTEXT") return;
+  refreshNowBtnEl?.addEventListener("click", () => {
+    scheduleRefresh("manual");
+  });
 
-  const url = msg?.payload?.url || "";
-  if (!isLinkedInProfileLikeUrl(url)) return;
-  if (url === lastNotifiedUrl) return;
-  lastNotifiedUrl = url;
+  panelFrameEl?.addEventListener("load", () => {
+    scheduleRefresh("frame-load");
+  });
 
-  scheduleRefresh(msg?.payload?.reason || "background");
-});
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg?.type !== "SIDEPANEL_REFRESH_CONTEXT") return;
 
-chrome.runtime
-  .sendMessage({ type: "SP_REQUEST_REFRESH_SIGNAL" })
-  .catch(() => null);
+    const url = msg?.payload?.url || "";
+    if (!isLinkedInProfileLikeUrl(url)) return;
+    if (url === lastNotifiedUrl) return;
+    lastNotifiedUrl = url;
 
-scheduleRefresh("initial");
+    scheduleRefresh(msg?.payload?.reason || "background");
+  });
+
+  sendRuntimeMessage("SP_REQUEST_REFRESH_SIGNAL").catch(() => null);
+
+  scheduleRefresh("initial");
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", () => {
+    try {
+      runSidePanelInit();
+    } catch (error) {
+      logSidePanelInitError(error);
+    }
+  });
+} else {
+  try {
+    runSidePanelInit();
+  } catch (error) {
+    logSidePanelInitError(error);
+  }
+}
