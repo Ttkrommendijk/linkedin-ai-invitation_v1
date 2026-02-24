@@ -57,6 +57,50 @@
                             -
                         </div>
                     </div>
+                    <div class="row">
+                        <label><small>Campaign</small></label>
+                        <div class="inline inline-compact campaign-control">
+                            <select id="campaignSelect">
+                                <option value="">(no campaign)</option>
+                            </select>
+                            <button
+                                id="toggleNewCampaign"
+                                class="btn-small-secondary"
+                                type="button"
+                            >
+                                + New
+                            </button>
+                        </div>
+                        <div
+                            id="newCampaignRow"
+                            class="inline inline-compact campaign-inline"
+                            hidden
+                        >
+                            <input
+                                id="newCampaignName"
+                                type="text"
+                                placeholder="New campaign"
+                            />
+                            <button
+                                id="addCampaign"
+                                class="btn-small-primary"
+                                type="button"
+                            >
+                                Add
+                            </button>
+                            <button
+                                id="cancelNewCampaign"
+                                class="btn-small-secondary"
+                                type="button"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                        <small class="help"
+                            >Used to group invites. One campaign per
+                            person.</small
+                        >
+                    </div>
 
                     <div id="statusStepper" class="status-stepper">
                         <div id="step-register" class="status-step">

@@ -928,7 +928,7 @@ async function supabaseUpdateProfileDetailsOnly({
 
 async function supabaseGetInvitationByLinkedinUrl(linkedin_url) {
   const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
-  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}&select=linkedin_url,status,message,generated_at,invited_at,accepted_at,first_message,first_message_generated_at,first_message_sent_at,company,headline,language,full_name`;
+  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}&select=linkedin_url,status,message,generated_at,invited_at,accepted_at,first_message,first_message_generated_at,first_message_sent_at,company,headline,language,full_name,campaign`;
 
   const res = await fetchWithTimeout(
     url,
@@ -953,6 +953,80 @@ async function supabaseGetInvitationByLinkedinUrl(linkedin_url) {
   const rows = await res.json();
   if (!Array.isArray(rows) || rows.length === 0) return null;
   return rows[0] || null;
+}
+
+async function supabaseListCampaigns() {
+  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?select=campaign`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "GET",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+        "Content-Type": "application/json",
+      },
+    },
+    15000,
+    "Supabase request",
+  );
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+
+  const rows = await res.json();
+  const uniqueCampaigns = Array.from(
+    new Set(
+      (Array.isArray(rows) ? rows : [])
+        .map((row) => normalizeProfileField(row?.campaign))
+        .filter((campaign) => Boolean(campaign)),
+    ),
+  );
+  uniqueCampaigns.sort((a, b) => a.localeCompare(b));
+  return uniqueCampaigns;
+}
+
+async function supabaseUpdateCampaign({ linkedin_url, campaign }) {
+  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({
+        campaign: normalizeProfileField(campaign) || null,
+      }),
+    },
+    15000,
+    "Supabase request",
+  );
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+}
+
+async function supabaseUpsertCampaignMinimal({
+  linkedin_url,
+  full_name,
+  campaign,
+}) {
+  const row = {
+    linkedin_url: normalizeProfileField(linkedin_url),
+    full_name: normalizeProfileField(full_name) || null,
+    campaign: normalizeProfileField(campaign) || null,
+  };
+  await supabaseUpsertInvitation(row);
 }
 
 function toOverviewInt(value, fallback) {
@@ -1486,6 +1560,54 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse({
           ok: false,
           error: normalizeError(e, "SUPABASE_GET_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "DB_LIST_CAMPAIGNS") {
+    (async () => {
+      emitUiStatus("Fetchingâ€¦");
+      try {
+        const campaigns = await supabaseListCampaigns();
+        sendResponse({ ok: true, campaigns });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_GET_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "DB_UPDATE_CAMPAIGN") {
+    (async () => {
+      emitUiStatus("Updatingâ€¦");
+      try {
+        await supabaseUpdateCampaign(msg?.payload || {});
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "DB_UPSERT_CAMPAIGN_MINIMAL") {
+    (async () => {
+      emitUiStatus("Communicating to databaseâ€¦");
+      try {
+        await supabaseUpsertCampaignMinimal(msg?.payload || {});
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_UPSERT_FAILED"),
         });
       }
     })();

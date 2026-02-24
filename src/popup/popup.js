@@ -4,6 +4,12 @@ const strategyEl = document.getElementById("strategy");
 const focusEl = document.getElementById("focus");
 const messageLanguageEl = document.getElementById("messageLanguage");
 const inviteLanguageEl = document.getElementById("inviteLanguage");
+const campaignSelectEl = document.getElementById("campaignSelect");
+const newCampaignRowEl = document.getElementById("newCampaignRow");
+const toggleNewCampaignBtnEl = document.getElementById("toggleNewCampaign");
+const newCampaignNameEl = document.getElementById("newCampaignName");
+const addCampaignBtnEl = document.getElementById("addCampaign");
+const cancelNewCampaignBtnEl = document.getElementById("cancelNewCampaign");
 const firstMessageAdditionalPromptEl = document.getElementById(
   "firstMessageAdditionalPrompt",
 );
@@ -83,6 +89,7 @@ const UI_TEXT = {
 };
 const STORAGE_KEY_FIRST_MESSAGE_PROMPT = "firstMessagePrompt";
 const STORAGE_KEY_MESSAGE_LANGUAGE = "message_language";
+const STORAGE_KEY_LAST_ACTIVE_CAMPAIGN = "last_active_campaign";
 const SUPPORTED_LANGUAGES = ["Portuguese", "English", "Dutch", "Spanish"];
 const DEFAULT_FIRST_MESSAGE_PROMPT = messagePromptEl?.value || "";
 const LEF_UTILS_SOURCE = globalThis.LEFUtils;
@@ -287,6 +294,7 @@ let inviteCopyIconResetTimer = null;
 let firstMessageCopyIconResetTimer = null;
 let followupCopyIconResetTimer = null;
 let readyResetTimer = null;
+let knownCampaignValues = [];
 const COPY_ICON_GLYPH = "\u29c9";
 const COPY_TOOLTIP_DEFAULT = "Copy to clipboard";
 const COPY_TOOLTIP_SUCCESS = "Copied";
@@ -318,6 +326,144 @@ function restoreActiveTabState(tabState) {
   if (topTab === "detail" && tabState.detailTab) {
     setDetailInnerTab(tabState.detailTab);
   }
+}
+
+function normalizeCampaignValue(value) {
+  return safeTrim(value);
+}
+
+function hasCampaignOption(value) {
+  if (!campaignSelectEl) return false;
+  const normalized = normalizeCampaignValue(value);
+  if (!normalized) return false;
+  return Array.from(campaignSelectEl.options || []).some(
+    (option) => normalizeCampaignValue(option.value) === normalized,
+  );
+}
+
+function appendCampaignOption(value) {
+  if (!campaignSelectEl) return;
+  const normalized = normalizeCampaignValue(value);
+  if (!normalized || hasCampaignOption(normalized)) return;
+  const optionEl = document.createElement("option");
+  optionEl.value = normalized;
+  optionEl.textContent = normalized;
+  campaignSelectEl.appendChild(optionEl);
+}
+
+function setCampaignSelectValue(value) {
+  if (!campaignSelectEl) return;
+  const normalized = normalizeCampaignValue(value);
+  if (normalized) appendCampaignOption(normalized);
+  campaignSelectEl.value = normalized || "";
+}
+
+function setNewCampaignRowVisible(visible) {
+  if (!newCampaignRowEl) return;
+  newCampaignRowEl.hidden = !visible;
+  if (toggleNewCampaignBtnEl) {
+    toggleNewCampaignBtnEl.hidden = Boolean(visible);
+  }
+  if (!visible && newCampaignNameEl) {
+    newCampaignNameEl.value = "";
+  }
+}
+
+async function saveLastActiveCampaign(value) {
+  await chrome.storage.local.set({
+    [STORAGE_KEY_LAST_ACTIVE_CAMPAIGN]: normalizeCampaignValue(value),
+  });
+}
+
+async function loadLastActiveCampaign() {
+  const data = await chrome.storage.local.get([
+    STORAGE_KEY_LAST_ACTIVE_CAMPAIGN,
+  ]);
+  return normalizeCampaignValue(data?.[STORAGE_KEY_LAST_ACTIVE_CAMPAIGN] || "");
+}
+
+function rebuildCampaignSelectOptions(campaignValues) {
+  if (!campaignSelectEl) return;
+  while (campaignSelectEl.firstChild) {
+    campaignSelectEl.removeChild(campaignSelectEl.firstChild);
+  }
+  const emptyOptionEl = document.createElement("option");
+  emptyOptionEl.value = "";
+  emptyOptionEl.textContent = "(no campaign)";
+  campaignSelectEl.appendChild(emptyOptionEl);
+  for (const campaignValue of campaignValues) {
+    appendCampaignOption(campaignValue);
+  }
+}
+
+async function loadCampaignOptions({ keepSelected = true } = {}) {
+  if (!campaignSelectEl) return;
+  const selectedBefore = keepSelected
+    ? normalizeCampaignValue(campaignSelectEl.value)
+    : "";
+  const result = await sendRuntimeMessage("DB_LIST_CAMPAIGNS");
+  const resp = result.data || {};
+  const campaigns =
+    result.ok && Array.isArray(resp?.campaigns) ? resp.campaigns : [];
+  knownCampaignValues = campaigns
+    .map((campaignValue) => normalizeCampaignValue(campaignValue))
+    .filter(Boolean);
+  rebuildCampaignSelectOptions(knownCampaignValues);
+  setCampaignSelectValue(selectedBefore);
+}
+
+async function applyCampaignSelectionFromProfile() {
+  if (!campaignSelectEl) return;
+  if (dbInvitationRow) {
+    setCampaignSelectValue(dbInvitationRow?.campaign || "");
+    return;
+  }
+  const lastActiveCampaign = await loadLastActiveCampaign();
+  setCampaignSelectValue(lastActiveCampaign);
+}
+
+async function persistCampaignForCurrentProfile(campaignValue) {
+  const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
+  if (!linkedin_url) return;
+  const normalizedCampaign = normalizeCampaignValue(campaignValue);
+
+  if (dbInvitationRow) {
+    const result = await sendRuntimeMessage("DB_UPDATE_CAMPAIGN", {
+      payload: { linkedin_url, campaign: normalizedCampaign },
+    });
+    if (!result.ok) {
+      setFooterStatus(
+        `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(result.error)}`,
+      );
+      return;
+    }
+    dbInvitationRow = { ...dbInvitationRow, campaign: normalizedCampaign };
+    return;
+  }
+
+  const full_name = getFullNameFromContext(currentProfileContext);
+  const result = await sendRuntimeMessage("DB_UPSERT_CAMPAIGN_MINIMAL", {
+    payload: { linkedin_url, full_name, campaign: normalizedCampaign },
+  });
+  if (!result.ok) {
+    setFooterStatus(
+      `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(result.error)}`,
+    );
+    return;
+  }
+  dbInvitationRow = {
+    ...(dbInvitationRow || {}),
+    linkedin_url,
+    full_name: full_name || dbInvitationRow?.full_name || null,
+    campaign: normalizedCampaign,
+  };
+  renderDetailHeader();
+}
+
+async function handleCampaignSelection(campaignValue) {
+  const normalizedCampaign = normalizeCampaignValue(campaignValue);
+  await saveLastActiveCampaign(normalizedCampaign);
+  await persistCampaignForCurrentProfile(normalizedCampaign);
 }
 
 function isPostSendMode() {
@@ -822,6 +968,7 @@ async function refreshInvitationRowFromDb({ preserveTabs = false } = {}) {
   const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
   if (!linkedin_url) {
     dbInvitationRow = null;
+    setCampaignSelectValue("");
     setCommunicationStatus(UI_TEXT.lifecycleOpenLinkedInProfileFirst);
     applyLifecycleUiState(dbInvitationRow, { preserveTabs });
     outreachMessageStatus = "accepted";
@@ -849,6 +996,7 @@ async function refreshInvitationRowFromDb({ preserveTabs = false } = {}) {
     }
 
     dbInvitationRow = resp.row || null;
+    await applyCampaignSelectionFromProfile();
     await setLanguage(
       dbInvitationRow?.language ||
         currentProfileContext?.language ||
@@ -1283,6 +1431,7 @@ async function loadProfileContextOnOpen() {
     lastProfileContextSent = {};
     lastProfileContextEnriched = null;
     dbInvitationRow = null;
+    setCampaignSelectValue("");
     updateMessageTabControls();
     setCommunicationStatus(UI_TEXT.lifecycleOpenLinkedInProfileFirst);
     renderDetailHeader();
@@ -1679,6 +1828,10 @@ function runPopupInit() {
     updateSavePromptButtonState();
   });
   loadMessageLanguage().catch((_e) => {});
+  loadCampaignOptions({ keepSelected: true })
+    .then(() => applyCampaignSelectionFromProfile())
+    .catch((_e) => {});
+  setNewCampaignRowVisible(false);
 
   toggleMessagePromptBtnEl?.addEventListener("click", () => {
     setMessagePromptCollapsed(!isMessagePromptCollapsed);
@@ -1692,6 +1845,31 @@ function runPopupInit() {
     el.addEventListener("change", async () => {
       await setLanguage(el.value);
     });
+  });
+
+  campaignSelectEl?.addEventListener("change", async () => {
+    await handleCampaignSelection(campaignSelectEl.value);
+  });
+
+  toggleNewCampaignBtnEl?.addEventListener("click", () => {
+    setNewCampaignRowVisible(true);
+    newCampaignNameEl?.focus();
+  });
+
+  addCampaignBtnEl?.addEventListener("click", async () => {
+    const newCampaignValue = normalizeCampaignValue(
+      newCampaignNameEl?.value || "",
+    );
+    if (!newCampaignValue) return;
+    setCampaignSelectValue(newCampaignValue);
+    await handleCampaignSelection(newCampaignValue);
+    await loadCampaignOptions({ keepSelected: true });
+    setCampaignSelectValue(newCampaignValue);
+    setNewCampaignRowVisible(false);
+  });
+
+  cancelNewCampaignBtnEl?.addEventListener("click", () => {
+    setNewCampaignRowVisible(false);
   });
 }
 
