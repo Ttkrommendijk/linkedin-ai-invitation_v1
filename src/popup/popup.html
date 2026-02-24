@@ -57,15 +57,16 @@
                             -
                         </div>
                     </div>
-                    <div class="row">
+                    <div class="section-divider"></div>
+                    <div class="form-group campaign-group">
                         <label><small>Campaign</small></label>
-                        <div class="inline inline-compact campaign-control">
+                        <div class="campaign-main-row">
                             <select id="campaignSelect">
                                 <option value="">(no campaign)</option>
                             </select>
                             <button
                                 id="toggleNewCampaign"
-                                class="btn-small-secondary"
+                                class="btn-link"
                                 type="button"
                             >
                                 + New
@@ -73,13 +74,13 @@
                         </div>
                         <div
                             id="newCampaignRow"
-                            class="inline inline-compact campaign-inline"
+                            class="campaign-new-row"
                             hidden
                         >
                             <input
                                 id="newCampaignName"
                                 type="text"
-                                placeholder="New campaign"
+                                placeholder="New campaign name"
                             />
                             <button
                                 id="addCampaign"
@@ -96,11 +97,11 @@
                                 Cancel
                             </button>
                         </div>
-                        <small class="help"
-                            >Used to group invites. One campaign per
-                            person.</small
-                        >
+                        <div class="help-text">
+                            Used to group invites. One campaign per person.
+                        </div>
                     </div>
+                    <div class="section-divider"></div>
 
                     <div id="statusStepper" class="status-stepper">
                         <div id="step-register" class="status-step">
@@ -136,6 +137,7 @@
                             class="btn-forward"
                         ></button>
                     </div>
+                    <div class="section-divider"></div>
 
                     <div class="row inline detail-tabs">
                         <button

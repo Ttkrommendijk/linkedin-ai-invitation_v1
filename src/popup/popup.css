@@ -1,10 +1,23 @@
+:root {
+    --line: rgba(0, 0, 0, 0.18);
+    --line-soft: rgba(0, 0, 0, 0.1);
+    --text: #2f2f2f;
+    --muted: rgba(0, 0, 0, 0.65);
+}
 html,
 body {
     margin: 0;
     height: auto;
 }
 body {
-    font-family: Arial, sans-serif;
+    font-family:
+        Roboto,
+        system-ui,
+        -apple-system,
+        "Segoe UI",
+        Arial,
+        sans-serif;
+    color: var(--text);
     width: 380px;
     margin: 0;
     padding: 0;
@@ -47,9 +60,13 @@ body {
     overflow-x: hidden;
 }
 input,
+select,
 textarea {
     width: 100%;
     box-sizing: border-box;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--text);
 }
 textarea {
     height: 90px;
@@ -76,6 +93,8 @@ button {
     min-height: 28px;
     padding: 6px 10px;
     cursor: pointer;
+    border-radius: 8px;
+    border-color: var(--line);
 }
 button:disabled {
     cursor: default;
@@ -96,6 +115,7 @@ button:disabled {
     font-size: 18px;
     font-weight: 700;
     margin: 0;
+    color: #1f1f1f;
 }
 .detail-person-company {
     font-size: 13px;
@@ -106,7 +126,7 @@ button:disabled {
 .detail-person-headline {
     font-size: 12px;
     margin-top: 4px;
-    color: #111;
+    color: var(--text);
 }
 .btn-enrich {
     width: 28px;
@@ -140,7 +160,7 @@ button:disabled {
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    border: 1px solid #000;
+    border: 1px solid var(--line);
     background: #fff;
 }
 .status-circle.completed {
@@ -202,7 +222,7 @@ button:disabled {
     flex: 0 0 15px; /* prevents stretching */
 }
 small {
-    color: #555;
+    color: var(--muted);
 }
 pre {
     white-space: pre-wrap;
@@ -364,7 +384,7 @@ pre {
 .tabs {
     display: flex;
     gap: 0;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid var(--line-soft);
     margin-bottom: 10px;
 }
 .header-actions {
@@ -378,18 +398,31 @@ pre {
     padding: 4px 8px;
     font-size: 12px;
     background: #f3f4f6;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--line);
     color: #374151;
 }
 .btn-small-primary {
     width: auto;
-    min-height: 28px;
+    min-height: 30px;
     margin-top: 0;
-    padding: 4px 8px;
+    padding: 4px 10px;
     font-size: 12px;
     background: #2563eb;
     border: 1px solid #1d4ed8;
     color: #fff;
+}
+.btn-link {
+    width: auto;
+    min-height: 24px;
+    margin-top: 0;
+    padding: 0 2px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+}
+.btn-link:hover {
+    text-decoration: underline;
 }
 #openSidePanel {
     width: 100%;
@@ -412,13 +445,13 @@ pre {
     border: none;
     border-bottom: 2px solid transparent;
     background: transparent;
-    border-radius: 0;
+    border-radius: 8px 8px 0 0;
     cursor: pointer;
-    color: #555;
+    color: var(--muted);
 }
 .tab-btn.active {
-    border-bottom-color: #2563eb;
-    color: #111;
+    border-bottom-color: rgba(0, 0, 0, 0.35);
+    color: var(--text);
     font-weight: 600;
 }
 .tab-panel {
@@ -438,6 +471,55 @@ pre {
 }
 .inline > * {
     flex: 1;
+}
+.form-group {
+    margin-bottom: 14px;
+}
+.campaign-group {
+    margin-top: 10px;
+}
+.campaign-main-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.campaign-main-row #campaignSelect {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.campaign-new-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+    align-items: center;
+}
+#newCampaignRow[hidden] {
+    display: flex;
+    visibility: hidden;
+    pointer-events: none;
+}
+.campaign-new-row input {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.campaign-new-row .btn-small-primary,
+.campaign-new-row .btn-small-secondary {
+    min-height: 30px;
+    padding: 4px 10px;
+    margin-top: 0;
+}
+.help-text {
+    font-size: 11px;
+    opacity: 0.65;
+    margin-top: 4px;
+    color: var(--muted);
+}
+.hidden {
+    display: none;
 }
 .inline-compact {
     align-items: center;
@@ -465,7 +547,7 @@ pre {
 }
 .detail-tabs {
     margin-top: 12px;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid var(--line-soft);
     gap: 0;
 }
 .detail-tab-btn {
@@ -475,12 +557,12 @@ pre {
     border: none;
     border-bottom: 2px solid transparent;
     background: transparent;
-    border-radius: 0;
-    color: #555;
+    border-radius: 8px 8px 0 0;
+    color: var(--muted);
 }
 .detail-tab-btn.active {
-    border-bottom-color: #2563eb;
-    color: #111;
+    border-bottom-color: rgba(0, 0, 0, 0.35);
+    color: var(--text);
     font-weight: 600;
 }
 .detail-inner-panel {
@@ -515,11 +597,15 @@ pre {
     padding: 0 10px;
     font-size: 12px;
     box-sizing: border-box;
-    border-top: 1px solid #ddd;
+    border-top: 1px solid var(--line-soft);
     background: #f2f2f2;
     color: #333;
     flex: 0 0 auto;
     margin-top: 0;
+}
+.section-divider {
+    border-top: 1px solid var(--line-soft);
+    margin: 10px 0;
 }
 .comm-status-footer #commFooterText {
     overflow: hidden;
