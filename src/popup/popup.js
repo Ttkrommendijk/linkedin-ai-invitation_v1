@@ -104,6 +104,7 @@ const LEF_UTILS =
   LEF_UTILS_SOURCE && typeof LEF_UTILS_SOURCE === "object"
     ? LEF_UTILS_SOURCE
     : {};
+const DEBUG_EMPTY_STATE = false;
 function safeTrimFallback(v) {
   return v == null ? "" : String(v).trim();
 }
@@ -1397,6 +1398,144 @@ function getLinkedinUrlFromContext(profileContext) {
   );
 }
 
+function isLinkedInProfileLikeUrl(url) {
+  if (typeof LEF_UTILS.isLinkedInProfileLikeUrl === "function") {
+    return LEF_UTILS.isLinkedInProfileLikeUrl(url);
+  }
+  if (!url || typeof url !== "string") return false;
+  return /^https:\/\/www\.linkedin\.com\/(in|company)\/[^/?#]+/i.test(url);
+}
+
+function getProfileMatchForUrl(url) {
+  const normalizedUrl = String(url || "");
+  const inRule = /^https:\/\/www\.linkedin\.com\/in\/[^/?#]+/i.test(
+    normalizedUrl,
+  );
+  const companyRule = /^https:\/\/www\.linkedin\.com\/company\/[^/?#]+/i.test(
+    normalizedUrl,
+  );
+  const fallbackMatch = isLinkedInProfileLikeUrl(normalizedUrl);
+  if (inRule) return { isProfileOpen: true, matchedRule: "/in/" };
+  if (companyRule) return { isProfileOpen: true, matchedRule: "/company/" };
+  return {
+    isProfileOpen: Boolean(fallbackMatch),
+    matchedRule: fallbackMatch ? "fallback" : "none",
+  };
+}
+
+async function getActiveTabForProfileCheck() {
+  const [queriedTab] = await chrome.tabs.query({
+    active: true,
+    currentWindow: true,
+  });
+  if (!queriedTab) return null;
+  if (queriedTab.url || !Number.isInteger(queriedTab.id)) return queriedTab;
+  try {
+    const refreshedTab = await chrome.tabs.get(queriedTab.id);
+    return refreshedTab || queriedTab;
+  } catch (_e) {
+    return queriedTab;
+  }
+}
+
+let emptyStateDebugLogged = false;
+function logEmptyStateDebugOnce(payload) {
+  if (!DEBUG_EMPTY_STATE || emptyStateDebugLogged) return;
+  emptyStateDebugLogged = true;
+  console.log("[LEF][empty-state]", payload);
+}
+
+function findNoProfileEl() {
+  return document.getElementById("noProfileState");
+}
+
+function setNoProfileStateVisible(visible) {
+  ensureNoProfileStateUi();
+  const noProfileEl = findNoProfileEl();
+  if (!noProfileEl) return;
+
+  if (visible) noProfileEl.classList.remove("hidden");
+  else noProfileEl.classList.add("hidden");
+
+  const detailContentEl = document.getElementById("detailProfileContent");
+  if (detailContentEl) {
+    if (visible) detailContentEl.classList.add("hidden");
+    else detailContentEl.classList.remove("hidden");
+  }
+}
+
+function getNoProfileDomDebugInfo() {
+  const localEl = document.getElementById("noProfileState");
+  const frameEl = document.querySelector("iframe");
+  const frameNoProfileEl =
+    frameEl?.contentDocument?.getElementById("noProfileState") || null;
+  const targetEl = localEl || frameNoProfileEl || null;
+  return {
+    localExists: Boolean(localEl),
+    iframeExists: Boolean(frameEl),
+    iframeNoProfileExists: Boolean(frameNoProfileEl),
+    targetDocument: localEl ? "popup" : frameNoProfileEl ? "iframe" : "none",
+    hasClassHidden: targetEl ? targetEl.classList.contains("hidden") : null,
+  };
+}
+
+function ensureNoProfileStateUi() {
+  const tabMainEl = document.getElementById("tabMain");
+  if (!tabMainEl) return;
+
+  let detailProfileContentEl = document.getElementById("detailProfileContent");
+  if (!detailProfileContentEl) {
+    const existing = document.getElementById("detailProfileContent");
+    if (existing) {
+      detailProfileContentEl = existing;
+    } else {
+      const wrapper = document.createElement("div");
+      wrapper.id = "detailProfileContent";
+      while (tabMainEl.firstChild) {
+        wrapper.appendChild(tabMainEl.firstChild);
+      }
+      tabMainEl.appendChild(wrapper);
+      detailProfileContentEl = wrapper;
+    }
+  }
+
+  const noProfileMatches = tabMainEl.querySelectorAll("#noProfileState");
+  if (noProfileMatches.length > 1) {
+    for (let i = 1; i < noProfileMatches.length; i += 1) {
+      noProfileMatches[i].remove();
+    }
+  }
+
+  let noProfileStateEl = document.getElementById("noProfileState");
+  if (!noProfileStateEl) {
+    const existing = document.getElementById("noProfileState");
+    if (existing) {
+      return;
+    }
+    const stateEl = document.createElement("div");
+    stateEl.id = "noProfileState";
+    stateEl.className = "empty-state hidden";
+    stateEl.setAttribute("aria-live", "polite");
+
+    const innerEl = document.createElement("div");
+    innerEl.className = "empty-state-inner";
+
+    const iconEl = document.createElement("div");
+    iconEl.className = "empty-state-icon";
+    iconEl.setAttribute("aria-hidden", "true");
+    iconEl.textContent = "\u{1F464}";
+
+    const textEl = document.createElement("div");
+    textEl.className = "empty-state-text";
+    textEl.textContent = "Please open a profile in linkedin";
+
+    innerEl.appendChild(iconEl);
+    innerEl.appendChild(textEl);
+    stateEl.appendChild(innerEl);
+    tabMainEl.insertBefore(stateEl, detailProfileContentEl);
+  }
+}
+
 function getFullNameFromContext(profileContext) {
   return profileContext?.name || profileContext?.full_name || null;
 }
@@ -1413,8 +1552,43 @@ async function extractProfileContextFromActiveTab() {
   return getProfileForGeneration(resp.data.profile);
 }
 
-async function loadProfileContextOnOpen() {
+async function refreshAll() {
+  const activeTab = await getActiveTabForProfileCheck().catch(() => null);
+  const tabUrl = activeTab?.url || "";
+  const { isProfileOpen, matchedRule } = getProfileMatchForUrl(tabUrl);
+
+  if (!isProfileOpen) {
+    setNoProfileStateVisible(true);
+    logEmptyStateDebugOnce({
+      tabId: activeTab?.id ?? null,
+      tabUrl: tabUrl || null,
+      tabStatus: activeTab?.status || null,
+      isProfileOpen,
+      matchedRule,
+      dom: getNoProfileDomDebugInfo(),
+    });
+    currentProfileContext = null;
+    lastProfileContextSent = {};
+    lastProfileContextEnriched = null;
+    dbInvitationRow = null;
+    setCampaignSelectValue("");
+    updateMessageTabControls();
+    setCommunicationStatus(UI_TEXT.lifecycleOpenLinkedInProfileFirst);
+    renderDetailHeader();
+    updatePhaseButtons();
+    return false;
+  }
+
   try {
+    setNoProfileStateVisible(false);
+    logEmptyStateDebugOnce({
+      tabId: activeTab?.id ?? null,
+      tabUrl: tabUrl || null,
+      tabStatus: activeTab?.status || null,
+      isProfileOpen,
+      matchedRule,
+      dom: getNoProfileDomDebugInfo(),
+    });
     const profileContext = await extractProfileContextFromActiveTab();
     currentProfileContext = profileContext;
     lastProfileContextSent = profileContext;
@@ -1426,20 +1600,26 @@ async function loadProfileContextOnOpen() {
     if (IS_SIDE_PANEL_CONTEXT) {
       setActiveTab("detail", { userInitiated: true });
     }
+    return true;
   } catch (_e) {
+    setNoProfileStateVisible(false);
     currentProfileContext = null;
     lastProfileContextSent = {};
     lastProfileContextEnriched = null;
     dbInvitationRow = null;
     setCampaignSelectValue("");
     updateMessageTabControls();
-    setCommunicationStatus(UI_TEXT.lifecycleOpenLinkedInProfileFirst);
+    setCommunicationStatus(
+      getErrorMessage(_e) || UI_TEXT.couldNotExtractProfileContext,
+    );
     renderDetailHeader();
     updatePhaseButtons();
-    if (IS_SIDE_PANEL_CONTEXT && OVERVIEW_ENABLED) {
-      setActiveTab("overview", { userInitiated: true });
-    }
+    return false;
   }
+}
+
+async function loadProfileContextOnOpen() {
+  return refreshAll();
 }
 
 async function loadFirstMessagePrompt() {
@@ -1641,7 +1821,8 @@ async function onInvitationTabOpenedByUser() {
 async function refreshMessagesTab({ reason = "manual_refresh" } = {}) {
   debug("refreshMessagesTab:", reason);
   setFooterStatus(UI_TEXT.preparingProfile);
-  await loadProfileContextOnOpen();
+  const hasOpenProfile = await loadProfileContextOnOpen();
+  if (!hasOpenProfile) return;
   outreachMessageStatus = getOutreachStatusFromDbRow();
   renderMessageTab(outreachMessageStatus);
   updateMessageTabControls();

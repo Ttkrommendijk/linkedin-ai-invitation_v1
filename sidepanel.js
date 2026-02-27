@@ -85,9 +85,43 @@ function setRefreshStatus(text) {
   if (refreshStatusEl) refreshStatusEl.textContent = text;
 }
 
+function findNoProfileEl() {
+  const localEl = document.getElementById("noProfileState");
+  if (localEl) return localEl;
+  return (
+    panelFrameEl?.contentDocument?.getElementById("noProfileState") || null
+  );
+}
+
+function setNoProfileStateVisible(isVisible) {
+  const noProfileEl = findNoProfileEl();
+  if (!noProfileEl) return;
+
+  if (isVisible) noProfileEl.classList.remove("hidden");
+  else noProfileEl.classList.add("hidden");
+
+  const detailContentEl =
+    noProfileEl.ownerDocument?.getElementById("detailProfileContent") || null;
+  if (detailContentEl) {
+    if (isVisible) detailContentEl.classList.add("hidden");
+    else detailContentEl.classList.remove("hidden");
+  }
+}
+
 async function getActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   return tab || null;
+}
+
+async function getActiveTabProfileState() {
+  const activeTab = await getActiveTab();
+  const tabId = activeTab?.id || null;
+  const tabUrl = activeTab?.url || "";
+  return {
+    tabId,
+    tabUrl,
+    isProfileOpen: isLinkedInProfileLikeUrl(tabUrl),
+  };
 }
 
 function sendExtractMessage(tabId) {
@@ -223,19 +257,21 @@ async function refreshFromIframe(reason = "manual") {
   try {
     setRefreshStatus(`Refreshing (${reason})...`);
 
-    const activeTab = await getActiveTab();
-    const tabId = activeTab?.id;
-    const tabUrl = activeTab?.url || "";
+    const { tabId, isProfileOpen } = await getActiveTabProfileState();
 
     if (!tabId) {
+      setNoProfileStateVisible(true);
       setRefreshStatus("No active tab.");
       return;
     }
 
-    if (!isLinkedInProfileLikeUrl(tabUrl)) {
+    if (!isProfileOpen) {
+      setNoProfileStateVisible(true);
       setRefreshStatus("Open a LinkedIn profile/company page.");
       return;
     }
+
+    setNoProfileStateVisible(false);
 
     const frameWindow = panelFrameEl?.contentWindow;
     const frameDocument = frameWindow?.document;
@@ -302,7 +338,6 @@ function runSidePanelInit() {
     if (msg?.type !== "SIDEPANEL_REFRESH_CONTEXT") return;
 
     const url = msg?.payload?.url || "";
-    if (!isLinkedInProfileLikeUrl(url)) return;
     if (url === lastNotifiedUrl) return;
     lastNotifiedUrl = url;
 
