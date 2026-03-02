@@ -102,6 +102,7 @@ const STORAGE_KEY_FIRST_MESSAGE_PROMPT = "firstMessagePrompt";
 const STORAGE_KEY_MESSAGE_LANGUAGE = "message_language";
 const STORAGE_KEY_FREE_PROMPT_LANGUAGE = "free_prompt_language";
 const STORAGE_KEY_LAST_ACTIVE_CAMPAIGN = "last_active_campaign";
+const STORAGE_KEY_LIST_FILTERS = "lef_list_filters_v1";
 const SUPPORTED_LANGUAGES = ["Portuguese", "English", "Dutch", "Spanish"];
 const DEFAULT_FIRST_MESSAGE_PROMPT = messagePromptEl?.value || "";
 const LEF_UTILS_SOURCE = globalThis.LEFUtils;
@@ -448,6 +449,71 @@ function rebuildOverviewCampaignFilterOptions(campaignValues) {
     filterCampaignEl.value = "";
     overviewFilters.campaign = "";
   }
+  updateOverviewCampaignFilterTitle();
+}
+
+function updateOverviewCampaignFilterTitle() {
+  if (!filterCampaignEl) return;
+  const selectedOption =
+    filterCampaignEl.options[filterCampaignEl.selectedIndex];
+  filterCampaignEl.title = selectedOption?.text || "";
+}
+
+function collectOverviewFilterUiState() {
+  return {
+    campaign: filterCampaignEl?.value || "",
+    archived: overviewArchivedFilterEl?.value || "",
+    status: overviewStatusFilterEl?.value || "",
+    search: overviewSearchEl?.value || "",
+  };
+}
+
+async function persistOverviewFiltersToStorage() {
+  await chrome.storage.local.set({
+    [STORAGE_KEY_LIST_FILTERS]: collectOverviewFilterUiState(),
+  });
+}
+
+async function restoreOverviewFiltersFromStorage() {
+  const data = await chrome.storage.local.get([STORAGE_KEY_LIST_FILTERS]);
+  const saved = data?.[STORAGE_KEY_LIST_FILTERS];
+  if (!saved || typeof saved !== "object") {
+    updateOverviewCampaignFilterTitle();
+    return;
+  }
+
+  const savedCampaign = String(saved.campaign || "");
+  const savedArchived = String(saved.archived || "");
+  const savedStatus = String(saved.status || "");
+  const savedSearch = String(saved.search || "");
+
+  if (overviewArchivedFilterEl) {
+    const archivedOptionExists = Array.from(
+      overviewArchivedFilterEl.options || [],
+    ).some((option) => option.value === savedArchived);
+    overviewArchivedFilterEl.value = archivedOptionExists ? savedArchived : "";
+  }
+  if (overviewStatusFilterEl) {
+    const statusOptionExists = Array.from(
+      overviewStatusFilterEl.options || [],
+    ).some((option) => option.value === savedStatus);
+    overviewStatusFilterEl.value = statusOptionExists ? savedStatus : "";
+  }
+  if (overviewSearchEl) {
+    overviewSearchEl.value = savedSearch;
+  }
+  if (filterCampaignEl) {
+    const campaignOptionExists = Array.from(
+      filterCampaignEl.options || [],
+    ).some((option) => option.value === savedCampaign);
+    filterCampaignEl.value = campaignOptionExists ? savedCampaign : "";
+  }
+
+  overviewFilters.campaign = filterCampaignEl?.value || "";
+  overviewFilters.archived = overviewArchivedFilterEl?.value || "";
+  overviewFilters.status = overviewStatusFilterEl?.value || "";
+  overviewSearch = overviewSearchEl?.value || "";
+  updateOverviewCampaignFilterTitle();
 }
 
 async function loadCampaignOptions({ keepSelected = true } = {}) {
@@ -1477,23 +1543,28 @@ function wireOverviewEvents() {
 
   filterCampaignEl?.addEventListener("change", () => {
     overviewFilters.campaign = normalizeCampaignValue(filterCampaignEl.value);
+    updateOverviewCampaignFilterTitle();
+    persistOverviewFiltersToStorage().catch(() => null);
     overviewPage = 1;
     fetchOverviewPage();
   });
 
   overviewArchivedFilterEl?.addEventListener("change", () => {
     overviewFilters.archived = overviewArchivedFilterEl.value;
+    persistOverviewFiltersToStorage().catch(() => null);
     overviewPage = 1;
     fetchOverviewPage();
   });
 
   overviewStatusFilterEl?.addEventListener("change", () => {
     overviewFilters.status = overviewStatusFilterEl.value;
+    persistOverviewFiltersToStorage().catch(() => null);
     overviewPage = 1;
     fetchOverviewPage();
   });
 
   overviewSearchEl?.addEventListener("input", () => {
+    persistOverviewFiltersToStorage().catch(() => null);
     if (overviewSearchDebounceTimer) clearTimeout(overviewSearchDebounceTimer);
     overviewSearchDebounceTimer = setTimeout(() => {
       overviewSearch = overviewSearchEl.value.trim();
@@ -2291,7 +2362,17 @@ function runPopupInit() {
   loadFreePromptLanguage().catch((_e) => {});
   loadCampaignOptions({ keepSelected: true })
     .then(() => applyCampaignSelectionFromProfile())
-    .catch((_e) => {});
+    .catch((_e) => {})
+    .finally(() => {
+      restoreOverviewFiltersFromStorage()
+        .then(() => {
+          if (tabOverview?.classList.contains("active")) {
+            overviewPage = 1;
+            fetchOverviewPage();
+          }
+        })
+        .catch(() => null);
+    });
   setNewCampaignRowVisible(false);
 
   toggleMessagePromptBtnEl?.addEventListener("click", () => {
