@@ -310,6 +310,7 @@ let followupCopyIconResetTimer = null;
 let freePromptCopyIconResetTimer = null;
 let readyResetTimer = null;
 let knownCampaignValues = [];
+const OVERVIEW_CAMPAIGN_LABEL_MAX = 52;
 const COPY_ICON_GLYPH = "\u29c9";
 const COPY_TOOLTIP_DEFAULT = "Copy to clipboard";
 const COPY_TOOLTIP_SUCCESS = "Copied";
@@ -347,6 +348,22 @@ function normalizeCampaignValue(value) {
   return safeTrim(value);
 }
 
+function truncateCampaignLabel(value, maxLen = OVERVIEW_CAMPAIGN_LABEL_MAX) {
+  const full = String(value || "");
+  if (full.length <= maxLen) return full;
+  return `${full.slice(0, maxLen - 1).trim()}\u2026`;
+}
+
+function buildCampaignOptionElement(value) {
+  const fullCampaignValue = normalizeCampaignValue(value);
+  const optionEl = document.createElement("option");
+  optionEl.value = fullCampaignValue;
+  optionEl.textContent = truncateCampaignLabel(fullCampaignValue);
+  optionEl.title = fullCampaignValue;
+  optionEl.dataset.full = fullCampaignValue;
+  return optionEl;
+}
+
 function hasCampaignOption(value) {
   if (!campaignSelectEl) return false;
   const normalized = normalizeCampaignValue(value);
@@ -360,9 +377,7 @@ function appendCampaignOption(value) {
   if (!campaignSelectEl) return;
   const normalized = normalizeCampaignValue(value);
   if (!normalized || hasCampaignOption(normalized)) return;
-  const optionEl = document.createElement("option");
-  optionEl.value = normalized;
-  optionEl.textContent = normalized;
+  const optionEl = buildCampaignOptionElement(normalized);
   campaignSelectEl.appendChild(optionEl);
 }
 
@@ -371,6 +386,7 @@ function setCampaignSelectValue(value) {
   const normalized = normalizeCampaignValue(value);
   if (normalized) appendCampaignOption(normalized);
   campaignSelectEl.value = normalized || "";
+  updateDetailCampaignSelectTitle();
 }
 
 function setNewCampaignRowVisible(visible) {
@@ -434,9 +450,7 @@ function rebuildOverviewCampaignFilterOptions(campaignValues) {
     ),
   );
   uniqueValues.forEach((campaignValue) => {
-    const optionEl = document.createElement("option");
-    optionEl.value = campaignValue;
-    optionEl.textContent = campaignValue;
+    const optionEl = buildCampaignOptionElement(campaignValue);
     filterCampaignEl.appendChild(optionEl);
   });
 
@@ -456,7 +470,32 @@ function updateOverviewCampaignFilterTitle() {
   if (!filterCampaignEl) return;
   const selectedOption =
     filterCampaignEl.options[filterCampaignEl.selectedIndex];
-  filterCampaignEl.title = selectedOption?.text || "";
+  if (!selectedOption) {
+    filterCampaignEl.title = "";
+    return;
+  }
+  const selectedValue = String(selectedOption.value || "");
+  if (
+    selectedValue &&
+    selectedValue !== "__no_campaign__" &&
+    selectedValue !== ""
+  ) {
+    filterCampaignEl.title = selectedValue;
+    return;
+  }
+  filterCampaignEl.title = selectedOption.text || "";
+}
+
+function updateDetailCampaignSelectTitle() {
+  if (!campaignSelectEl) return;
+  const selectedOption =
+    campaignSelectEl.options[campaignSelectEl.selectedIndex];
+  if (!selectedOption) {
+    campaignSelectEl.title = "";
+    return;
+  }
+  const selectedValue = String(selectedOption.value || "");
+  campaignSelectEl.title = selectedValue || selectedOption.text || "";
 }
 
 function collectOverviewFilterUiState() {
@@ -2393,6 +2432,7 @@ function runPopupInit() {
   });
 
   campaignSelectEl?.addEventListener("change", async () => {
+    updateDetailCampaignSelectTitle();
     await handleCampaignSelection(campaignSelectEl.value);
   });
 
