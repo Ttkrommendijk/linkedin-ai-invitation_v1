@@ -4,6 +4,7 @@ const strategyEl = document.getElementById("strategy");
 const focusEl = document.getElementById("focus");
 const messageLanguageEl = document.getElementById("messageLanguage");
 const inviteLanguageEl = document.getElementById("inviteLanguage");
+const freePromptLanguageEl = document.getElementById("freePromptLanguage");
 const campaignSelectEl = document.getElementById("campaignSelect");
 const newCampaignRowEl = document.getElementById("newCampaignRow");
 const toggleNewCampaignBtnEl = document.getElementById("toggleNewCampaign");
@@ -46,6 +47,16 @@ const footerStatusEl = document.getElementById("commFooterText");
 // DO NOT write to .textContent directly; use setFooterStatus()
 const followupPreviewEl = document.getElementById("followupPreview");
 const copyFollowupBtnEl = document.getElementById("copyFollowup");
+const freePromptInputEl = document.getElementById("freePromptInput");
+const freePromptIncludeProfileEl = document.getElementById(
+  "freePromptIncludeProfile",
+);
+const freePromptIncludeStrategyEl = document.getElementById(
+  "freePromptIncludeStrategy",
+);
+const generateFreePromptBtnEl = document.getElementById("generateFreePrompt");
+const freePromptPreviewEl = document.getElementById("freePromptPreview");
+const copyFreePromptBtnEl = document.getElementById("copyFreePrompt");
 
 const EMOJI_CHECK = "\u2705";
 const SYMBOL_ELLIPSIS = "\u2026";
@@ -89,6 +100,7 @@ const UI_TEXT = {
 };
 const STORAGE_KEY_FIRST_MESSAGE_PROMPT = "firstMessagePrompt";
 const STORAGE_KEY_MESSAGE_LANGUAGE = "message_language";
+const STORAGE_KEY_FREE_PROMPT_LANGUAGE = "free_prompt_language";
 const STORAGE_KEY_LAST_ACTIVE_CAMPAIGN = "last_active_campaign";
 const SUPPORTED_LANGUAGES = ["Portuguese", "English", "Dutch", "Spanish"];
 const DEFAULT_FIRST_MESSAGE_PROMPT = messagePromptEl?.value || "";
@@ -222,9 +234,11 @@ const detailTabInviteBtnEl = document.getElementById("detailTabInviteBtn");
 const detailTabFirstMessageBtnEl = document.getElementById(
   "detailTabFirstMessageBtn",
 );
+const detailTabFreePromptBtnEl = document.getElementById("tabFreePromptBtn");
 const detailTabFollowBtnEl = document.getElementById("detailTabFollowBtn");
 const detailInviteSectionEl = document.getElementById("detailInviteSection");
 const detailMessageMountEl = document.getElementById("detailMessageMount");
+const tabFreePromptEl = document.getElementById("tabFreePrompt");
 
 if (!generateFirstMessageBtnEl) {
   console.error("[first-message] missing #generateFirstMessage");
@@ -294,6 +308,7 @@ let currentLanguage = "Portuguese";
 let inviteCopyIconResetTimer = null;
 let firstMessageCopyIconResetTimer = null;
 let followupCopyIconResetTimer = null;
+let freePromptCopyIconResetTimer = null;
 let readyResetTimer = null;
 let knownCampaignValues = [];
 const COPY_ICON_GLYPH = "\u29c9";
@@ -633,11 +648,16 @@ function setDetailInnerTab(tab) {
     detailTabInviteBtnEl.classList.toggle("active", tab === "invite");
   if (detailTabFirstMessageBtnEl)
     detailTabFirstMessageBtnEl.classList.toggle("active", tab === "first");
+  if (detailTabFreePromptBtnEl)
+    detailTabFreePromptBtnEl.classList.toggle("active", tab === "free_prompt");
   if (detailTabFollowBtnEl)
     detailTabFollowBtnEl.classList.toggle("active", tab === "follow");
 
   if (detailInviteSectionEl) detailInviteSectionEl.hidden = tab !== "invite";
-  if (tabMessage) tabMessage.hidden = tab === "invite";
+  if (tabMessage) tabMessage.hidden = tab === "invite" || tab === "free_prompt";
+  if (tabFreePromptEl) {
+    tabFreePromptEl.classList.toggle("active", tab === "free_prompt");
+  }
 
   if (tab === "first") {
     if (acceptedModeEl) acceptedModeEl.hidden = false;
@@ -1680,6 +1700,43 @@ async function loadMessageLanguage() {
   await setLanguage("Portuguese", { persist: false });
 }
 
+function getFreePromptLanguage() {
+  return normalizeLanguageValue(freePromptLanguageEl?.value) || getLanguage();
+}
+
+async function setFreePromptLanguage(value, { persist = true } = {}) {
+  if (!freePromptLanguageEl) return;
+  const normalized = normalizeLanguageValue(value) || "Portuguese";
+  freePromptLanguageEl.value = normalized;
+  if (persist) {
+    await chrome.storage.local.set({
+      [STORAGE_KEY_FREE_PROMPT_LANGUAGE]: normalized,
+    });
+  }
+}
+
+async function loadFreePromptLanguage() {
+  const data = await chrome.storage.local.get([
+    STORAGE_KEY_FREE_PROMPT_LANGUAGE,
+    STORAGE_KEY_MESSAGE_LANGUAGE,
+  ]);
+  const savedFreePromptLanguage = normalizeLanguageValue(
+    data?.[STORAGE_KEY_FREE_PROMPT_LANGUAGE],
+  );
+  if (savedFreePromptLanguage) {
+    await setFreePromptLanguage(savedFreePromptLanguage, { persist: false });
+    return;
+  }
+  const savedMessageLanguage = normalizeLanguageValue(
+    data?.[STORAGE_KEY_MESSAGE_LANGUAGE],
+  );
+  if (savedMessageLanguage) {
+    await setFreePromptLanguage(savedMessageLanguage, { persist: false });
+    return;
+  }
+  await setFreePromptLanguage("Portuguese", { persist: false });
+}
+
 async function copyToClipboard(text) {
   const value = typeof text === "string" ? text : String(text ?? "");
 
@@ -1776,6 +1833,21 @@ function showFollowupCopySuccessCheck(buttonEl) {
   }, 800);
 }
 
+function showFreePromptCopySuccessCheck(buttonEl) {
+  const btn = buttonEl || copyFreePromptBtnEl;
+  if (!btn) return;
+  setCopyIconSuccessState(btn);
+  if (freePromptCopyIconResetTimer) {
+    clearTimeout(freePromptCopyIconResetTimer);
+  }
+  freePromptCopyIconResetTimer = setTimeout(() => {
+    if (btn) {
+      setCopyIconDefaultState(btn);
+    }
+    freePromptCopyIconResetTimer = null;
+  }, 800);
+}
+
 function setCopyIconDefaultState(buttonEl) {
   if (!buttonEl) return;
   buttonEl.textContent = COPY_ICON_GLYPH;
@@ -1813,6 +1885,16 @@ function updateFollowupCopyIconVisibility() {
   copyFollowupBtnEl.disabled = !hasText;
 }
 
+function updateFreePromptCopyButtonState() {
+  if (!copyFreePromptBtnEl || !freePromptPreviewEl) return;
+  const hasText = (freePromptPreviewEl.textContent || "").trim().length > 0;
+  if (!hasText) {
+    setCopyIconDefaultState(copyFreePromptBtnEl);
+  }
+  copyFreePromptBtnEl.hidden = !hasText;
+  copyFreePromptBtnEl.disabled = !hasText;
+}
+
 async function onInvitationTabOpenedByUser() {
   setFooterStatus(UI_TEXT.preparingProfile);
   await loadProfileContextOnOpen();
@@ -1840,7 +1922,9 @@ function setActiveTab(which, { userInitiated = false } = {}) {
   if (!tabMainBtn || !tabConfigBtn || !tabMain || !tabConfig) {
     return;
   }
-  const detailActive = which === "detail" || which === "invitation";
+  const freePromptActive = which === "free_prompt";
+  const detailActive =
+    which === "detail" || which === "invitation" || freePromptActive;
   const overviewActive = OVERVIEW_ENABLED && which === "overview";
   const configActive = which === "config";
 
@@ -1852,7 +1936,14 @@ function setActiveTab(which, { userInitiated = false } = {}) {
   if (tabOverview) tabOverview.classList.toggle("active", overviewActive);
   tabConfig.classList.toggle("active", configActive);
   if (tabMessage)
-    tabMessage.hidden = !detailActive || detailInnerTab === "invite";
+    tabMessage.hidden =
+      !detailActive ||
+      detailInnerTab === "invite" ||
+      detailInnerTab === "free_prompt";
+
+  if (freePromptActive) {
+    setDetailInnerTab("free_prompt");
+  }
 
   if (overviewActive) {
     fetchOverviewPage();
@@ -1976,6 +2067,9 @@ function runPopupInit() {
       setFooterReady();
     }
   });
+  detailTabFreePromptBtnEl?.addEventListener("click", () => {
+    setActiveTab("free_prompt", { userInitiated: true });
+  });
   detailTabFollowBtnEl?.addEventListener("click", async () => {
     setFooterFetchingStatus();
     try {
@@ -2009,6 +2103,7 @@ function runPopupInit() {
     updateSavePromptButtonState();
   });
   loadMessageLanguage().catch((_e) => {});
+  loadFreePromptLanguage().catch((_e) => {});
   loadCampaignOptions({ keepSelected: true })
     .then(() => applyCampaignSelectionFromProfile())
     .catch((_e) => {});
@@ -2026,6 +2121,9 @@ function runPopupInit() {
     el.addEventListener("change", async () => {
       await setLanguage(el.value);
     });
+  });
+  freePromptLanguageEl?.addEventListener("change", async () => {
+    await setFreePromptLanguage(freePromptLanguageEl.value);
   });
 
   campaignSelectEl?.addEventListener("change", async () => {
@@ -2833,6 +2931,92 @@ markMessageSentBtnEl?.addEventListener("click", async () => {
   }
 });
 
+async function handleGenerateFreePromptClick() {
+  try {
+    const prompt = (freePromptInputEl?.value || "").trim();
+    const includeProfile = freePromptIncludeProfileEl
+      ? freePromptIncludeProfileEl.checked
+      : true;
+    const includeStrategy = freePromptIncludeStrategyEl
+      ? freePromptIncludeStrategyEl.checked
+      : true;
+
+    if (!prompt) {
+      setFooterStatus("Prompt is required.");
+      updateFreePromptCopyButtonState();
+      return;
+    }
+
+    let profileForGeneration = null;
+    if (includeProfile) {
+      profileForGeneration = currentProfileContext;
+      const linkedinUrl = getLinkedinUrlFromContext(profileForGeneration);
+      if (!profileForGeneration || !linkedinUrl) {
+        setFooterStatus(
+          "Profile context is missing. Open a LinkedIn profile and try again.",
+        );
+        updateFreePromptCopyButtonState();
+        return;
+      }
+    }
+
+    const [{ apiKey: apiKeyLocal }, { model }] = await Promise.all([
+      chrome.storage.local.get(["apiKey"]),
+      chrome.storage.sync.get(["model"]),
+    ]);
+    let apiKey = (apiKeyLocal || "").trim();
+    if (!apiKey) {
+      const typed = (apiKeyEl.value || "").trim();
+      if (typed) {
+        apiKey = typed;
+        await chrome.storage.local.set({ apiKey });
+      }
+    }
+    if (!apiKey) {
+      setFooterStatus(UI_TEXT.setApiKeyInConfig);
+      return;
+    }
+
+    const strategyCoreRaw = (strategyEl?.value || "").trim();
+    const payload = {
+      apiKey,
+      model: (model || "gpt-4.1").trim(),
+      language: getFreePromptLanguage(),
+      prompt,
+      includeProfile,
+      includeStrategy,
+    };
+    if (includeProfile && profileForGeneration) {
+      payload.profile = { ...profileForGeneration };
+    }
+    if (includeStrategy) {
+      payload.strategyCore = strategyCoreRaw || "(none)";
+    }
+
+    setFooterStatus(UI_TEXT.callingOpenAI);
+    const result = await sendRuntimeMessage("GENERATE_FREE_PROMPT", {
+      payload,
+    });
+    const resp = result.data || {};
+    if (!result.ok || !resp?.ok) {
+      throw new Error(getErrorMessage(result.error || resp?.error));
+    }
+
+    const generatedText = (resp.text || "").trim();
+    if (freePromptPreviewEl) {
+      freePromptPreviewEl.textContent = generatedText;
+    }
+    updateFreePromptCopyButtonState();
+    setFooterStatus(generatedText ? "Ready" : UI_TEXT.noMessageGenerated);
+  } catch (e) {
+    if (freePromptPreviewEl) {
+      freePromptPreviewEl.textContent = "";
+    }
+    updateFreePromptCopyButtonState();
+    setFooterStatus(`${UI_TEXT.errorPrefix} ${getErrorMessage(e)}`);
+  }
+}
+
 if (!generateFollowupBtnEl) {
   console.error("[followup] missing #generateFollowup");
 }
@@ -2979,6 +3163,18 @@ function bindGenerateFollowupClickHandler() {
 
 bindGenerateFollowupClickHandler();
 
+function bindGenerateFreePromptClickHandler() {
+  if (!generateFreePromptBtnEl) return;
+  if (generateFreePromptBtnEl.dataset.freePromptBound === "1") return;
+  generateFreePromptBtnEl.dataset.freePromptBound = "1";
+  generateFreePromptBtnEl.addEventListener(
+    "click",
+    handleGenerateFreePromptClick,
+  );
+}
+
+bindGenerateFreePromptClickHandler();
+
 function bindFollowupCopyHandler() {
   if (!copyFollowupBtnEl) {
     debugLog("[copy] missing #copyFollowup");
@@ -2988,9 +3184,35 @@ function bindFollowupCopyHandler() {
 }
 
 bindFollowupCopyHandler();
+
+function bindCopyFreePromptHandler() {
+  if (!copyFreePromptBtnEl || !freePromptPreviewEl) return;
+  if (copyFreePromptBtnEl.dataset.freePromptCopyBound === "1") return;
+  copyFreePromptBtnEl.dataset.freePromptCopyBound = "1";
+  copyFreePromptBtnEl.addEventListener("click", async () => {
+    const previewText = freePromptPreviewEl.textContent || "";
+    if (!previewText.trim()) {
+      setFooterStatus(UI_TEXT.nothingToCopy);
+      return;
+    }
+    const copyResult = await copyToClipboard(previewText);
+    if (!copyResult.ok) {
+      setFooterStatus(
+        `${UI_TEXT.copyFailedPrefix} ${getErrorMessage(copyResult.error)}`,
+      );
+      return;
+    }
+    showFreePromptCopySuccessCheck(copyFreePromptBtnEl);
+    setFooterStatus(UI_TEXT.copiedToClipboard);
+  });
+}
+
+bindCopyFreePromptHandler();
 setCopyIconDefaultState(copyInviteIconEl);
 setCopyIconDefaultState(copyFirstMessageBtnEl);
 setCopyIconDefaultState(copyFollowupBtnEl);
+setCopyIconDefaultState(copyFreePromptBtnEl);
+updateFreePromptCopyButtonState();
 
 followupPreviewEl?.addEventListener("input", () => {
   updateFollowupCopyIconVisibility();

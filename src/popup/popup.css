@@ -234,6 +234,13 @@ pre {
 #messagePrompt {
     height: 160px;
 }
+#freePromptInput {
+    height: 150px;
+}
+#freePromptPreview {
+    max-height: 180px;
+    overflow: auto;
+}
 #firstMessagePreview {
     max-height: 180px;
     overflow: auto;

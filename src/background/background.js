@@ -749,6 +749,101 @@ async function callOpenAIFollowupMessage({
   return clampText(text, 1000);
 }
 
+async function callOpenAIFreePrompt({
+  apiKey,
+  model,
+  prompt,
+  language,
+  profile,
+  strategyCore,
+  includeProfile,
+  includeStrategy,
+}) {
+  const userInstruction = normalizeProfileField(prompt);
+  if (!userInstruction) {
+    throw new Error("Prompt is required.");
+  }
+  const requestedLanguage = normalizeProfileField(language) || "Portuguese";
+  const includeProfileContext = Boolean(includeProfile && profile);
+  const includeStrategyContext = Boolean(includeStrategy);
+  const strategyText = normalizeProfileField(strategyCore) || "(none)";
+
+  const contextBlocks = [];
+  if (includeProfileContext) {
+    contextBlocks.push(`profile_context:\n${profileContextBlock(profile)}`);
+  }
+  if (includeStrategyContext) {
+    contextBlocks.push(`strategy_core:\n${strategyText}`);
+  }
+
+  const userSections = [
+    `User instruction:\n${userInstruction}`,
+    `Language:\n${requestedLanguage}`,
+    "Context rules:\n- The instruction above is the task.\n- The following blocks are only context.",
+  ];
+  if (contextBlocks.length) {
+    userSections.push(contextBlocks.join("\n\n"));
+  }
+  userSections.push("Return the assistant response text only.");
+
+  const res = await fetchOpenAIWithRetry(
+    "https://api.openai.com/v1/responses",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        max_output_tokens: 500,
+        input: [
+          {
+            role: "system",
+            content: [
+              {
+                type: "input_text",
+                text: [
+                  "Write the best possible response to the user's instruction.",
+                  "The user's instruction is authoritative.",
+                  "Directly answer the user's instruction; do not summarize context unless asked.",
+                  "Any provided context is optional supporting material only.",
+                  "If context conflicts with instruction, follow the instruction.",
+                  "If profile context is included, do not invent facts beyond it.",
+                  "Use the requested language.",
+                  "Output plain text only.",
+                ].join("\n"),
+              },
+            ],
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text: userSections.join("\n\n"),
+              },
+            ],
+          },
+        ],
+      }),
+    },
+  );
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("openai", res.status, txt || res.statusText);
+  }
+
+  const data = await res.json();
+  const text = extractRawModelText(data);
+  if (!text) {
+    throw new Error("Model returned empty output.");
+  }
+
+  return clampText(text, 1200);
+}
+
 async function getSupabaseConfig() {
   const [{ webhookSecret }, { webhookBaseUrl }] = await Promise.all([
     chrome.storage.local.get(["webhookSecret"]),
@@ -1445,6 +1540,24 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse({
           ok: false,
           error: normalizeError(e, "GENERATION_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "GENERATE_FREE_PROMPT") {
+    (async () => {
+      emitUiStatus("Sending to LLMâ€¦");
+      try {
+        const text = await callOpenAIFreePrompt(msg.payload || {});
+        sendResponse({ ok: true, text });
+      } catch (e) {
+        const details =
+          e && typeof e === "object" && e.details ? e.details : undefined;
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "GENERATION_FAILED", details),
         });
       }
     })();

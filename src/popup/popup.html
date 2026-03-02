@@ -155,6 +155,13 @@
                             First Message
                         </button>
                         <button
+                            id="tabFreePromptBtn"
+                            class="detail-tab-btn tab-btn"
+                            type="button"
+                        >
+                            Free prompt
+                        </button>
+                        <button
                             id="detailTabFollowBtn"
                             class="detail-tab-btn"
                             type="button"
@@ -261,6 +268,79 @@
                     </div>
 
                     <div id="detailMessageMount"></div>
+
+                    <div id="tabFreePrompt" class="tab-panel">
+                        <div class="row">
+                            <label><small>Language</small></label>
+                            <select id="freePromptLanguage">
+                                <option value="Portuguese" selected>
+                                    Portuguese
+                                </option>
+                                <option value="English">English</option>
+                                <option value="Dutch">Dutch</option>
+                                <option value="Spanish">Spanish</option>
+                            </select>
+                        </div>
+
+                        <div class="row">
+                            <label><small>Prompt</small></label>
+                            <textarea
+                                id="freePromptInput"
+                                placeholder="Write your instruction here…"
+                            ></textarea>
+                        </div>
+
+                        <div class="row inline">
+                            <label class="checkbox-row">
+                                <input
+                                    type="checkbox"
+                                    id="freePromptIncludeProfile"
+                                    class="strategy-checkbox"
+                                    checked
+                                />
+                                <small>Include profile</small>
+                            </label>
+                            <label class="checkbox-row">
+                                <input
+                                    type="checkbox"
+                                    id="freePromptIncludeStrategy"
+                                    class="strategy-checkbox"
+                                    checked
+                                />
+                                <small>Include strategy</small>
+                            </label>
+                        </div>
+
+                        <div class="row">
+                            <button id="generateFreePrompt" type="button">
+                                Generate
+                            </button>
+                        </div>
+
+                        <div class="row">
+                            <div class="invite-preview-block">
+                                <div class="invite-preview-header">
+                                    <div class="invite-preview-title">
+                                        Preview
+                                    </div>
+                                    <button
+                                        id="copyFreePrompt"
+                                        type="button"
+                                        class="btn-icon copy-icon"
+                                        hidden
+                                        title="Copy to clipboard"
+                                        aria-label="Copy to clipboard"
+                                    >
+                                        ⧉
+                                    </button>
+                                </div>
+                                <pre
+                                    id="freePromptPreview"
+                                    class="invite-preview-content"
+                                ></pre>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div id="tabMessage" class="tab-panel">
