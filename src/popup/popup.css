@@ -692,7 +692,7 @@ pre {
     width: 100%;
     border-collapse: collapse;
     font-size: 12px;
-    table-layout: fixed;
+    table-layout: auto;
 }
 .overview-grid th,
 .overview-grid td {

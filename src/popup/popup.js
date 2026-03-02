@@ -278,6 +278,7 @@ const overviewPageSizeEl = document.getElementById("overviewPageSize");
 const overviewPrevBtnEl = document.getElementById("overviewPrevBtn");
 const overviewNextBtnEl = document.getElementById("overviewNextBtn");
 const overviewCountLabelEl = document.getElementById("overviewCountLabel");
+const overviewTableEl = document.querySelector("#tabOverview .overview-table");
 
 const webhookBaseUrlEl = document.getElementById("webhookBaseUrl");
 const webhookSecretEl = document.getElementById("webhookSecret");
@@ -299,6 +300,7 @@ let overviewSortDir = "desc";
 let overviewFilters = { campaign: "", archived: "", status: "" };
 let overviewSearch = "";
 let overviewSearchDebounceTimer = null;
+let overviewAutoSizeTimer = null;
 let chatExtractSeq = 0;
 let detailInnerTab = "invite";
 let statusBackTarget = null;
@@ -1389,6 +1391,7 @@ function renderOverviewTable(rows) {
     td.textContent = "No rows.";
     tr.appendChild(td);
     overviewTbodyEl.appendChild(tr);
+    scheduleOverviewAutoSize();
     return;
   }
 
@@ -1463,6 +1466,77 @@ function renderOverviewTable(rows) {
 
     overviewTbodyEl.appendChild(tr);
   }
+  scheduleOverviewAutoSize();
+}
+
+function getOverviewColumnBounds(index) {
+  // Column index map: 0 Open, 1 Archive action, 2 Name, 3 Company,
+  // 4 Status, 5 Most relevant date, 6 Campaign, 7 Archived.
+  const bounds = [
+    { min: 56, max: 64 },
+    { min: 56, max: 64 },
+    { min: 90, max: 260 },
+    { min: 90, max: 260 },
+    { min: 80, max: 180 },
+    { min: 110, max: 180 },
+    { min: 100, max: 240 },
+    { min: 70, max: 90 },
+  ];
+  return bounds[index] || { min: 70, max: 420 };
+}
+
+function clampNumber(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function autoSizeOverviewColumns() {
+  if (!overviewTableEl) return;
+  const headerRow = overviewTableEl.tHead?.rows?.[0] || null;
+  if (!headerRow) return;
+
+  let colgroupEl = overviewTableEl.querySelector("colgroup");
+  if (!colgroupEl) {
+    colgroupEl = document.createElement("colgroup");
+    overviewTableEl.insertBefore(colgroupEl, overviewTableEl.firstChild);
+  }
+
+  const bodyRows = Array.from(overviewTbodyEl?.rows || []).filter(
+    (row) => row && row.offsetParent !== null,
+  );
+  const paddingBuffer = 20;
+  const columnCount = headerRow.cells.length;
+
+  while (colgroupEl.children.length < columnCount) {
+    colgroupEl.appendChild(document.createElement("col"));
+  }
+
+  for (let index = 0; index < columnCount; index += 1) {
+    const headerCell = headerRow.cells[index];
+    let widest = headerCell ? headerCell.scrollWidth : 0;
+
+    for (const row of bodyRows) {
+      const cell = row.cells[index];
+      if (!cell) continue;
+      widest = Math.max(widest, cell.scrollWidth);
+    }
+
+    const { min, max } = getOverviewColumnBounds(index);
+    const width = clampNumber(widest + paddingBuffer, min, max);
+    const colEl = colgroupEl.children[index];
+    if (colEl) {
+      colEl.style.width = `${width}px`;
+    }
+  }
+}
+
+function scheduleOverviewAutoSize() {
+  if (overviewAutoSizeTimer) {
+    clearTimeout(overviewAutoSizeTimer);
+  }
+  overviewAutoSizeTimer = setTimeout(() => {
+    overviewAutoSizeTimer = null;
+    autoSizeOverviewColumns();
+  }, 180);
 }
 
 async function fetchOverviewPage() {
@@ -1484,6 +1558,7 @@ async function fetchOverviewPage() {
       overviewTbodyEl.appendChild(tr);
       overviewTotal = null;
       renderOverviewPagination();
+      scheduleOverviewAutoSize();
       return;
     }
     overviewTotal = Number.isFinite(resp?.total) ? resp.total : null;
@@ -1500,6 +1575,7 @@ async function fetchOverviewPage() {
     td.textContent = getErrorMessage(e);
     tr.appendChild(td);
     overviewTbodyEl.appendChild(tr);
+    scheduleOverviewAutoSize();
   } finally {
     overviewLoadingEl.hidden = true;
     setFooterReady();
@@ -2381,6 +2457,12 @@ function runPopupInit() {
   updateMessageTabControls();
   if (OVERVIEW_ENABLED) {
     wireOverviewEvents();
+    if (document.documentElement.dataset.overviewResizeBound !== "1") {
+      document.documentElement.dataset.overviewResizeBound = "1";
+      window.addEventListener("resize", () => {
+        scheduleOverviewAutoSize();
+      });
+    }
     overviewPageSize = Number(overviewPageSizeEl?.value || 25);
     renderOverviewSortIndicators();
     renderOverviewPagination();
