@@ -103,6 +103,7 @@ const STORAGE_KEY_MESSAGE_LANGUAGE = "message_language";
 const STORAGE_KEY_FREE_PROMPT_LANGUAGE = "free_prompt_language";
 const STORAGE_KEY_LAST_ACTIVE_CAMPAIGN = "last_active_campaign";
 const STORAGE_KEY_LIST_FILTERS = "lef_list_filters_v1";
+const STORAGE_KEY_LIST_COLUMN_WIDTHS = "lef_list_column_widths_v1";
 const SUPPORTED_LANGUAGES = ["Portuguese", "English", "Dutch", "Spanish"];
 const DEFAULT_FIRST_MESSAGE_PROMPT = messagePromptEl?.value || "";
 const LEF_UTILS_SOURCE = globalThis.LEFUtils;
@@ -301,6 +302,9 @@ let overviewFilters = { campaign: "", archived: "", status: "" };
 let overviewSearch = "";
 let overviewSearchDebounceTimer = null;
 let overviewAutoSizeTimer = null;
+let overviewColumnWidths = {};
+let overviewColumnOverridden = {};
+let overviewColumnPersistTimer = null;
 let chatExtractSeq = 0;
 let detailInnerTab = "invite";
 let statusBackTarget = null;
@@ -1485,33 +1489,171 @@ function getOverviewColumnBounds(index) {
   return bounds[index] || { min: 70, max: 420 };
 }
 
+function getOverviewColumnKey(index) {
+  const keys = [
+    "open",
+    "archive_action",
+    "name",
+    "company",
+    "status",
+    "most_relevant_date",
+    "campaign",
+    "archived",
+  ];
+  return keys[index] || `col_${index}`;
+}
+
 function clampNumber(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
-function autoSizeOverviewColumns() {
-  if (!overviewTableEl) return;
-  const headerRow = overviewTableEl.tHead?.rows?.[0] || null;
-  if (!headerRow) return;
-
+function ensureOverviewColgroup(columnCount) {
+  if (!overviewTableEl) return null;
   let colgroupEl = overviewTableEl.querySelector("colgroup");
   if (!colgroupEl) {
     colgroupEl = document.createElement("colgroup");
     overviewTableEl.insertBefore(colgroupEl, overviewTableEl.firstChild);
   }
+  while (colgroupEl.children.length < columnCount) {
+    colgroupEl.appendChild(document.createElement("col"));
+  }
+  return colgroupEl;
+}
+
+function schedulePersistOverviewColumnPrefs() {
+  if (overviewColumnPersistTimer) {
+    clearTimeout(overviewColumnPersistTimer);
+  }
+  overviewColumnPersistTimer = setTimeout(async () => {
+    overviewColumnPersistTimer = null;
+    await chrome.storage.local.set({
+      [STORAGE_KEY_LIST_COLUMN_WIDTHS]: {
+        version: 1,
+        updated_at: new Date().toISOString(),
+        widths: overviewColumnWidths,
+        overridden: overviewColumnOverridden,
+      },
+    });
+  }, 180);
+}
+
+async function loadOverviewColumnPrefs() {
+  const data = await chrome.storage.local.get([STORAGE_KEY_LIST_COLUMN_WIDTHS]);
+  const saved = data?.[STORAGE_KEY_LIST_COLUMN_WIDTHS];
+  if (!saved || typeof saved !== "object") {
+    overviewColumnWidths = {};
+    overviewColumnOverridden = {};
+    return;
+  }
+  overviewColumnWidths =
+    saved.widths && typeof saved.widths === "object" ? saved.widths : {};
+  overviewColumnOverridden =
+    saved.overridden && typeof saved.overridden === "object"
+      ? saved.overridden
+      : {};
+}
+
+function ensureOverviewResizeHandles() {
+  if (!overviewTableEl) return;
+  const headerRow = overviewTableEl.tHead?.rows?.[0] || null;
+  if (!headerRow) return;
+  Array.from(headerRow.cells || []).forEach((thEl, index) => {
+    thEl.dataset.colKey = getOverviewColumnKey(index);
+    let handleEl = thEl.querySelector(".col-resize-handle");
+    if (!handleEl) {
+      handleEl = document.createElement("div");
+      handleEl.className = "col-resize-handle";
+      thEl.appendChild(handleEl);
+    }
+    handleEl.dataset.colIndex = String(index);
+    handleEl.dataset.colKey = getOverviewColumnKey(index);
+  });
+}
+
+function bindOverviewResizeEvents() {
+  if (!overviewTableEl) return;
+  if (overviewTableEl.dataset.resizeBound === "1") return;
+  overviewTableEl.dataset.resizeBound = "1";
+  overviewTableEl.addEventListener("pointerdown", (event) => {
+    const targetEl =
+      event.target instanceof Element
+        ? event.target.closest(".col-resize-handle")
+        : null;
+    if (!targetEl) return;
+    const colIndex = Number(targetEl.dataset.colIndex || -1);
+    if (!Number.isFinite(colIndex) || colIndex < 0) return;
+    const colKey = getOverviewColumnKey(colIndex);
+    const headerRow = overviewTableEl.tHead?.rows?.[0] || null;
+    if (!headerRow) return;
+    const columnCount = headerRow.cells.length;
+    const colgroupEl = ensureOverviewColgroup(columnCount);
+    if (!colgroupEl) return;
+    const colEl = colgroupEl.children[colIndex];
+    const headerCell = headerRow.cells[colIndex];
+    if (!colEl || !headerCell) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const { min, max } = getOverviewColumnBounds(colIndex);
+    const currentWidth = parseFloat(colEl.style.width);
+    const initialWidth =
+      Number.isFinite(currentWidth) && currentWidth > 0
+        ? currentWidth
+        : headerCell.getBoundingClientRect().width;
+    const startX = event.clientX;
+    document.body.classList.add("is-col-resizing");
+
+    const onPointerMove = (moveEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const nextWidth = clampNumber(initialWidth + deltaX, min, max);
+      colEl.style.width = `${nextWidth}px`;
+      overviewColumnWidths[colKey] = Math.round(nextWidth);
+    };
+
+    const onPointerUp = () => {
+      document.body.classList.remove("is-col-resizing");
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      overviewColumnOverridden[colKey] = true;
+      schedulePersistOverviewColumnPrefs();
+    };
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp, { once: true });
+  });
+}
+
+function autoSizeOverviewColumns() {
+  if (!overviewTableEl) return;
+  if (document.body.classList.contains("is-col-resizing")) return;
+  const headerRow = overviewTableEl.tHead?.rows?.[0] || null;
+  if (!headerRow) return;
+
+  ensureOverviewResizeHandles();
+  bindOverviewResizeEvents();
 
   const bodyRows = Array.from(overviewTbodyEl?.rows || []).filter(
     (row) => row && row.offsetParent !== null,
   );
   const paddingBuffer = 20;
   const columnCount = headerRow.cells.length;
-
-  while (colgroupEl.children.length < columnCount) {
-    colgroupEl.appendChild(document.createElement("col"));
-  }
+  const colgroupEl = ensureOverviewColgroup(columnCount);
+  if (!colgroupEl) return;
 
   for (let index = 0; index < columnCount; index += 1) {
+    const colKey = getOverviewColumnKey(index);
     const headerCell = headerRow.cells[index];
+    const colEl = colgroupEl.children[index];
+    if (!colEl) continue;
+    if (overviewColumnOverridden[colKey]) {
+      const { min, max } = getOverviewColumnBounds(index);
+      const savedWidth = Number(overviewColumnWidths[colKey]);
+      if (Number.isFinite(savedWidth) && savedWidth > 0) {
+        colEl.style.width = `${clampNumber(savedWidth, min, max)}px`;
+      }
+      continue;
+    }
     let widest = headerCell ? headerCell.scrollWidth : 0;
 
     for (const row of bodyRows) {
@@ -1522,10 +1664,8 @@ function autoSizeOverviewColumns() {
 
     const { min, max } = getOverviewColumnBounds(index);
     const width = clampNumber(widest + paddingBuffer, min, max);
-    const colEl = colgroupEl.children[index];
-    if (colEl) {
-      colEl.style.width = `${width}px`;
-    }
+    colEl.style.width = `${width}px`;
+    overviewColumnWidths[colKey] = Math.round(width);
   }
 }
 
@@ -1535,6 +1675,10 @@ function scheduleOverviewAutoSize() {
   }
   overviewAutoSizeTimer = setTimeout(() => {
     overviewAutoSizeTimer = null;
+    if (document.body.classList.contains("is-col-resizing")) {
+      scheduleOverviewAutoSize();
+      return;
+    }
     autoSizeOverviewColumns();
   }, 180);
 }
@@ -2457,6 +2601,13 @@ function runPopupInit() {
   updateMessageTabControls();
   if (OVERVIEW_ENABLED) {
     wireOverviewEvents();
+    loadOverviewColumnPrefs()
+      .then(() => {
+        scheduleOverviewAutoSize();
+      })
+      .catch(() => {
+        scheduleOverviewAutoSize();
+      });
     if (document.documentElement.dataset.overviewResizeBound !== "1") {
       document.documentElement.dataset.overviewResizeBound = "1";
       window.addEventListener("resize", () => {

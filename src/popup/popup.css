@@ -692,7 +692,7 @@ pre {
     width: 100%;
     border-collapse: collapse;
     font-size: 12px;
-    table-layout: auto;
+    table-layout: fixed;
 }
 .overview-grid th,
 .overview-grid td {
@@ -700,6 +700,27 @@ pre {
     padding: 6px 8px;
     vertical-align: top;
     text-align: left;
+}
+.overview-grid th {
+    position: relative;
+}
+.overview-grid .col-resize-handle {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 8px;
+    height: 100%;
+    cursor: col-resize;
+    background: transparent;
+}
+.overview-grid .col-resize-handle:hover::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    right: 3px;
+    width: 1px;
+    background: rgba(0, 0, 0, 0.22);
 }
 .overview-grid tbody tr {
     height: 40px;
@@ -776,30 +797,6 @@ pre {
     overflow: hidden;
     text-overflow: ellipsis;
 }
-body.is-sidepanel #tabOverview .overview-grid col.overview-col-open {
-    width: 84px;
-}
-body.is-sidepanel #tabOverview .overview-grid col.overview-col-archive {
-    width: 96px;
-}
-body.is-sidepanel #tabOverview .overview-grid col.overview-col-name {
-    width: 120px;
-}
-body.is-sidepanel #tabOverview .overview-grid col.overview-col-company {
-    width: 120px;
-}
-body.is-sidepanel #tabOverview .overview-grid col.overview-col-status {
-    width: 90px;
-}
-body.is-sidepanel #tabOverview .overview-grid col.overview-col-date {
-    width: 120px;
-}
-body.is-sidepanel #tabOverview .overview-grid col.overview-col-campaign {
-    width: 140px;
-}
-body.is-sidepanel #tabOverview .overview-grid col.overview-col-archived {
-    width: 80px;
-}
 body.is-sidepanel {
     margin: 0;
     padding: 0;
@@ -855,8 +852,6 @@ body.is-sidepanel #tabOverview .overview-grid-wrap {
     min-height: 0;
     overflow: auto;
 }
-body.is-sidepanel #tabOverview .overview-grid th:nth-child(7),
-body.is-sidepanel #tabOverview .overview-grid td:nth-child(7) {
-    width: 140px;
-    max-width: 140px;
+body.is-col-resizing {
+    user-select: none;
 }
