@@ -420,6 +420,10 @@ function rebuildOverviewCampaignFilterOptions(campaignValues) {
   allOptionEl.value = "";
   allOptionEl.textContent = "All campaigns";
   filterCampaignEl.appendChild(allOptionEl);
+  const noCampaignOptionEl = document.createElement("option");
+  noCampaignOptionEl.value = "__no_campaign__";
+  noCampaignOptionEl.textContent = "No campaign";
+  filterCampaignEl.appendChild(noCampaignOptionEl);
 
   const uniqueValues = Array.from(
     new Set(
@@ -1159,18 +1163,79 @@ function formatLocalDateTime(isoString) {
 }
 
 function buildOverviewQueryState() {
+  const campaignFilterValue =
+    overviewFilters.campaign === "__no_campaign__"
+      ? ""
+      : overviewFilters.campaign || "";
   return {
     page: overviewPage,
     pageSize: overviewPageSize,
     sortField: overviewSortField,
     sortDir: overviewSortDir,
     filters: {
-      campaign: overviewFilters.campaign || "",
+      campaign: campaignFilterValue,
       archived: overviewFilters.archived || "",
       status: overviewFilters.status || "",
     },
     search: overviewSearch || "",
   };
+}
+
+function isOverviewRowNoCampaign(row) {
+  const campaignValue = row?.campaign;
+  return campaignValue == null || String(campaignValue).trim() === "";
+}
+
+function applyOverviewClientFilters(rows) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  if (overviewFilters.campaign !== "__no_campaign__") return safeRows;
+  return safeRows.filter((row) => isOverviewRowNoCampaign(row));
+}
+
+function isOverviewRowArchived(row) {
+  if (row?.archived === true || row?.archived === 1) return true;
+  const normalized = String(row?.archived ?? "")
+    .trim()
+    .toLowerCase();
+  return normalized === "1" || normalized === "true";
+}
+
+function createOverviewIconButton({
+  title,
+  ariaLabel,
+  className = "",
+  viewBox = "0 0 16 16",
+  pathD = "",
+  stroke = false,
+}) {
+  const buttonEl = document.createElement("button");
+  buttonEl.type = "button";
+  buttonEl.className = `icon-btn ${className}`.trim();
+  buttonEl.title = title;
+  buttonEl.setAttribute("aria-label", ariaLabel);
+  buttonEl.style.marginTop = "0";
+  buttonEl.style.minHeight = "24px";
+  buttonEl.style.width = "24px";
+
+  const svgEl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svgEl.setAttribute("viewBox", viewBox);
+  svgEl.setAttribute("width", "14");
+  svgEl.setAttribute("height", "14");
+  svgEl.setAttribute("aria-hidden", "true");
+  const pathEl = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  pathEl.setAttribute("d", pathD);
+  if (stroke) {
+    pathEl.setAttribute("fill", "none");
+    pathEl.setAttribute("stroke", "currentColor");
+    pathEl.setAttribute("stroke-width", "1.8");
+    pathEl.setAttribute("stroke-linecap", "round");
+    pathEl.setAttribute("stroke-linejoin", "round");
+  } else {
+    pathEl.setAttribute("fill", "currentColor");
+  }
+  svgEl.appendChild(pathEl);
+  buttonEl.appendChild(svgEl);
+  return buttonEl;
 }
 
 function renderOverviewSortIndicators() {
@@ -1210,7 +1275,7 @@ function renderOverviewPagination() {
 }
 
 function renderOverviewTable(rows) {
-  const safeRows = Array.isArray(rows) ? rows : [];
+  const safeRows = applyOverviewClientFilters(rows);
   overviewTbodyEl.innerHTML = "";
   if (!safeRows.length) {
     const tr = document.createElement("tr");
@@ -1226,10 +1291,12 @@ function renderOverviewTable(rows) {
     const tr = document.createElement("tr");
 
     const openTd = document.createElement("td");
-    const openBtn = document.createElement("button");
-    openBtn.type = "button";
-    openBtn.className = "cell-btn";
-    openBtn.textContent = "Open";
+    const openBtn = createOverviewIconButton({
+      title: "Open",
+      ariaLabel: "Open",
+      pathD:
+        "M10 2h4v4h-1.8V4.9L7.5 9.6 6.4 8.5 11.1 3.8H10V2ZM3 4h4v1.5H4.5v6h6V9H12v4H3V4Z",
+    });
     openBtn.addEventListener("click", () => {
       openLinkedIn(row?.url || "");
     });
@@ -1237,13 +1304,24 @@ function renderOverviewTable(rows) {
     tr.appendChild(openTd);
 
     const archiveTd = document.createElement("td");
-    const archiveBtn = document.createElement("button");
-    archiveBtn.type = "button";
-    archiveBtn.className = "cell-btn";
-    archiveBtn.textContent = "Archive";
-    archiveBtn.disabled = String(row?.archived || "") === "1";
+    const isArchived = isOverviewRowArchived(row);
+    const archiveBtn = isArchived
+      ? createOverviewIconButton({
+          title: "Restore",
+          ariaLabel: "Restore",
+          className: "icon-green",
+          pathD:
+            "M8 1.8a6.2 6.2 0 1 0 4.4 10.6l-1.1-1.1A4.7 4.7 0 1 1 12.7 8H10l2.7 2.6L15.3 8h-2A6.2 6.2 0 0 0 8 1.8Z",
+        })
+      : createOverviewIconButton({
+          title: "Archive",
+          ariaLabel: "Archive",
+          className: "icon-red",
+          pathD:
+            "M2 3.5 3.2 2h9.6L14 3.5V5H2V3.5Zm1 2.5h10v7.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6Zm2 2v1.5h6V8H5Z",
+        });
     archiveBtn.addEventListener("click", async () => {
-      await archiveRow(row?.url || "");
+      await setArchivedRow(row?.url || "", !isArchived);
     });
     archiveTd.appendChild(archiveBtn);
     tr.appendChild(archiveTd);
@@ -1304,8 +1382,9 @@ async function fetchOverviewPage() {
       return;
     }
     overviewTotal = Number.isFinite(resp?.total) ? resp.total : null;
-    renderOverviewTable(resp?.rows || []);
-    await persistOverviewListContext(resp?.rows || []);
+    const visibleRows = applyOverviewClientFilters(resp?.rows || []);
+    renderOverviewTable(visibleRows);
+    await persistOverviewListContext(visibleRows);
     renderOverviewSortIndicators();
     renderOverviewPagination();
   } catch (e) {
@@ -1353,6 +1432,10 @@ async function openLinkedIn(url) {
 }
 
 async function archiveRow(url) {
+  await setArchivedRow(url, true);
+}
+
+async function setArchivedRow(url, archived) {
   setFooterDbStatus();
   const target = String(url || "").trim();
   if (!target) {
@@ -1360,8 +1443,8 @@ async function archiveRow(url) {
     return;
   }
   try {
-    const result = await sendRuntimeMessage("DB_ARCHIVE_INVITATION", {
-      payload: { url: target },
+    const result = await sendRuntimeMessage("DB_SET_ARCHIVED", {
+      payload: { linkedin_url: target, archived: Boolean(archived) },
     });
     if (!result.ok) {
       setFooterStatus(

@@ -711,6 +711,22 @@ pre {
     padding: 2px 8px;
     font-size: 12px;
 }
+.overview-grid .icon-btn {
+    background: transparent;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    border-radius: 8px;
+}
+.overview-grid .icon-btn:hover {
+    background: rgba(0, 0, 0, 0.06);
+}
+.overview-grid .icon-red {
+    color: #b00020;
+}
+.overview-grid .icon-green {
+    color: #1b7f3b;
+}
 .sort-btn {
     width: auto;
     margin-top: 0;

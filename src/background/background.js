@@ -1253,6 +1253,36 @@ async function supabaseArchiveInvitation({ url }) {
   }
 }
 
+async function supabaseSetArchived({ linkedin_url, archived }) {
+  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+  const targetUrl = normalizeProfileField(linkedin_url);
+  if (!targetUrl) {
+    throw new Error("Missing linkedin_url.");
+  }
+  const endpoint = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
+
+  const res = await fetchWithTimeout(
+    endpoint,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({ archived: archived ? 1 : 0 }),
+    },
+    15000,
+    "Supabase request",
+  );
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+}
+
 const SIDEPANEL_REFRESH_DEBOUNCE_MS = 500;
 const sidePanelRefreshTimers = new Map();
 const lastSidePanelUrlByTab = new Map();
@@ -1763,6 +1793,22 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       emitUiStatus("Updating\u2026");
       try {
         await supabaseArchiveInvitation(msg?.payload || {});
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "DB_SET_ARCHIVED") {
+    (async () => {
+      emitUiStatus("Updating\u2026");
+      try {
+        await supabaseSetArchived(msg?.payload || {});
         sendResponse({ ok: true });
       } catch (e) {
         sendResponse({
