@@ -820,9 +820,18 @@ function isInProgressFooterStatus(text) {
   );
 }
 
+// DEBUG-only encoding diagnostics for status text; used to verify ellipsis/code points.
+function debugStatusEncoding(text) {
+  const value = (text || "").toString();
+  const tail = Array.from(value).slice(-5);
+  const tailHex = tail.map((ch) => ch.codePointAt(0).toString(16));
+  debug("[encoding][status]", { value, tail, tailHex });
+}
+
 function setFooterStatus(text) {
   if (!footerStatusEl) return;
   const nextText = (text || "Ready").toString().trim() || "Ready";
+  debugStatusEncoding(nextText);
   if (readyResetTimer) {
     clearTimeout(readyResetTimer);
     readyResetTimer = null;

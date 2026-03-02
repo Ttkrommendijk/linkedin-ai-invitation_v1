@@ -1146,6 +1146,16 @@ function toOverviewSortField(value) {
   return allowed.has(field) ? field : "most_relevant_date";
 }
 
+function toOverviewStatusFilterValue(value) {
+  const normalized = normalizeProfileField(value).toLowerCase();
+  if (!normalized) return "";
+  if (normalized === "registered") return "registered";
+  if (normalized === "invited") return "invited";
+  if (normalized === "accepted") return "accepted";
+  if (normalized === "first message sent") return "first message sent";
+  return "";
+}
+
 async function supabaseListInvitationsOverview({
   page,
   pageSize,
@@ -1176,8 +1186,11 @@ async function supabaseListInvitationsOverview({
   if (filters?.archived === "0" || filters?.archived === "1") {
     params.set("archived", `eq.${filters.archived}`);
   }
-  if (filters?.status) {
-    params.set("status", `eq.${String(filters.status).trim()}`);
+  const statusFilter = toOverviewStatusFilterValue(filters?.status);
+  if (statusFilter === "registered") {
+    params.set("status", "in.(registered,generated)");
+  } else if (statusFilter) {
+    params.set("status", `eq.${statusFilter}`);
   }
   if (search && String(search).trim()) {
     const q = String(search).trim().replace(/\*/g, "");
@@ -1487,7 +1500,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === "GENERATE_INVITE") {
     (async () => {
-      emitUiStatus("Sending to LLM…");
+      emitUiStatus("Sending to LLM\u2026");
       try {
         // prompt: buildInviteTextPrompt (Generate invite)
         const generation = await callOpenAIInviteGeneration(msg.payload);
@@ -1509,7 +1522,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === "ENRICH_PROFILE") {
     (async () => {
-      emitUiStatus("Sending to LLM…");
+      emitUiStatus("Sending to LLM\u2026");
       try {
         // prompt: buildProfileExtractionPrompt (Enrich)
         const extraction = await callOpenAIProfileExtraction(msg.payload || {});
@@ -1531,7 +1544,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === "GENERATE_FIRST_MESSAGE") {
     (async () => {
-      emitUiStatus("Sending to LLM…");
+      emitUiStatus("Sending to LLM\u2026");
       try {
         // prompt: buildFirstMessageTextPrompt
         const first_message = await callOpenAIFirstMessage(msg.payload);
@@ -1548,7 +1561,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === "GENERATE_FREE_PROMPT") {
     (async () => {
-      emitUiStatus("Sending to LLMâ€¦");
+      emitUiStatus("Sending to LLM\u2026");
       try {
         const text = await callOpenAIFreePrompt(msg.payload || {});
         sendResponse({ ok: true, text });
@@ -1566,7 +1579,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (req.type === "GENERATE_FOLLOWUP_MESSAGE") {
     (async () => {
-      emitUiStatus("Sending to LLM…");
+      emitUiStatus("Sending to LLM\u2026");
       try {
         // prompt: buildFollowupPrompt
         const text = await callOpenAIFollowupMessage(req.payload);
@@ -1583,7 +1596,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === "DB_UPSERT_GENERATED") {
     (async () => {
-      emitUiStatus("Communicating to database…");
+      emitUiStatus("Communicating to database\u2026");
       try {
         await supabaseUpsertInvitation(msg.payload);
         sendResponse({ ok: true });
@@ -1599,7 +1612,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === "DB_UPDATE_FIRST_MESSAGE") {
     (async () => {
-      emitUiStatus("Updating…");
+      emitUiStatus("Updating\u2026");
       try {
         await supabaseUpdateFirstMessage(msg.payload);
         sendResponse({ ok: true });
@@ -1615,7 +1628,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === "DB_MARK_STATUS") {
     (async () => {
-      emitUiStatus("Communicating to database…");
+      emitUiStatus("Communicating to database\u2026");
       try {
         await supabaseMarkStatus(msg.payload);
         sendResponse({ ok: true });
@@ -1631,7 +1644,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === "DB_SET_STATUS_ONLY") {
     (async () => {
-      emitUiStatus("Communicating to database…");
+      emitUiStatus("Communicating to database\u2026");
       try {
         await supabaseSetStatusOnly(msg.payload);
         sendResponse({ ok: true });
@@ -1647,7 +1660,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === "DB_UPDATE_PROFILE_DETAILS_ONLY") {
     (async () => {
-      emitUiStatus("Updating…");
+      emitUiStatus("Updating\u2026");
       try {
         await supabaseUpdateProfileDetailsOnly(msg.payload || {});
         sendResponse({ ok: true });
@@ -1663,7 +1676,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === "DB_GET_INVITATION") {
     (async () => {
-      emitUiStatus("Fetching…");
+      emitUiStatus("Fetching\u2026");
       try {
         const row = await supabaseGetInvitationByLinkedinUrl(
           msg?.payload?.linkedin_url,
@@ -1681,7 +1694,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === "DB_LIST_CAMPAIGNS") {
     (async () => {
-      emitUiStatus("Fetchingâ€¦");
+      emitUiStatus("Fetching\u2026");
       try {
         const campaigns = await supabaseListCampaigns();
         sendResponse({ ok: true, campaigns });
@@ -1697,7 +1710,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === "DB_UPDATE_CAMPAIGN") {
     (async () => {
-      emitUiStatus("Updatingâ€¦");
+      emitUiStatus("Updating\u2026");
       try {
         await supabaseUpdateCampaign(msg?.payload || {});
         sendResponse({ ok: true });
@@ -1713,7 +1726,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === "DB_UPSERT_CAMPAIGN_MINIMAL") {
     (async () => {
-      emitUiStatus("Communicating to databaseâ€¦");
+      emitUiStatus("Communicating to database\u2026");
       try {
         await supabaseUpsertCampaignMinimal(msg?.payload || {});
         sendResponse({ ok: true });
@@ -1729,7 +1742,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === "DB_LIST_INVITATIONS_OVERVIEW") {
     (async () => {
-      emitUiStatus("Fetching…");
+      emitUiStatus("Fetching\u2026");
       try {
         const result = await supabaseListInvitationsOverview(
           msg?.payload || {},
@@ -1747,7 +1760,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === "DB_ARCHIVE_INVITATION") {
     (async () => {
-      emitUiStatus("Updating…");
+      emitUiStatus("Updating\u2026");
       try {
         await supabaseArchiveInvitation(msg?.payload || {});
         sendResponse({ ok: true });
