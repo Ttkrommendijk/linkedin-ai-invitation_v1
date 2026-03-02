@@ -1,4 +1,6 @@
 const refreshNowBtnEl = document.getElementById("refreshNow");
+const navPrevBtnEl = document.getElementById("navPrev");
+const navNextBtnEl = document.getElementById("navNext");
 const refreshStatusEl = document.getElementById("refreshStatus");
 const panelFrameEl = document.getElementById("panelFrame");
 const LEF_UTILS_SOURCE = globalThis.LEFUtils;
@@ -72,6 +74,8 @@ const sendRuntimeMessage =
 const REFRESH_DEBOUNCE_MS = 500;
 let refreshTimer = null;
 let lastNotifiedUrl = "";
+let prevListUrl = "";
+let nextListUrl = "";
 
 function isLinkedInProfileLikeUrl(url) {
   if (typeof LEF_UTILS.isLinkedInProfileLikeUrl === "function") {
@@ -79,6 +83,14 @@ function isLinkedInProfileLikeUrl(url) {
   }
   if (!url || typeof url !== "string") return false;
   return /^https:\/\/www\.linkedin\.com\/(in|company)\/[^/?#]+/i.test(url);
+}
+
+function normalizeLinkedinUrl(url) {
+  const raw = String(url || "").trim();
+  if (!raw) return "";
+  const noHash = raw.split("#")[0];
+  const noQuery = noHash.split("?")[0];
+  return noQuery.replace(/\/+$/, "");
 }
 
 function setRefreshStatus(text) {
@@ -122,6 +134,56 @@ async function getActiveTabProfileState() {
     tabUrl,
     isProfileOpen: isLinkedInProfileLikeUrl(tabUrl),
   };
+}
+
+async function computeSideNavTargets() {
+  const [{ lef_list_context, lef_list_last_opened_url }, activeState] =
+    await Promise.all([
+      chrome.storage.local.get([
+        "lef_list_context",
+        "lef_list_last_opened_url",
+      ]),
+      getActiveTabProfileState(),
+    ]);
+
+  const items = Array.isArray(lef_list_context?.items)
+    ? lef_list_context.items
+        .map((url) => normalizeLinkedinUrl(url))
+        .filter(Boolean)
+    : [];
+
+  const normalizedCurrentUrl = normalizeLinkedinUrl(activeState?.tabUrl || "");
+  const normalizedLastOpened = normalizeLinkedinUrl(
+    lef_list_last_opened_url || "",
+  );
+  let index = normalizedCurrentUrl ? items.indexOf(normalizedCurrentUrl) : -1;
+  if (index < 0 && normalizedLastOpened) {
+    index = items.indexOf(normalizedLastOpened);
+  }
+
+  prevListUrl = index > 0 ? items[index - 1] : "";
+  nextListUrl = index >= 0 && index < items.length - 1 ? items[index + 1] : "";
+  if (navPrevBtnEl) navPrevBtnEl.disabled = !prevListUrl;
+  if (navNextBtnEl) navNextBtnEl.disabled = !nextListUrl;
+}
+
+function resetSideNavTargets() {
+  prevListUrl = "";
+  nextListUrl = "";
+  if (navPrevBtnEl) navPrevBtnEl.disabled = true;
+  if (navNextBtnEl) navNextBtnEl.disabled = true;
+}
+
+async function navigateToListNeighbor(direction) {
+  const targetUrl = direction === "prev" ? prevListUrl : nextListUrl;
+  if (!targetUrl) return;
+
+  const activeTab = await getActiveTab();
+  if (!Number.isInteger(activeTab?.id)) return;
+
+  await chrome.storage.local.set({ lef_list_last_opened_url: targetUrl });
+  await chrome.tabs.update(activeTab.id, { url: targetUrl, active: true });
+  scheduleRefresh(`nav-${direction}`);
 }
 
 function sendExtractMessage(tabId) {
@@ -260,12 +322,14 @@ async function refreshFromIframe(reason = "manual") {
     const { tabId, isProfileOpen } = await getActiveTabProfileState();
 
     if (!tabId) {
+      resetSideNavTargets();
       setNoProfileStateVisible(true);
       setRefreshStatus("No active tab.");
       return;
     }
 
     if (!isProfileOpen) {
+      resetSideNavTargets();
       setNoProfileStateVisible(true);
       setRefreshStatus("Open a LinkedIn profile/company page.");
       return;
@@ -280,6 +344,7 @@ async function refreshFromIframe(reason = "manual") {
       !frameDocument ||
       typeof frameWindow.loadProfileContextOnOpen !== "function"
     ) {
+      resetSideNavTargets();
       setRefreshStatus("Popup UI not ready yet.");
       return;
     }
@@ -288,17 +353,20 @@ async function refreshFromIframe(reason = "manual") {
 
     const extractResp = await extractProfileWithInjectionFallback(tabId);
     if (!extractResp.ok) {
+      resetSideNavTargets();
       setRefreshStatus(extractResp.error || "Refresh failed.");
       return;
     }
 
     await frameWindow.loadProfileContextOnOpen();
     await clearPreviewIfNotInDb(frameDocument, extractResp.profile);
+    await computeSideNavTargets();
     setRefreshStatus(`Refreshed (${reason}).`);
   } catch (e) {
     setRefreshStatus(
       e instanceof Error ? e.message : String(e || "Refresh failed."),
     );
+    await computeSideNavTargets();
   }
 }
 
@@ -326,6 +394,13 @@ function logSidePanelInitError(error) {
 function runSidePanelInit() {
   if (!panelFrameEl) return;
 
+  navPrevBtnEl?.addEventListener("click", () => {
+    navigateToListNeighbor("prev").catch(() => null);
+  });
+  navNextBtnEl?.addEventListener("click", () => {
+    navigateToListNeighbor("next").catch(() => null);
+  });
+
   refreshNowBtnEl?.addEventListener("click", () => {
     scheduleRefresh("manual");
   });
@@ -344,7 +419,15 @@ function runSidePanelInit() {
     scheduleRefresh(msg?.payload?.reason || "background");
   });
 
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== "local") return;
+    if (!changes?.lef_list_context && !changes?.lef_list_last_opened_url)
+      return;
+    computeSideNavTargets().catch(() => null);
+  });
+
   sendRuntimeMessage("SP_REQUEST_REFRESH_SIGNAL").catch(() => null);
+  computeSideNavTargets().catch(() => null);
 
   scheduleRefresh("initial");
 }

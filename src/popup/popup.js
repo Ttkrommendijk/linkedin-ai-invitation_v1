@@ -1266,6 +1266,7 @@ async function fetchOverviewPage() {
     }
     overviewTotal = Number.isFinite(resp?.total) ? resp.total : null;
     renderOverviewTable(resp?.rows || []);
+    await persistOverviewListContext(resp?.rows || []);
     renderOverviewSortIndicators();
     renderOverviewPagination();
   } catch (e) {
@@ -1282,6 +1283,22 @@ async function fetchOverviewPage() {
   }
 }
 
+async function persistOverviewListContext(rows) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const items = safeRows
+    .map((row) => String(row?.url || "").trim())
+    .filter((url) =>
+      /^https:\/\/www\.linkedin\.com\/(in|company)\/[^/?#]+/i.test(url),
+    );
+  await chrome.storage.local.set({
+    lef_list_context: {
+      version: 1,
+      updated_at: new Date().toISOString(),
+      items,
+    },
+  });
+}
+
 async function openLinkedIn(url) {
   const targetUrl = String(url || "").trim();
   if (!targetUrl) return;
@@ -1290,6 +1307,7 @@ async function openLinkedIn(url) {
       ? LEF_UTILS.isLinkedInProfileLikeUrl(targetUrl)
       : /^https:\/\/www\.linkedin\.com\/(in|company)\/[^/?#]+/i.test(targetUrl);
   if (!isLinkedInTarget) return;
+  await chrome.storage.local.set({ lef_list_last_opened_url: targetUrl });
   await sendRuntimeMessage("OPEN_LINKEDIN_URL", {
     payload: { url: targetUrl },
   });
