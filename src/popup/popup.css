@@ -650,6 +650,29 @@ pre {
     grid-template-columns: 1fr 1fr;
     gap: 8px;
 }
+.overview-filters.list-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 8px;
+    row-gap: 8px;
+}
+.overview-filters.list-filters .filter-field {
+    margin: 0;
+    display: grid;
+    row-gap: 4px;
+}
+.overview-filters.list-filters .filter-field label {
+    line-height: 1;
+}
+.overview-filters.list-filters .filter-field input,
+.overview-filters.list-filters .filter-field select {
+    margin: 0;
+    min-height: 30px;
+}
+@media (max-width: 520px) {
+    .overview-filters.list-filters {
+        grid-template-columns: 1fr;
+    }
+}
 .overview-grid-wrap {
     overflow: auto;
 }

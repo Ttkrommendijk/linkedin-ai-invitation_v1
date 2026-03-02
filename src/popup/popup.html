@@ -496,29 +496,48 @@
                 </div>
 
                 <div id="tabOverview" class="tab-panel">
-                    <div class="overview-filters row">
-                        <input
-                            id="overviewCampaignFilter"
-                            placeholder="Campaign"
-                        />
-                        <select id="overviewArchivedFilter">
-                            <option value="">Archived: All</option>
-                            <option value="0">Archived: 0</option>
-                            <option value="1">Archived: 1</option>
-                        </select>
-                        <select id="overviewStatusFilter">
-                            <option value="">Status: All</option>
-                            <option value="registered">registered</option>
-                            <option value="invited">invited</option>
-                            <option value="accepted">accepted</option>
-                            <option value="first message sent">
-                                first message sent
-                            </option>
-                        </select>
-                        <input
-                            id="overviewSearch"
-                            placeholder="Search name/company"
-                        />
+                    <div class="overview-filters list-filters row">
+                        <div class="filter-field">
+                            <label for="filterCampaign"
+                                ><small>Campaign</small></label
+                            >
+                            <select id="filterCampaign">
+                                <option value="">All campaigns</option>
+                            </select>
+                        </div>
+                        <div class="filter-field">
+                            <label for="overviewArchivedFilter"
+                                ><small>Archived</small></label
+                            >
+                            <select id="overviewArchivedFilter">
+                                <option value="">All</option>
+                                <option value="0">0</option>
+                                <option value="1">1</option>
+                            </select>
+                        </div>
+                        <div class="filter-field">
+                            <label for="overviewStatusFilter"
+                                ><small>Status</small></label
+                            >
+                            <select id="overviewStatusFilter">
+                                <option value="">All</option>
+                                <option value="registered">registered</option>
+                                <option value="invited">invited</option>
+                                <option value="accepted">accepted</option>
+                                <option value="first message sent">
+                                    first message sent
+                                </option>
+                            </select>
+                        </div>
+                        <div class="filter-field">
+                            <label for="overviewSearch"
+                                ><small>Search</small></label
+                            >
+                            <input
+                                id="overviewSearch"
+                                placeholder="Search name/company"
+                            />
+                        </div>
                     </div>
 
                     <div class="overview-grid-wrap row">

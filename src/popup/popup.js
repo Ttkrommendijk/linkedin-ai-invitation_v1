@@ -265,9 +265,7 @@ const tabMessage = document.getElementById("tabMessage");
 const tabOverview = document.getElementById("tabOverview");
 const tabConfig = document.getElementById("tabConfig");
 
-const overviewCampaignFilterEl = document.getElementById(
-  "overviewCampaignFilter",
-);
+const filterCampaignEl = document.getElementById("filterCampaign");
 const overviewArchivedFilterEl = document.getElementById(
   "overviewArchivedFilter",
 );
@@ -412,11 +410,47 @@ function rebuildCampaignSelectOptions(campaignValues) {
   }
 }
 
+function rebuildOverviewCampaignFilterOptions(campaignValues) {
+  if (!filterCampaignEl) return;
+  const selectedBefore = normalizeCampaignValue(filterCampaignEl.value);
+  while (filterCampaignEl.firstChild) {
+    filterCampaignEl.removeChild(filterCampaignEl.firstChild);
+  }
+  const allOptionEl = document.createElement("option");
+  allOptionEl.value = "";
+  allOptionEl.textContent = "All campaigns";
+  filterCampaignEl.appendChild(allOptionEl);
+
+  const uniqueValues = Array.from(
+    new Set(
+      (campaignValues || [])
+        .map((value) => normalizeCampaignValue(value))
+        .filter(Boolean),
+    ),
+  );
+  uniqueValues.forEach((campaignValue) => {
+    const optionEl = document.createElement("option");
+    optionEl.value = campaignValue;
+    optionEl.textContent = campaignValue;
+    filterCampaignEl.appendChild(optionEl);
+  });
+
+  if (
+    selectedBefore &&
+    uniqueValues.some((campaignValue) => campaignValue === selectedBefore)
+  ) {
+    filterCampaignEl.value = selectedBefore;
+  } else {
+    filterCampaignEl.value = "";
+    overviewFilters.campaign = "";
+  }
+}
+
 async function loadCampaignOptions({ keepSelected = true } = {}) {
-  if (!campaignSelectEl) return;
-  const selectedBefore = keepSelected
-    ? normalizeCampaignValue(campaignSelectEl.value)
-    : "";
+  const selectedBefore =
+    campaignSelectEl && keepSelected
+      ? normalizeCampaignValue(campaignSelectEl.value)
+      : "";
   const result = await sendRuntimeMessage("DB_LIST_CAMPAIGNS");
   const resp = result.data || {};
   const campaigns =
@@ -424,8 +458,13 @@ async function loadCampaignOptions({ keepSelected = true } = {}) {
   knownCampaignValues = campaigns
     .map((campaignValue) => normalizeCampaignValue(campaignValue))
     .filter(Boolean);
-  rebuildCampaignSelectOptions(knownCampaignValues);
-  setCampaignSelectValue(selectedBefore);
+  if (campaignSelectEl) {
+    rebuildCampaignSelectOptions(knownCampaignValues);
+  }
+  rebuildOverviewCampaignFilterOptions(knownCampaignValues);
+  if (campaignSelectEl) {
+    setCampaignSelectValue(selectedBefore);
+  }
 }
 
 async function applyCampaignSelectionFromProfile() {
@@ -1353,8 +1392,8 @@ function wireOverviewEvents() {
     });
   });
 
-  overviewCampaignFilterEl?.addEventListener("input", () => {
-    overviewFilters.campaign = overviewCampaignFilterEl.value.trim();
+  filterCampaignEl?.addEventListener("change", () => {
+    overviewFilters.campaign = normalizeCampaignValue(filterCampaignEl.value);
     overviewPage = 1;
     fetchOverviewPage();
   });
