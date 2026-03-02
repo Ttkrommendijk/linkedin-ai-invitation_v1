@@ -1561,15 +1561,50 @@ function getFullNameFromContext(profileContext) {
 }
 
 async function extractProfileContextFromActiveTab() {
-  const result = await sendRuntimeMessage("SCRAPE_PROFILE_CONTEXT");
-  const resp = result.data || {};
-  if (!resp?.ok || !resp?.data?.profile) {
+  const activeTab = await getActiveTabForProfileCheck().catch(() => null);
+  if (!Number.isInteger(activeTab?.id)) {
+    throw new Error("No active tab found.");
+  }
+
+  let resp = null;
+  try {
+    resp = await chrome.tabs.sendMessage(activeTab.id, {
+      type: "EXTRACT_PROFILE_CONTEXT",
+    });
+  } catch (e) {
     throw new Error(
-      getErrorMessage(result.error || resp?.error) ||
-        "profile extraction failed",
+      getErrorMessage(e) || UI_TEXT.couldNotExtractProfileContext,
     );
   }
-  return getProfileForGeneration(resp.data.profile);
+
+  if (!resp || !resp?.ok || !resp?.profile) {
+    throw new Error(
+      getErrorMessage(resp?.error) || UI_TEXT.couldNotExtractProfileContext,
+    );
+  }
+  return getProfileForGeneration(resp.profile);
+}
+
+function applyProfileExtractionFailureState(statusText) {
+  currentProfileContext = null;
+  lastProfileContextSent = {};
+  lastProfileContextEnriched = null;
+  dbInvitationRow = null;
+  setCampaignSelectValue("");
+  if (previewEl) previewEl.textContent = "";
+  if (firstMessagePreviewEl) firstMessagePreviewEl.textContent = "";
+  if (followupPreviewEl) followupPreviewEl.value = "";
+  if (freePromptPreviewEl) freePromptPreviewEl.textContent = "";
+  updateInviteCopyIconVisibility();
+  updateMessageTabControls();
+  updateFollowupCopyIconVisibility();
+  updateFreePromptCopyButtonState();
+  setCommunicationStatus(statusText || UI_TEXT.couldNotExtractProfileContext);
+  applyLifecycleUiState(dbInvitationRow);
+  outreachMessageStatus = "accepted";
+  renderMessageTab(outreachMessageStatus);
+  renderDetailHeader();
+  updatePhaseButtons();
 }
 
 async function refreshAll() {
@@ -1593,6 +1628,9 @@ async function refreshAll() {
     dbInvitationRow = null;
     setCampaignSelectValue("");
     updateMessageTabControls();
+    applyLifecycleUiState(dbInvitationRow);
+    outreachMessageStatus = "accepted";
+    renderMessageTab(outreachMessageStatus);
     setCommunicationStatus(UI_TEXT.lifecycleOpenLinkedInProfileFirst);
     renderDetailHeader();
     updatePhaseButtons();
@@ -1623,23 +1661,21 @@ async function refreshAll() {
     return true;
   } catch (_e) {
     setNoProfileStateVisible(false);
-    currentProfileContext = null;
-    lastProfileContextSent = {};
-    lastProfileContextEnriched = null;
-    dbInvitationRow = null;
-    setCampaignSelectValue("");
-    updateMessageTabControls();
-    setCommunicationStatus(
+    applyProfileExtractionFailureState(
       getErrorMessage(_e) || UI_TEXT.couldNotExtractProfileContext,
     );
-    renderDetailHeader();
-    updatePhaseButtons();
     return false;
   }
 }
 
 async function loadProfileContextOnOpen() {
-  return refreshAll();
+  try {
+    return await refreshAll();
+  } catch (_e) {
+    setNoProfileStateVisible(false);
+    applyProfileExtractionFailureState(UI_TEXT.couldNotExtractProfileContext);
+    return false;
+  }
 }
 
 async function loadFirstMessagePrompt() {
