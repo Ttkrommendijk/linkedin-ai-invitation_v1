@@ -260,10 +260,33 @@ const tabMainBtn = document.getElementById("tabMainBtn");
 const tabMessageBtn = document.getElementById("tabMessageBtn");
 const tabOverviewBtn = document.getElementById("tabOverviewBtn");
 const tabConfigBtn = document.getElementById("tabConfigBtn");
+const tabSupabaseAuthBtn = document.getElementById("tabSupabaseAuthBtn");
 const tabMain = document.getElementById("tabMain");
 const tabMessage = document.getElementById("tabMessage");
 const tabOverview = document.getElementById("tabOverview");
 const tabConfig = document.getElementById("tabConfig");
+const tabSupabaseAuth = document.getElementById("tabSupabaseAuth");
+
+const authInnerSignupBtnEl = document.getElementById("authInnerSignupBtn");
+const authInnerLoginBtnEl = document.getElementById("authInnerLoginBtn");
+const authSignupPanelEl = document.getElementById("authSignupPanel");
+const authLoginPanelEl = document.getElementById("authLoginPanel");
+const supabaseSignupNameEl = document.getElementById("supabaseSignupName");
+const supabaseSignupEmailEl = document.getElementById("supabaseSignupEmail");
+const supabaseSignupPasswordEl = document.getElementById(
+  "supabaseSignupPassword",
+);
+const supabaseSignupBtnEl = document.getElementById("supabaseSignupBtn");
+const supabaseLoginEmailEl = document.getElementById("supabaseLoginEmail");
+const supabaseLoginPasswordEl = document.getElementById(
+  "supabaseLoginPassword",
+);
+const supabaseLoginBtnEl = document.getElementById("supabaseLoginBtn");
+const supabaseResetPasswordBtnEl = document.getElementById(
+  "supabaseResetPasswordBtn",
+);
+const supabaseAuthUserEl = document.getElementById("supabaseAuthUser");
+const supabaseLogoutBtnEl = document.getElementById("supabaseLogoutBtn");
 
 const filterCampaignEl = document.getElementById("filterCampaign");
 const overviewArchivedFilterEl = document.getElementById(
@@ -2631,6 +2654,128 @@ async function onMessagesTabOpenedByUser() {
   await refreshMessagesTab({ reason: "tab_click" });
 }
 
+function setAuthInnerTab(which) {
+  const signupActive = which !== "login";
+  if (authInnerSignupBtnEl)
+    authInnerSignupBtnEl.classList.toggle("active", signupActive);
+  if (authInnerLoginBtnEl)
+    authInnerLoginBtnEl.classList.toggle("active", !signupActive);
+  if (authSignupPanelEl) authSignupPanelEl.hidden = !signupActive;
+  if (authLoginPanelEl) authLoginPanelEl.hidden = signupActive;
+}
+
+function normalizeSupabaseAuthError(errorLike) {
+  const raw = getErrorMessage(errorLike);
+  const text = String(raw || "").toLowerCase();
+  if (text.includes("invalid login credentials")) {
+    return "Invalid email or password.";
+  }
+  if (text.includes("user already registered")) {
+    return "User already exists.";
+  }
+  if (text.includes("password should be")) {
+    return "Password is too weak.";
+  }
+  if (text.includes("session expired")) {
+    return "Session expired, please login.";
+  }
+  return raw || "Unexpected error.";
+}
+
+function applySupabaseAuthUi(session) {
+  const userEmail = String(session?.user?.email || "").trim();
+  if (supabaseAuthUserEl) {
+    supabaseAuthUserEl.textContent = userEmail
+      ? `Logged in as: ${userEmail}`
+      : "Not logged in";
+  }
+  if (supabaseLogoutBtnEl) {
+    supabaseLogoutBtnEl.hidden = !userEmail;
+  }
+}
+
+async function refreshSupabaseAuthUi() {
+  const result = await sendRuntimeMessage("SUPABASE_AUTH_GET_SESSION");
+  if (!result.ok) {
+    applySupabaseAuthUi(null);
+    return;
+  }
+  const data = result.data || {};
+  applySupabaseAuthUi(data?.session || null);
+}
+
+async function handleSupabaseSignup() {
+  const name = (supabaseSignupNameEl?.value || "").trim();
+  const email = (supabaseSignupEmailEl?.value || "").trim();
+  const password = (supabaseSignupPasswordEl?.value || "").trim();
+  if (!email || !password) {
+    setFooterStatus("Email and password are required.");
+    return;
+  }
+  setFooterStatus("Signing up...");
+  const result = await sendRuntimeMessage("SUPABASE_AUTH_SIGNUP", {
+    payload: { name, email, password },
+  });
+  if (!result.ok) {
+    setFooterStatus(normalizeSupabaseAuthError(result.error));
+    return;
+  }
+  await refreshSupabaseAuthUi();
+  const message = (result.data && result.data.message) || "Signup successful.";
+  setFooterStatus(message);
+}
+
+async function handleSupabaseLogin() {
+  const email = (supabaseLoginEmailEl?.value || "").trim();
+  const password = (supabaseLoginPasswordEl?.value || "").trim();
+  if (!email || !password) {
+    setFooterStatus("Email and password are required.");
+    return;
+  }
+  setFooterStatus("Logging in...");
+  const result = await sendRuntimeMessage("SUPABASE_AUTH_LOGIN", {
+    payload: { email, password },
+  });
+  if (!result.ok) {
+    setFooterStatus(normalizeSupabaseAuthError(result.error));
+    return;
+  }
+  await refreshSupabaseAuthUi();
+  setFooterStatus("Logged in.");
+}
+
+async function handleSupabaseResetPassword() {
+  const email = (
+    supabaseLoginEmailEl?.value ||
+    supabaseSignupEmailEl?.value ||
+    ""
+  ).trim();
+  if (!email) {
+    setFooterStatus("Enter an email first.");
+    return;
+  }
+  setFooterStatus("Sending reset email...");
+  const result = await sendRuntimeMessage("SUPABASE_AUTH_RESET_PASSWORD", {
+    payload: { email },
+  });
+  if (!result.ok) {
+    setFooterStatus(normalizeSupabaseAuthError(result.error));
+    return;
+  }
+  setFooterStatus("Password reset email sent.");
+}
+
+async function handleSupabaseLogout() {
+  setFooterStatus("Logging out...");
+  const result = await sendRuntimeMessage("SUPABASE_AUTH_LOGOUT");
+  if (!result.ok) {
+    setFooterStatus(normalizeSupabaseAuthError(result.error));
+    return;
+  }
+  await refreshSupabaseAuthUi();
+  setFooterStatus("Logged out.");
+}
+
 function setActiveTab(which, { userInitiated = false } = {}) {
   if (IS_SIDE_PANEL_CONTEXT && !userInitiated) {
     return;
@@ -2643,14 +2788,19 @@ function setActiveTab(which, { userInitiated = false } = {}) {
     which === "detail" || which === "invitation" || freePromptActive;
   const overviewActive = OVERVIEW_ENABLED && which === "overview";
   const configActive = which === "config";
+  const supabaseAuthActive = which === "supabase_login";
 
   tabMainBtn.classList.toggle("active", detailActive);
   if (tabOverviewBtn) tabOverviewBtn.classList.toggle("active", overviewActive);
   tabConfigBtn.classList.toggle("active", configActive);
+  if (tabSupabaseAuthBtn)
+    tabSupabaseAuthBtn.classList.toggle("active", supabaseAuthActive);
 
   tabMain.classList.toggle("active", detailActive);
   if (tabOverview) tabOverview.classList.toggle("active", overviewActive);
   tabConfig.classList.toggle("active", configActive);
+  if (tabSupabaseAuth)
+    tabSupabaseAuth.classList.toggle("active", supabaseAuthActive);
   if (tabMessage)
     tabMessage.hidden =
       !detailActive ||
@@ -2690,6 +2840,9 @@ tabOverviewBtn?.addEventListener("click", () =>
 );
 tabConfigBtn.addEventListener("click", () =>
   setActiveTab("config", { userInitiated: true }),
+);
+tabSupabaseAuthBtn?.addEventListener("click", () =>
+  setActiveTab("supabase_login", { userInitiated: true }),
 );
 
 async function loadSettings() {
@@ -2743,8 +2896,13 @@ function runPopupInit() {
   tabConfigBtn?.addEventListener("click", () =>
     setActiveTab("config", { userInitiated: true }),
   );
+  tabSupabaseAuthBtn?.addEventListener("click", () =>
+    setActiveTab("supabase_login", { userInitiated: true }),
+  );
 
   loadSettings().catch((_e) => {});
+  refreshSupabaseAuthUi().catch(() => null);
+  setAuthInnerTab("signup");
   if (IS_SIDE_PANEL_CONTEXT) {
     document.body.classList.add("is-sidepanel");
   }
@@ -2794,6 +2952,32 @@ function runPopupInit() {
     } finally {
       setFooterReady();
     }
+  });
+  authInnerSignupBtnEl?.addEventListener("click", () =>
+    setAuthInnerTab("signup"),
+  );
+  authInnerLoginBtnEl?.addEventListener("click", () =>
+    setAuthInnerTab("login"),
+  );
+  supabaseSignupBtnEl?.addEventListener("click", () => {
+    handleSupabaseSignup().catch((e) => {
+      setFooterStatus(normalizeSupabaseAuthError(e));
+    });
+  });
+  supabaseLoginBtnEl?.addEventListener("click", () => {
+    handleSupabaseLogin().catch((e) => {
+      setFooterStatus(normalizeSupabaseAuthError(e));
+    });
+  });
+  supabaseResetPasswordBtnEl?.addEventListener("click", () => {
+    handleSupabaseResetPassword().catch((e) => {
+      setFooterStatus(normalizeSupabaseAuthError(e));
+    });
+  });
+  supabaseLogoutBtnEl?.addEventListener("click", () => {
+    handleSupabaseLogout().catch((e) => {
+      setFooterStatus(normalizeSupabaseAuthError(e));
+    });
   });
   setCopyButtonEnabled(false);
   updateInviteCopyIconVisibility();

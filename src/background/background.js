@@ -16,6 +16,7 @@ const normalizeWhitespace = LEF_UTILS.normalizeWhitespace;
 const sanitizeHeadlineJobTitle = LEF_UTILS.sanitizeHeadlineJobTitle;
 
 const DEBUG = false;
+const STORAGE_KEY_SUPABASE_SESSION = "lef_supabase_session_v1";
 
 function debug(...args) {
   if (DEBUG) console.log(...args);
@@ -862,9 +863,285 @@ async function getSupabaseConfig() {
   };
 }
 
-async function supabaseUpsertInvitation(row) {
+let cachedSupabaseSession = null;
+
+function normalizeSupabaseSession(rawSession) {
+  const session =
+    rawSession && typeof rawSession === "object" ? rawSession : null;
+  if (!session) return null;
+  const accessToken = normalizeProfileField(session.access_token);
+  const refreshToken = normalizeProfileField(session.refresh_token);
+  if (!accessToken || !refreshToken) return null;
+  const expiresAt = Number(session.expires_at);
+  return {
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    token_type: normalizeProfileField(session.token_type) || "bearer",
+    expires_in: Number(session.expires_in) || 0,
+    expires_at: Number.isFinite(expiresAt) ? expiresAt : 0,
+    user:
+      session.user && typeof session.user === "object" ? session.user : null,
+  };
+}
+
+async function readSupabaseSessionFromStorage() {
+  if (cachedSupabaseSession) return cachedSupabaseSession;
+  const data = await chrome.storage.local.get([STORAGE_KEY_SUPABASE_SESSION]);
+  cachedSupabaseSession = normalizeSupabaseSession(
+    data?.[STORAGE_KEY_SUPABASE_SESSION] || null,
+  );
+  return cachedSupabaseSession;
+}
+
+async function persistSupabaseSession(session) {
+  const normalized = normalizeSupabaseSession(session);
+  cachedSupabaseSession = normalized;
+  await chrome.storage.local.set({
+    [STORAGE_KEY_SUPABASE_SESSION]: normalized,
+  });
+}
+
+async function clearSupabaseSession() {
+  cachedSupabaseSession = null;
+  await chrome.storage.local.remove([STORAGE_KEY_SUPABASE_SESSION]);
+}
+
+function isSupabaseSessionExpired(session) {
+  const expiresAt = Number(session?.expires_at || 0);
+  if (!expiresAt) return false;
+  return expiresAt - 45 <= Math.floor(Date.now() / 1000);
+}
+
+async function fetchSupabaseAuthUser({
+  supabaseUrl,
+  supabaseAnonKey,
+  accessToken,
+}) {
+  const url = `${supabaseUrl}/auth/v1/user`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "GET",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    },
+    15000,
+    "Supabase auth",
+  );
+  if (!res.ok) return null;
+  return await res.json().catch(() => null);
+}
+
+async function refreshSupabaseSession(session) {
   const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+  const url = `${supabaseUrl}/auth/v1/token?grant_type=refresh_token`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "POST",
+      headers: {
+        apikey: supabaseAnonKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        refresh_token: session?.refresh_token || "",
+      }),
+    },
+    15000,
+    "Supabase auth",
+  );
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+  const payload = await res.json();
+  const normalized = normalizeSupabaseSession(payload);
+  if (!normalized) {
+    throw new Error("Session expired, please login");
+  }
+  if (!normalized.user) {
+    normalized.user = await fetchSupabaseAuthUser({
+      supabaseUrl,
+      supabaseAnonKey,
+      accessToken: normalized.access_token,
+    });
+  }
+  await persistSupabaseSession(normalized);
+  return normalized;
+}
+
+async function ensureSupabaseSession() {
+  let session = await readSupabaseSessionFromStorage();
+  if (!session) {
+    throw new Error("Please login to Supabase");
+  }
+  if (isSupabaseSessionExpired(session)) {
+    try {
+      session = await refreshSupabaseSession(session);
+    } catch (_e) {
+      await clearSupabaseSession();
+      throw new Error("Session expired, please login");
+    }
+  }
+  return session;
+}
+
+async function getSupabaseRequestContext() {
+  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+  const session = await ensureSupabaseSession();
+  return {
+    supabaseUrl,
+    supabaseAnonKey,
+    accessToken: session.access_token,
+    userId: normalizeProfileField(session?.user?.id),
+    session,
+  };
+}
+
+async function callSupabaseAuthSignup({ name, email, password }) {
+  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+  const url = `${supabaseUrl}/auth/v1/signup`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "POST",
+      headers: {
+        apikey: supabaseAnonKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: normalizeProfileField(email),
+        password: String(password || ""),
+        data: {
+          name: normalizeProfileField(name) || null,
+        },
+      }),
+    },
+    15000,
+    "Supabase auth",
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const errMsg = data?.msg || data?.error_description || data?.error;
+    throw new Error(normalizeProfileField(errMsg) || "Signup failed.");
+  }
+  const session = normalizeSupabaseSession(data);
+  if (session) {
+    if (!session.user) {
+      session.user = await fetchSupabaseAuthUser({
+        supabaseUrl,
+        supabaseAnonKey,
+        accessToken: session.access_token,
+      });
+    }
+    await persistSupabaseSession(session);
+  }
+  const requiresEmailConfirmation = !session;
+  return {
+    session,
+    message: requiresEmailConfirmation
+      ? "Signup successful. Check your email to confirm your account."
+      : "Signup successful.",
+  };
+}
+
+async function callSupabaseAuthLogin({ email, password }) {
+  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+  const url = `${supabaseUrl}/auth/v1/token?grant_type=password`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "POST",
+      headers: {
+        apikey: supabaseAnonKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: normalizeProfileField(email),
+        password: String(password || ""),
+      }),
+    },
+    15000,
+    "Supabase auth",
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const errMsg = data?.msg || data?.error_description || data?.error;
+    throw new Error(normalizeProfileField(errMsg) || "Login failed.");
+  }
+  const session = normalizeSupabaseSession(data);
+  if (!session) {
+    throw new Error("Login failed.");
+  }
+  if (!session.user) {
+    session.user = await fetchSupabaseAuthUser({
+      supabaseUrl,
+      supabaseAnonKey,
+      accessToken: session.access_token,
+    });
+  }
+  await persistSupabaseSession(session);
+  return session;
+}
+
+async function callSupabaseAuthResetPassword({ email }) {
+  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+  const url = `${supabaseUrl}/auth/v1/recover`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "POST",
+      headers: {
+        apikey: supabaseAnonKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: normalizeProfileField(email),
+      }),
+    },
+    15000,
+    "Supabase auth",
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const errMsg = data?.msg || data?.error_description || data?.error;
+    throw new Error(normalizeProfileField(errMsg) || "Reset password failed.");
+  }
+}
+
+async function callSupabaseAuthLogout() {
+  const session = await readSupabaseSessionFromStorage();
+  if (session?.access_token) {
+    const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+    const url = `${supabaseUrl}/auth/v1/logout`;
+    await fetchWithTimeout(
+      url,
+      {
+        method: "POST",
+        headers: {
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+      },
+      15000,
+      "Supabase auth",
+    ).catch(() => null);
+  }
+  await clearSupabaseSession();
+}
+
+async function supabaseUpsertInvitation(row) {
+  const { supabaseUrl, supabaseAnonKey, accessToken, userId } =
+    await getSupabaseRequestContext();
   const url = `${supabaseUrl}/rest/v1/linkedin_invitations?on_conflict=linkedin_url`;
+  const payload = {
+    ...row,
+    uuid: normalizeProfileField(row?.uuid) || userId || null,
+  };
 
   const res = await fetchWithTimeout(
     url,
@@ -872,11 +1149,11 @@ async function supabaseUpsertInvitation(row) {
       method: "POST",
       headers: {
         apikey: supabaseAnonKey,
-        Authorization: `Bearer ${supabaseAnonKey}`,
+        Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
         Prefer: "resolution=merge-duplicates,return=minimal",
       },
-      body: JSON.stringify(row),
+      body: JSON.stringify(payload),
     },
     15000,
     "Supabase request",
@@ -893,7 +1170,8 @@ async function supabaseUpdateFirstMessage({
   first_message,
   first_message_generated_at,
 }) {
-  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
   const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}`;
   const patch = {
     first_message,
@@ -906,7 +1184,7 @@ async function supabaseUpdateFirstMessage({
       method: "PATCH",
       headers: {
         apikey: supabaseAnonKey,
-        Authorization: `Bearer ${supabaseAnonKey}`,
+        Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
         Prefer: "return=minimal",
       },
@@ -923,7 +1201,8 @@ async function supabaseUpdateFirstMessage({
 }
 
 async function supabaseMarkStatus({ linkedin_url, status }) {
-  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
 
   const patch = { status };
   const nowIso = new Date().toISOString();
@@ -939,7 +1218,7 @@ async function supabaseMarkStatus({ linkedin_url, status }) {
       method: "PATCH",
       headers: {
         apikey: supabaseAnonKey,
-        Authorization: `Bearer ${supabaseAnonKey}`,
+        Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
         Prefer: "return=minimal",
       },
@@ -956,9 +1235,10 @@ async function supabaseMarkStatus({ linkedin_url, status }) {
 }
 
 async function supabaseSetStatusOnly({ linkedin_url, status }) {
-  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+  const { supabaseUrl, supabaseAnonKey, accessToken, userId } =
+    await getSupabaseRequestContext();
   const url = `${supabaseUrl}/rest/v1/linkedin_invitations?on_conflict=linkedin_url`;
-  const row = { linkedin_url, status };
+  const row = { linkedin_url, status, uuid: userId || null };
 
   const res = await fetchWithTimeout(
     url,
@@ -966,7 +1246,7 @@ async function supabaseSetStatusOnly({ linkedin_url, status }) {
       method: "POST",
       headers: {
         apikey: supabaseAnonKey,
-        Authorization: `Bearer ${supabaseAnonKey}`,
+        Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
         Prefer: "resolution=merge-duplicates,return=minimal",
       },
@@ -983,7 +1263,8 @@ async function supabaseSetStatusOnly({ linkedin_url, status }) {
 }
 
 async function supabaseSetAcceptedAtNow({ linkedin_url }) {
-  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
   const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}`;
   const patch = {
     accepted: true,
@@ -996,7 +1277,7 @@ async function supabaseSetAcceptedAtNow({ linkedin_url }) {
       method: "PATCH",
       headers: {
         apikey: supabaseAnonKey,
-        Authorization: `Bearer ${supabaseAnonKey}`,
+        Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
         Prefer: "return=minimal",
       },
@@ -1013,7 +1294,8 @@ async function supabaseSetAcceptedAtNow({ linkedin_url }) {
 }
 
 async function supabaseClearAcceptedAt({ linkedin_url }) {
-  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
   const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}`;
   const patch = {
     accepted: false,
@@ -1026,7 +1308,7 @@ async function supabaseClearAcceptedAt({ linkedin_url }) {
       method: "PATCH",
       headers: {
         apikey: supabaseAnonKey,
-        Authorization: `Bearer ${supabaseAnonKey}`,
+        Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
         Prefer: "return=minimal",
       },
@@ -1048,7 +1330,8 @@ async function supabaseUpdateProfileDetailsOnly({
   headline,
   language,
 }) {
-  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
   const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}`;
   const patch = {};
   const safeCompany = normalizeProfileField(company);
@@ -1065,7 +1348,7 @@ async function supabaseUpdateProfileDetailsOnly({
       method: "PATCH",
       headers: {
         apikey: supabaseAnonKey,
-        Authorization: `Bearer ${supabaseAnonKey}`,
+        Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
         Prefer: "return=minimal",
       },
@@ -1082,7 +1365,8 @@ async function supabaseUpdateProfileDetailsOnly({
 }
 
 async function supabaseGetInvitationByLinkedinUrl(linkedin_url) {
-  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
   const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}&select=linkedin_url,status,message,generated_at,invited_at,accepted,accepted_at,first_message,first_message_generated_at,first_message_sent_at,company,headline,language,full_name,campaign`;
 
   const res = await fetchWithTimeout(
@@ -1091,7 +1375,7 @@ async function supabaseGetInvitationByLinkedinUrl(linkedin_url) {
       method: "GET",
       headers: {
         apikey: supabaseAnonKey,
-        Authorization: `Bearer ${supabaseAnonKey}`,
+        Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
         Prefer: "count=exact",
       },
@@ -1111,7 +1395,8 @@ async function supabaseGetInvitationByLinkedinUrl(linkedin_url) {
 }
 
 async function supabaseListCampaigns() {
-  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
   const url = `${supabaseUrl}/rest/v1/linkedin_invitations?select=campaign`;
   const res = await fetchWithTimeout(
     url,
@@ -1119,7 +1404,7 @@ async function supabaseListCampaigns() {
       method: "GET",
       headers: {
         apikey: supabaseAnonKey,
-        Authorization: `Bearer ${supabaseAnonKey}`,
+        Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },
     },
@@ -1145,7 +1430,8 @@ async function supabaseListCampaigns() {
 }
 
 async function supabaseUpdateCampaign({ linkedin_url, campaign }) {
-  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
   const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}`;
   const res = await fetchWithTimeout(
     url,
@@ -1153,7 +1439,7 @@ async function supabaseUpdateCampaign({ linkedin_url, campaign }) {
       method: "PATCH",
       headers: {
         apikey: supabaseAnonKey,
-        Authorization: `Bearer ${supabaseAnonKey}`,
+        Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
         Prefer: "return=minimal",
       },
@@ -1225,7 +1511,8 @@ async function supabaseListInvitationsOverview({
   filters,
   search,
 }) {
-  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
   const safePage = toOverviewInt(page, 1);
   const safePageSize = toOverviewInt(pageSize, 25);
   const safeSortField = toOverviewSortField(sortField);
@@ -1268,7 +1555,7 @@ async function supabaseListInvitationsOverview({
       method: "GET",
       headers: {
         apikey: supabaseAnonKey,
-        Authorization: `Bearer ${supabaseAnonKey}`,
+        Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
         Prefer: "count=exact",
       },
@@ -1292,7 +1579,8 @@ async function supabaseListInvitationsOverview({
 }
 
 async function supabaseArchiveInvitation({ url }) {
-  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
   const endpoint = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(url)}`;
 
   const res = await fetchWithTimeout(
@@ -1301,7 +1589,7 @@ async function supabaseArchiveInvitation({ url }) {
       method: "PATCH",
       headers: {
         apikey: supabaseAnonKey,
-        Authorization: `Bearer ${supabaseAnonKey}`,
+        Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
         Prefer: "return=minimal",
       },
@@ -1318,7 +1606,8 @@ async function supabaseArchiveInvitation({ url }) {
 }
 
 async function supabaseSetArchived({ linkedin_url, archived }) {
-  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
   const targetUrl = normalizeProfileField(linkedin_url);
   if (!targetUrl) {
     throw new Error("Missing linkedin_url.");
@@ -1331,7 +1620,7 @@ async function supabaseSetArchived({ linkedin_url, archived }) {
       method: "PATCH",
       headers: {
         apikey: supabaseAnonKey,
-        Authorization: `Bearer ${supabaseAnonKey}`,
+        Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
         Prefer: "return=minimal",
       },
@@ -1682,6 +1971,93 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse({
           ok: false,
           error: normalizeError(e, "GENERATION_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "SUPABASE_AUTH_SIGNUP") {
+    (async () => {
+      try {
+        const result = await callSupabaseAuthSignup(msg?.payload || {});
+        sendResponse({
+          ok: true,
+          session: result.session || null,
+          message: result.message || "Signup successful.",
+        });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_AUTH_SIGNUP_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "SUPABASE_AUTH_LOGIN") {
+    (async () => {
+      try {
+        const session = await callSupabaseAuthLogin(msg?.payload || {});
+        sendResponse({ ok: true, session });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_AUTH_LOGIN_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "SUPABASE_AUTH_RESET_PASSWORD") {
+    (async () => {
+      try {
+        await callSupabaseAuthResetPassword(msg?.payload || {});
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_AUTH_RESET_PASSWORD_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "SUPABASE_AUTH_LOGOUT") {
+    (async () => {
+      try {
+        await callSupabaseAuthLogout();
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_AUTH_LOGOUT_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "SUPABASE_AUTH_GET_SESSION") {
+    (async () => {
+      try {
+        let session = await readSupabaseSessionFromStorage();
+        if (session && isSupabaseSessionExpired(session)) {
+          try {
+            session = await refreshSupabaseSession(session);
+          } catch (_e) {
+            await clearSupabaseSession();
+            session = null;
+          }
+        }
+        sendResponse({ ok: true, session });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_AUTH_SESSION_FAILED"),
         });
       }
     })();

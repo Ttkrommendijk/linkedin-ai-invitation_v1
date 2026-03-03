@@ -825,6 +825,17 @@ pre {
     width: auto;
     margin-top: 0;
 }
+.auth-inner-tabs {
+    gap: 8px;
+}
+.auth-action-row {
+    gap: 8px;
+}
+.auth-action-row .btn-small-primary,
+.auth-action-row .btn-small-secondary {
+    width: auto;
+    margin-top: 0;
+}
 .overview-cell-campaign {
     white-space: nowrap;
     overflow: hidden;
