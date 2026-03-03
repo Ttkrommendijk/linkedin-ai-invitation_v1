@@ -982,6 +982,60 @@ async function supabaseSetStatusOnly({ linkedin_url, status }) {
   }
 }
 
+async function supabaseSetAcceptedAtNow({ linkedin_url }) {
+  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}`;
+  const patch = { accepted_at: new Date().toISOString() };
+
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify(patch),
+    },
+    15000,
+    "Supabase request",
+  );
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+}
+
+async function supabaseClearAcceptedAt({ linkedin_url }) {
+  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
+  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}`;
+  const patch = { accepted_at: null };
+
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify(patch),
+    },
+    15000,
+    "Supabase request",
+  );
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+}
+
 async function supabaseUpdateProfileDetailsOnly({
   linkedin_url,
   company,
@@ -1151,8 +1205,8 @@ function toOverviewStatusFilterValue(value) {
   if (!normalized) return "";
   if (normalized === "registered") return "registered";
   if (normalized === "invited") return "invited";
-  if (normalized === "accepted") return "accepted";
   if (normalized === "first message sent") return "first message sent";
+  if (normalized === "message responded") return "message responded";
   return "";
 }
 
@@ -1677,6 +1731,38 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       emitUiStatus("Communicating to database\u2026");
       try {
         await supabaseSetStatusOnly(msg.payload);
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "DB_SET_ACCEPTED_AT_NOW") {
+    (async () => {
+      emitUiStatus("Communicating to database\u2026");
+      try {
+        await supabaseSetAcceptedAtNow(msg.payload || {});
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "DB_CLEAR_ACCEPTED_AT") {
+    (async () => {
+      emitUiStatus("Communicating to database\u2026");
+      try {
+        await supabaseClearAcceptedAt(msg.payload || {});
         sendResponse({ ok: true });
       } catch (e) {
         sendResponse({

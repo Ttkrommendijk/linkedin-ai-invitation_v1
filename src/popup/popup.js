@@ -230,8 +230,6 @@ const stepFirstMessageSentEl = document.getElementById(
 const stepMessageRespondedEl = document.getElementById(
   "step-message-responded",
 );
-const statusBackBtnEl = document.getElementById("statusBackBtn");
-const statusForwardBtnEl = document.getElementById("statusForwardBtn");
 const detailTabInviteBtnEl = document.getElementById("detailTabInviteBtn");
 const detailTabFirstMessageBtnEl = document.getElementById(
   "detailTabFirstMessageBtn",
@@ -307,8 +305,18 @@ let overviewColumnOverridden = {};
 let overviewColumnPersistTimer = null;
 let chatExtractSeq = 0;
 let detailInnerTab = "invite";
-let statusBackTarget = null;
-let statusForwardTarget = null;
+let stepperAllowedActions = {
+  registered: false,
+  invited: false,
+  accepted: false,
+  first_message_sent: false,
+  message_responded: false,
+};
+let stepperForwardTarget = null;
+let stepperBackTarget = null;
+let stepperBackAction = null;
+let stepperStatusStage = "";
+let stepperForwardSteps = new Set();
 let currentLanguage = "Portuguese";
 let inviteCopyIconResetTimer = null;
 let firstMessageCopyIconResetTimer = null;
@@ -637,12 +645,21 @@ async function handleCampaignSelection(campaignValue) {
 }
 
 function isPostSendMode() {
-  return getLifecycleStatusValue(dbInvitationRow) === "first message sent";
+  const status = getLifecycleStatusValue(dbInvitationRow);
+  return (
+    status === "first message sent" ||
+    status === "first_message_sent" ||
+    status === "message responded" ||
+    status === "message_responded"
+  );
 }
 
 function getOutreachStatusFromDbRow() {
   const status = getLifecycleStatusValue(dbInvitationRow);
-  return status === "first message sent" || status === "first_message_sent"
+  return status === "first message sent" ||
+    status === "first_message_sent" ||
+    status === "message responded" ||
+    status === "message_responded"
     ? "first_message_sent"
     : "accepted";
 }
@@ -693,107 +710,122 @@ function renderDetailHeader() {
   if (detailHeadlineEl) detailHeadlineEl.textContent = headline;
 }
 
-function updatePhaseButtons() {
+function updateStepperInteractivity() {
   if (!statusStepperEl) return;
 
-  const status = (dbInvitationRow?.status || "").trim().toLowerCase();
-  const stepEls = [
-    stepRegisterEl,
-    stepInvitedEl,
-    stepAcceptedEl,
-    stepFirstMessageSentEl,
-    stepMessageRespondedEl,
-  ];
-
-  let completedIndex = -1;
-  let activeIndex = -1;
-  statusBackTarget = null;
-  statusForwardTarget = null;
-
-  if (!dbInvitationRow) {
-    completedIndex = -1;
-    activeIndex = -1;
-    statusForwardTarget = "registered";
-  } else if (status === "registered" || status === "generated") {
-    completedIndex = -1;
-    activeIndex = 0;
-    statusForwardTarget = "invited";
-  } else if (status === "invited") {
-    completedIndex = 0;
-    activeIndex = 1;
-    statusBackTarget = "registered";
-    statusForwardTarget = "accepted";
-  } else if (status === "accepted") {
-    completedIndex = 1;
-    activeIndex = 2;
-    statusBackTarget = "invited";
-    statusForwardTarget = "first message sent";
-  } else if (
-    status === "first message sent" ||
+  const rawStatus = getLifecycleStatusValue(dbInvitationRow);
+  const status = rawStatus === "accepted" ? "invited" : rawStatus;
+  const hasRow = Boolean(dbInvitationRow);
+  const isAccepted = Boolean(dbInvitationRow?.accepted_at);
+  const normalizedStatus =
     status === "first_message_sent"
+      ? "first message sent"
+      : status === "message_responded"
+        ? "message responded"
+        : status;
+  const statusRank = (() => {
+    if (normalizedStatus === "registered" || normalizedStatus === "generated") {
+      return 1;
+    }
+    if (normalizedStatus === "invited") return 2;
+    if (normalizedStatus === "first message sent") return 3;
+    if (normalizedStatus === "message responded") return 4;
+    return 0;
+  })();
+  const isInvitedPlus = statusRank >= 2;
+  const acceptedFalse = !isAccepted;
+  const acceptedClickable = hasRow && isInvitedPlus;
+  const acceptedForward = acceptedClickable && acceptedFalse;
+
+  const allowed = {
+    registered: false,
+    invited: false,
+    accepted: false,
+    first_message_sent: false,
+    message_responded: false,
+  };
+  const hoverable = {
+    registered: false,
+    invited: false,
+    accepted: false,
+    first_message_sent: false,
+    message_responded: false,
+  };
+  let forwardTarget = null;
+  const forwardSteps = new Set();
+  let backTarget = null;
+  let backAction = null;
+
+  if (!hasRow) {
+    forwardTarget = "registered";
+    forwardSteps.add("registered");
+  } else if (
+    normalizedStatus === "registered" ||
+    normalizedStatus === "generated"
   ) {
-    completedIndex = 2;
-    activeIndex = 3;
-    statusBackTarget = "accepted";
-    statusForwardTarget = "message responded";
-  } else if (status === "message responded" || status === "message_responded") {
-    completedIndex = 4;
-    activeIndex = -1;
-    statusBackTarget = "first message sent";
-    statusForwardTarget = null;
+    forwardTarget = "invited";
+    forwardSteps.add("invited");
+  } else if (normalizedStatus === "invited") {
+    allowed.first_message_sent = true;
+    forwardTarget = "first_message_sent";
+    forwardSteps.add("first_message_sent");
+    backTarget = "invited";
+    backAction = "status_registered";
+    hoverable.first_message_sent = true;
+  } else if (normalizedStatus === "first message sent") {
+    forwardTarget = "message_responded";
+    forwardSteps.add("message_responded");
+    backTarget = "first_message_sent";
+    backAction = "status_invited";
+  } else if (normalizedStatus === "message responded") {
+    backTarget = "message_responded";
+    backAction = "status_first_message_sent";
   }
 
-  stepEls.forEach((stepEl, index) => {
-    if (!stepEl) return;
-    const circleEl = stepEl.querySelector(".status-circle");
-    const isCompleted = completedIndex >= 0 && index <= completedIndex;
-    const isActive = activeIndex === index;
-    if (circleEl) {
-      circleEl.classList.toggle("completed", isCompleted);
-      circleEl.classList.toggle("active", isActive);
+  if (acceptedClickable) {
+    allowed.accepted = true;
+    hoverable.accepted = true;
+    if (acceptedForward) {
+      forwardSteps.add("accepted");
     }
+  }
+
+  forwardSteps.forEach((stepKey) => {
+    allowed[stepKey] = true;
   });
+  if (backTarget) allowed[backTarget] = true;
+  if (backTarget) hoverable[backTarget] = true;
 
-  if (statusBackBtnEl) {
-    if (statusBackTarget === "registered") {
-      statusBackBtnEl.textContent = "← Back";
-      statusBackBtnEl.hidden = false;
-    } else if (statusBackTarget === "invited") {
-      statusBackBtnEl.textContent = "← Back";
-      statusBackBtnEl.hidden = false;
-    } else if (statusBackTarget === "accepted") {
-      statusBackBtnEl.textContent = "← Back";
-      statusBackBtnEl.hidden = false;
-    } else if (statusBackTarget === "first message sent") {
-      statusBackBtnEl.textContent = "← Back";
-      statusBackBtnEl.hidden = false;
-    } else {
-      statusBackBtnEl.hidden = true;
-      statusBackBtnEl.textContent = "";
-    }
-  }
+  stepperAllowedActions = allowed;
+  stepperForwardTarget = forwardTarget;
+  stepperForwardSteps = forwardSteps;
+  stepperBackTarget = backTarget;
+  stepperBackAction = backAction;
+  stepperStatusStage = normalizedStatus;
 
-  if (statusForwardBtnEl) {
-    if (statusForwardTarget === "registered") {
-      statusForwardBtnEl.textContent = "Register";
-      statusForwardBtnEl.hidden = false;
-    } else if (statusForwardTarget === "invited") {
-      statusForwardBtnEl.textContent = "Mark as Invited";
-      statusForwardBtnEl.hidden = false;
-    } else if (statusForwardTarget === "accepted") {
-      statusForwardBtnEl.textContent = "Mark as Accepted";
-      statusForwardBtnEl.hidden = false;
-    } else if (statusForwardTarget === "first message sent") {
-      statusForwardBtnEl.textContent = "Mark as First message sent";
-      statusForwardBtnEl.hidden = false;
-    } else if (statusForwardTarget === "message responded") {
-      statusForwardBtnEl.textContent = "Mark as Message responded";
-      statusForwardBtnEl.hidden = false;
-    } else {
-      statusForwardBtnEl.hidden = true;
-      statusForwardBtnEl.textContent = "";
-    }
-  }
+  const applyStepState = (stepEl, stepKey, { done = false }) => {
+    if (!stepEl) return;
+    stepEl.classList.toggle("step-clickable", Boolean(allowed[stepKey]));
+    stepEl.classList.toggle("step-forward", forwardSteps.has(stepKey));
+    stepEl.classList.toggle("step-hoverable", Boolean(hoverable[stepKey]));
+    stepEl.classList.toggle("step-done", Boolean(done));
+  };
+
+  applyStepState(stepRegisterEl, "registered", { done: statusRank >= 1 });
+  applyStepState(stepInvitedEl, "invited", { done: statusRank >= 2 });
+  applyStepState(stepAcceptedEl, "accepted", {
+    done: isAccepted,
+  });
+  applyStepState(stepFirstMessageSentEl, "first_message_sent", {
+    done: statusRank >= 3,
+  });
+  applyStepState(stepMessageRespondedEl, "message_responded", {
+    done: statusRank >= 4,
+  });
+}
+
+function updatePhaseButtons() {
+  updateStepperInteractivity();
 }
 
 function setDetailInnerTab(tab) {
@@ -1091,7 +1123,12 @@ function applyLifecycleUiState(dbRow, { preserveTabs = false } = {}) {
     return;
   }
 
-  if (status === "accepted" || status === "first message sent") {
+  if (
+    status === "first message sent" ||
+    status === "first_message_sent" ||
+    status === "message responded" ||
+    status === "message_responded"
+  ) {
     if (!preserveTabs) {
       setActiveTab("detail");
       setDetailInnerTab("first");
@@ -1105,7 +1142,13 @@ function applyLifecycleUiState(dbRow, { preserveTabs = false } = {}) {
 
   updateInviteCopyIconVisibility();
 
-  if (status === "accepted" || status === "first message sent") {
+  if (
+    status === "first message sent" ||
+    status === "first_message_sent" ||
+    status === "message responded" ||
+    status === "message_responded" ||
+    status === "accepted"
+  ) {
     const dbFirstMessage = (dbRow?.first_message || "").trim();
     if (dbFirstMessage) {
       firstMessagePreviewEl.textContent = dbFirstMessage;
@@ -1125,9 +1168,6 @@ function deriveLifecycleState(row) {
   }
   if (status === "invited") {
     return { key: "invited", text: UI_TEXT.lifecycleInvited };
-  }
-  if (status === "accepted") {
-    return { key: "accepted", text: UI_TEXT.lifecycleAccepted };
   }
   if (status === "first message sent") {
     return {
@@ -2598,6 +2638,7 @@ function runPopupInit() {
   updateInviteCopyIconVisibility();
   updateFollowupCopyIconVisibility();
   setMessagePromptCollapsed(true);
+  bindStepperClickHandlers();
   updateMessageTabControls();
   if (OVERVIEW_ENABLED) {
     wireOverviewEvents();
@@ -3063,15 +3104,15 @@ async function onStepRegisterClick() {
 }
 
 async function onStepInvitedClick() {
-  await setStatusOnlyForStepper("invited", UI_TEXT.markedInvited);
+  await setMarkedStatusForStepper("invited", UI_TEXT.markedInvited);
 }
 
 async function onStepAcceptedClick() {
-  await setStatusOnlyForStepper("accepted", UI_TEXT.markedAccepted);
+  await setAcceptedToggleForStepper();
 }
 
 async function onStepFirstMessageSentClick() {
-  await setStatusOnlyForStepper(
+  await setMarkedStatusForStepper(
     "first message sent",
     UI_TEXT.markedFirstMessageSent,
   );
@@ -3120,51 +3161,140 @@ async function setStatusOnlyForStepper(statusValue, successText) {
   }
 }
 
-async function markStatusDirect(statusValue, successText) {
-  await setStatusOnlyForStepper(statusValue, successText);
+async function setMarkedStatusForStepper(statusValue, successText) {
+  let footerHandled = false;
+  setFooterDbStatus();
+  try {
+    const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
+    if (!linkedin_url) {
+      setFooterStatus(UI_TEXT.openLinkedInProfileFirst);
+      footerHandled = true;
+      return;
+    }
+    const result = await sendRuntimeMessage("DB_MARK_STATUS", {
+      payload: { linkedin_url, status: statusValue },
+    });
+    const resp = result.data || {};
+    setFooterStatus(
+      resp?.ok
+        ? successText
+        : `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`,
+    );
+    if (resp?.ok) {
+      await refreshInvitationRowFromDb({ preserveTabs: true });
+      setFooterStatus(`Successfully set status ${statusValue}`);
+      footerHandled = true;
+    } else {
+      setFooterStatus(
+        `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`,
+      );
+      footerHandled = true;
+    }
+  } finally {
+    if (!footerHandled) setFooterReady();
+  }
 }
 
-statusBackBtnEl?.addEventListener("click", async () => {
-  if (!statusBackTarget) return;
-  if (statusBackTarget === "registered") {
-    await markStatusDirect("registered", "Back to registered");
-    return;
+async function setAcceptedToggleForStepper() {
+  let footerHandled = false;
+  setFooterDbStatus();
+  try {
+    const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
+    if (!linkedin_url) {
+      setFooterStatus(UI_TEXT.openLinkedInProfileFirst);
+      footerHandled = true;
+      return;
+    }
+    const hasAccepted = Boolean(dbInvitationRow?.accepted_at);
+    const messageType = hasAccepted
+      ? "DB_CLEAR_ACCEPTED_AT"
+      : "DB_SET_ACCEPTED_AT_NOW";
+    const result = await sendRuntimeMessage(messageType, {
+      payload: { linkedin_url },
+    });
+    const resp = result.data || {};
+    const successText = hasAccepted ? "Accepted cleared" : "Marked as accepted";
+    setFooterStatus(
+      resp?.ok
+        ? successText
+        : `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`,
+    );
+    if (resp?.ok) {
+      await refreshInvitationRowFromDb({ preserveTabs: true });
+      footerHandled = true;
+    } else {
+      setFooterStatus(
+        `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`,
+      );
+      footerHandled = true;
+    }
+  } finally {
+    if (!footerHandled) setFooterReady();
   }
-  if (statusBackTarget === "invited") {
-    await markStatusDirect("invited", "Back to invited");
-    return;
-  }
-  if (statusBackTarget === "accepted") {
-    await markStatusDirect("accepted", "Back to accepted");
-    return;
-  }
-  if (statusBackTarget === "first message sent") {
-    await markStatusDirect("first message sent", "Back to first message sent");
-  }
-});
+}
 
-statusForwardBtnEl?.addEventListener("click", async () => {
-  if (!statusForwardTarget) return;
-  if (statusForwardTarget === "registered") {
-    await onStepRegisterClick();
-    return;
-  }
-  if (statusForwardTarget === "invited") {
-    await onStepInvitedClick();
-    return;
-  }
-  if (statusForwardTarget === "accepted") {
-    await onStepAcceptedClick();
-    return;
-  }
-  if (statusForwardTarget === "first message sent") {
-    await onStepFirstMessageSentClick();
-    return;
-  }
-  if (statusForwardTarget === "message responded") {
-    await onStepMessageRespondedClick();
-  }
-});
+function bindStepperClickHandlers() {
+  if (!statusStepperEl) return;
+  if (statusStepperEl.dataset.stepperBound === "1") return;
+  statusStepperEl.dataset.stepperBound = "1";
+  statusStepperEl.addEventListener("click", async (event) => {
+    const targetEl =
+      event.target instanceof Element
+        ? event.target.closest(".status-step")
+        : null;
+    if (!targetEl) return;
+    const stepKey = targetEl.getAttribute("data-step") || "";
+    if (!stepKey || !stepperAllowedActions[stepKey]) return;
+
+    if (stepperForwardSteps.has(stepKey)) {
+      if (stepKey === "registered") {
+        await onStepRegisterClick();
+        return;
+      }
+      if (stepKey === "invited") {
+        await onStepInvitedClick();
+        return;
+      }
+      if (stepKey === "accepted") {
+        await onStepAcceptedClick();
+        return;
+      }
+      if (stepKey === "first_message_sent") {
+        await onStepFirstMessageSentClick();
+        return;
+      }
+      if (stepKey === "message_responded") {
+        await onStepMessageRespondedClick();
+      }
+      return;
+    }
+
+    if (stepKey === stepperBackTarget) {
+      if (stepperBackAction === "status_registered") {
+        await setStatusOnlyForStepper("registered", "Back to registered");
+        return;
+      }
+      if (stepperBackAction === "status_invited") {
+        await setStatusOnlyForStepper("invited", "Back to invited");
+        return;
+      }
+      if (stepperBackAction === "status_first_message_sent") {
+        await setStatusOnlyForStepper(
+          "first message sent",
+          "Back to first message sent",
+        );
+        return;
+      }
+      if (stepperBackAction === "clear_accepted") {
+        await onStepAcceptedClick();
+      }
+    }
+
+    if (stepKey === "accepted") {
+      await onStepAcceptedClick();
+    }
+  });
+}
 
 copyInviteIconEl?.addEventListener("click", async () => {
   const copyResult = await copyToClipboard(previewEl.textContent || "");

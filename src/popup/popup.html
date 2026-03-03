@@ -104,38 +104,46 @@
                     <div class="section-divider"></div>
 
                     <div id="statusStepper" class="status-stepper">
-                        <div id="step-register" class="status-step">
+                        <div
+                            id="step-register"
+                            class="status-step"
+                            data-step="registered"
+                        >
                             <div class="status-circle"></div>
                             <div class="status-label">Register</div>
                         </div>
-                        <div id="step-invited" class="status-step">
+                        <div
+                            id="step-invited"
+                            class="status-step"
+                            data-step="invited"
+                        >
                             <div class="status-circle"></div>
                             <div class="status-label">Invited</div>
                         </div>
-                        <div id="step-accepted" class="status-step">
+                        <div
+                            id="step-accepted"
+                            class="status-step"
+                            data-step="accepted"
+                        >
                             <div class="status-circle"></div>
                             <div class="status-label">Accepted</div>
                         </div>
-                        <div id="step-first-message-sent" class="status-step">
+                        <div
+                            id="step-first-message-sent"
+                            class="status-step"
+                            data-step="first_message_sent"
+                        >
                             <div class="status-circle"></div>
                             <div class="status-label">1st sent</div>
                         </div>
-                        <div id="step-message-responded" class="status-step">
+                        <div
+                            id="step-message-responded"
+                            class="status-step"
+                            data-step="message_responded"
+                        >
                             <div class="status-circle"></div>
                             <div class="status-label">Responded</div>
                         </div>
-                    </div>
-                    <div class="status-actions">
-                        <button
-                            id="statusBackBtn"
-                            type="button"
-                            class="btn-back"
-                        ></button>
-                        <button
-                            id="statusForwardBtn"
-                            type="button"
-                            class="btn-forward"
-                        ></button>
                     </div>
                     <div class="section-divider"></div>
 
@@ -523,9 +531,11 @@
                                 <option value="">All</option>
                                 <option value="registered">registered</option>
                                 <option value="invited">invited</option>
-                                <option value="accepted">accepted</option>
                                 <option value="first message sent">
                                     first message sent
+                                </option>
+                                <option value="message responded">
+                                    message responded
                                 </option>
                             </select>
                         </div>

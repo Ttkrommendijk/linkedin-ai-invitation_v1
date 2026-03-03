@@ -154,7 +154,35 @@ button:disabled {
     flex-direction: column;
     align-items: center;
     font-size: 11px;
-    pointer-events: none;
+    padding: 4px 6px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    box-sizing: border-box;
+    transition:
+        box-shadow 120ms ease,
+        transform 120ms ease,
+        background-color 120ms ease,
+        border-color 120ms ease;
+}
+.status-step.step-clickable {
+    cursor: pointer;
+}
+.status-step.step-clickable:hover {
+    background: #ffffff;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12);
+    transform: translateY(-1px);
+}
+.status-step.step-done.step-clickable:hover {
+    background: #ffffff;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12);
+    transform: translateY(-1px);
+}
+.status-step.step-forward {
+    position: relative;
+    z-index: 2;
+    background: #ffffff;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.14);
+    transform: translateY(-1px);
 }
 .status-circle {
     width: 14px;
@@ -168,8 +196,21 @@ button:disabled {
     border-color: #22c55e;
 }
 .status-circle.active {
-    background: #f59e0b;
-    border-color: #f59e0b;
+    background: #fff;
+    border-color: var(--line);
+}
+.status-step.step-done .status-circle {
+    background: #22c55e;
+    border-color: #22c55e;
+}
+.status-step.step-done .status-label {
+    color: #166534;
+    font-weight: 600;
+}
+.status-step.step-done:not(.step-forward):not(:hover) {
+    background: transparent;
+    box-shadow: none;
+    transform: none;
 }
 .status-label {
     margin-top: 4px;
