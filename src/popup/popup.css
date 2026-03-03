@@ -75,10 +75,7 @@ textarea {
     width: 100%;
     box-sizing: border-box;
 }
-.btn-primary {
-}
-.btn-secondary {
-}
+
 .btn-icon {
     width: auto;
     min-width: 0;
