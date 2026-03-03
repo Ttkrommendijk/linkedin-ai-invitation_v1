@@ -533,6 +533,8 @@ function collectOverviewFilterUiState() {
     status: overviewStatusFilterEl?.value || "",
     accepted: filterAcceptedEl?.value || "",
     search: overviewSearchEl?.value || "",
+    sort_key: overviewSortField || "most_relevant_date",
+    sort_dir: overviewSortDir === "asc" ? "asc" : "desc",
   };
 }
 
@@ -555,6 +557,24 @@ async function restoreOverviewFiltersFromStorage() {
   const savedStatus = String(saved.status || "");
   const savedAccepted = String(saved.accepted || "");
   const savedSearch = String(saved.search || "");
+  const savedSortKey = String(saved.sort_key || "");
+  const savedSortDir = String(saved.sort_dir || "").toLowerCase();
+
+  const allowedSortFields = new Set([
+    "name",
+    "full_name",
+    "company",
+    "status",
+    "most_relevant_date",
+    "campaign",
+    "archived",
+  ]);
+  if (allowedSortFields.has(savedSortKey)) {
+    overviewSortField = savedSortKey === "full_name" ? "name" : savedSortKey;
+  }
+  if (savedSortDir === "asc" || savedSortDir === "desc") {
+    overviewSortDir = savedSortDir;
+  }
 
   if (overviewArchivedFilterEl) {
     const archivedOptionExists = Array.from(
@@ -1947,6 +1967,7 @@ function wireOverviewEvents() {
         overviewSortField = field;
         overviewSortDir = "asc";
       }
+      persistOverviewFiltersToStorage().catch(() => null);
       overviewPage = 1;
       fetchOverviewPage();
     });
