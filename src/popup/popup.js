@@ -237,6 +237,14 @@ const stepAcceptedEl = document.getElementById("step-accepted");
 const stepFirstMessageSentEl = document.getElementById(
   "step-first-message-sent",
 );
+const messageCountBadgeEl = document.getElementById("messageCountBadge");
+const messageCountControlsEl = document.getElementById("messageCountControls");
+const messageCountDecrementEl = document.getElementById(
+  "messageCountDecrement",
+);
+const messageCountIncrementEl = document.getElementById(
+  "messageCountIncrement",
+);
 const stepMessageRespondedEl = document.getElementById(
   "step-message-responded",
 );
@@ -371,6 +379,7 @@ let knownCampaignValues = [];
 let overviewContextItems = [];
 let supabaseAuthIsLoggedIn = false;
 let supabaseAuthInnerTab = "signup";
+let messageCountLegacyFixAttemptedUrl = "";
 const OVERVIEW_CAMPAIGN_LABEL_MAX = 52;
 const COPY_ICON_GLYPH = "\u29c9";
 const COPY_TOOLTIP_DEFAULT = "Copy to clipboard";
@@ -381,6 +390,32 @@ const OVERVIEW_ENABLED = Boolean(
 
 function getLifecycleStatusValue(dbRow) {
   return (dbRow?.status || "").trim().toLowerCase();
+}
+
+function getMessageCountValue(dbRow) {
+  const value = Number(dbRow?.message_count);
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.floor(value));
+}
+
+function isMessageSentOrBeyondStatus(statusValue) {
+  const normalized = String(statusValue || "")
+    .trim()
+    .toLowerCase();
+  return (
+    normalized === "first message sent" ||
+    normalized === "first_message_sent" ||
+    normalized === "message responded" ||
+    normalized === "message_responded"
+  );
+}
+
+function getEffectiveMessageCount(dbRow) {
+  const rawCount = getMessageCountValue(dbRow);
+  if (isMessageSentOrBeyondStatus(getLifecycleStatusValue(dbRow))) {
+    return Math.max(1, rawCount);
+  }
+  return rawCount;
 }
 
 function isAcceptedRow(dbRow) {
@@ -963,6 +998,32 @@ function updateStepperInteractivity() {
   applyStepState(stepMessageRespondedEl, "message_responded", {
     done: statusRank >= 4,
   });
+  const messageCount = getEffectiveMessageCount(dbInvitationRow);
+  if (messageCountBadgeEl) {
+    messageCountBadgeEl.hidden = messageCount <= 0;
+    messageCountBadgeEl.textContent = String(messageCount);
+  }
+  if (messageCountControlsEl) {
+    messageCountControlsEl.hidden = messageCount <= 0;
+  }
+  if (messageCountDecrementEl) {
+    messageCountDecrementEl.disabled =
+      messageCount <= 0 ||
+      (isMessageSentOrBeyondStatus(getLifecycleStatusValue(dbInvitationRow)) &&
+        messageCount <= 1);
+  }
+  positionMessageCountControls();
+}
+
+function positionMessageCountControls() {
+  if (!messageCountControlsEl || !statusStepperEl || !stepFirstMessageSentEl) {
+    return;
+  }
+  const stepperRect = statusStepperEl.getBoundingClientRect();
+  const stepRect = stepFirstMessageSentEl.getBoundingClientRect();
+  if (!stepperRect.width || !stepRect.width) return;
+  const centerX = stepRect.left - stepperRect.left + stepRect.width / 2;
+  messageCountControlsEl.style.left = `${Math.round(centerX)}px`;
 }
 
 function updatePhaseButtons() {
@@ -1361,6 +1422,7 @@ async function refreshInvitationRowFromDb({ preserveTabs = false } = {}) {
     }
 
     dbInvitationRow = resp.row || null;
+    await maybeAutocorrectLegacyMessageCount();
     await applyCampaignSelectionFromProfile();
     await setLanguage(
       dbInvitationRow?.language ||
@@ -1384,6 +1446,29 @@ async function refreshInvitationRowFromDb({ preserveTabs = false } = {}) {
   } finally {
     setFooterReady();
   }
+}
+
+async function maybeAutocorrectLegacyMessageCount() {
+  const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
+  if (!linkedin_url || !dbInvitationRow) return;
+  if (!isMessageSentOrBeyondStatus(getLifecycleStatusValue(dbInvitationRow))) {
+    return;
+  }
+  const currentCount = getMessageCountValue(dbInvitationRow);
+  if (currentCount > 0) return;
+  if (messageCountLegacyFixAttemptedUrl === linkedin_url) return;
+  messageCountLegacyFixAttemptedUrl = linkedin_url;
+  const result = await sendRuntimeMessage("DB_SET_MESSAGE_COUNT", {
+    payload: { linkedin_url, message_count: 1 },
+  });
+  const resp = result.data || {};
+  if (resp?.ok) {
+    dbInvitationRow = { ...dbInvitationRow, message_count: 1 };
+    return;
+  }
+  setFooterStatus(
+    `Could not correct message count: ${getErrorMessage(resp?.error || result.error)}`,
+  );
 }
 
 function hasMessageProfileUrl() {
@@ -3165,6 +3250,35 @@ function runPopupInit() {
   navPacingEnabledEl?.addEventListener("change", async () => {
     await saveNavPacingEnabled(Boolean(navPacingEnabledEl.checked));
   });
+  messageCountIncrementEl?.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setFooterDbStatus();
+    try {
+      await adjustMessageCountForCurrentProfile(1);
+    } finally {
+      setFooterReady();
+    }
+  });
+  messageCountDecrementEl?.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const statusValue = getLifecycleStatusValue(dbInvitationRow);
+    const effectiveCount = getEffectiveMessageCount(dbInvitationRow);
+    if (isMessageSentOrBeyondStatus(statusValue) && effectiveCount <= 1) {
+      setFooterStatus(
+        "To remove the last message, revert status via the process flow.",
+      );
+      return;
+    }
+    if (effectiveCount <= 0) return;
+    setFooterDbStatus();
+    try {
+      await adjustMessageCountForCurrentProfile(-1);
+    } finally {
+      setFooterReady();
+    }
+  });
 
   campaignSelectEl?.addEventListener("change", async () => {
     updateDetailCampaignSelectTitle();
@@ -3190,6 +3304,9 @@ function runPopupInit() {
 
   cancelNewCampaignBtnEl?.addEventListener("click", () => {
     setNewCampaignRowVisible(false);
+  });
+  window.addEventListener("resize", () => {
+    positionMessageCountControls();
   });
 }
 
@@ -3577,10 +3694,12 @@ async function onStepAcceptedClick() {
 }
 
 async function onStepFirstMessageSentClick() {
-  await setMarkedStatusForStepper(
+  const statusResult = await setMarkedStatusForStepper(
     "first message sent",
     UI_TEXT.markedFirstMessageSent,
   );
+  if (!statusResult?.ok) return;
+  await adjustMessageCountForCurrentProfile(1);
 }
 
 async function onStepMessageRespondedClick() {
@@ -3598,7 +3717,7 @@ async function setStatusOnlyForStepper(statusValue, successText) {
     if (!linkedin_url) {
       setFooterStatus(UI_TEXT.openLinkedInProfileFirst);
       footerHandled = true;
-      return;
+      return { ok: false };
     }
     const payloadStatus =
       statusValue === "message responded" ? "message responded" : statusValue;
@@ -3615,15 +3734,18 @@ async function setStatusOnlyForStepper(statusValue, successText) {
       await refreshInvitationRowFromDb();
       setFooterStatus(`Successfully set status ${payloadStatus}`);
       footerHandled = true;
+      return { ok: true };
     } else {
       setFooterStatus(
         `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`,
       );
       footerHandled = true;
+      return { ok: false };
     }
   } finally {
     if (!footerHandled) setFooterReady();
   }
+  return { ok: false };
 }
 
 async function setMarkedStatusForStepper(statusValue, successText) {
@@ -3634,7 +3756,7 @@ async function setMarkedStatusForStepper(statusValue, successText) {
     if (!linkedin_url) {
       setFooterStatus(UI_TEXT.openLinkedInProfileFirst);
       footerHandled = true;
-      return;
+      return { ok: false };
     }
     const result = await sendRuntimeMessage("DB_MARK_STATUS", {
       payload: { linkedin_url, status: statusValue },
@@ -3649,15 +3771,18 @@ async function setMarkedStatusForStepper(statusValue, successText) {
       await refreshInvitationRowFromDb({ preserveTabs: true });
       setFooterStatus(`Successfully set status ${statusValue}`);
       footerHandled = true;
+      return { ok: true };
     } else {
       setFooterStatus(
         `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`,
       );
       footerHandled = true;
+      return { ok: false };
     }
   } finally {
     if (!footerHandled) setFooterReady();
   }
+  return { ok: false };
 }
 
 async function setAcceptedToggleForStepper() {
@@ -3697,6 +3822,49 @@ async function setAcceptedToggleForStepper() {
   } finally {
     if (!footerHandled) setFooterReady();
   }
+}
+
+async function adjustMessageCountForCurrentProfile(delta) {
+  const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
+  if (!linkedin_url) {
+    setFooterStatus(UI_TEXT.openLinkedInProfileFirst);
+    return false;
+  }
+  const result = await sendRuntimeMessage("DB_INCREMENT_MESSAGE_COUNT", {
+    payload: { linkedin_url, delta },
+  });
+  const resp = result.data || {};
+  if (!resp?.ok) {
+    setFooterStatus(
+      `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error || result.error)}`,
+    );
+    return false;
+  }
+  await refreshInvitationRowFromDb({ preserveTabs: true });
+  await refreshOverviewListContextSnapshot();
+  return true;
+}
+
+async function setMessageCountForCurrentProfile(message_count) {
+  const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
+  if (!linkedin_url) {
+    setFooterStatus(UI_TEXT.openLinkedInProfileFirst);
+    return false;
+  }
+  const result = await sendRuntimeMessage("DB_SET_MESSAGE_COUNT", {
+    payload: { linkedin_url, message_count },
+  });
+  const resp = result.data || {};
+  if (!resp?.ok) {
+    setFooterStatus(
+      `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error || result.error)}`,
+    );
+    await refreshInvitationRowFromDb({ preserveTabs: true });
+    return false;
+  }
+  await refreshInvitationRowFromDb({ preserveTabs: true });
+  await refreshOverviewListContextSnapshot();
+  return true;
 }
 
 function bindStepperClickHandlers() {
@@ -3741,7 +3909,13 @@ function bindStepperClickHandlers() {
         return;
       }
       if (stepperBackAction === "status_invited") {
-        await setStatusOnlyForStepper("invited", "Back to invited");
+        const backResult = await setStatusOnlyForStepper(
+          "invited",
+          "Back to invited",
+        );
+        if (backResult?.ok) {
+          await setMessageCountForCurrentProfile(0);
+        }
         return;
       }
       if (stepperBackAction === "status_first_message_sent") {

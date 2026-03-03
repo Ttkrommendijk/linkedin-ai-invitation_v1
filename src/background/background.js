@@ -1378,7 +1378,7 @@ async function supabaseUpdateProfileDetailsOnly({
 async function supabaseGetInvitationByLinkedinUrl(linkedin_url) {
   const { supabaseUrl, supabaseAnonKey, accessToken } =
     await getSupabaseRequestContext();
-  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}&select=linkedin_url,status,message,generated_at,invited_at,accepted,accepted_at,first_message,first_message_generated_at,first_message_sent_at,company,headline,language,full_name,campaign`;
+  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}&select=linkedin_url,status,message,generated_at,invited_at,accepted,accepted_at,first_message,first_message_generated_at,first_message_sent_at,message_count,company,headline,language,full_name,campaign`;
 
   const res = await fetchWithTimeout(
     url,
@@ -1403,6 +1403,94 @@ async function supabaseGetInvitationByLinkedinUrl(linkedin_url) {
   const rows = await res.json();
   if (!Array.isArray(rows) || rows.length === 0) return null;
   return rows[0] || null;
+}
+
+async function supabaseIncrementMessageCount({ linkedin_url, delta }) {
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
+  const targetUrl = normalizeProfileField(linkedin_url);
+  if (!targetUrl) {
+    throw new Error("Missing linkedin_url.");
+  }
+  const numericDelta = Number(delta);
+  if (!Number.isFinite(numericDelta) || numericDelta === 0) return;
+
+  const getUrl = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}&select=message_count&limit=1`;
+  const getRes = await fetchWithTimeout(
+    getUrl,
+    {
+      method: "GET",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    },
+    15000,
+    "Supabase request",
+  );
+  if (!getRes.ok) {
+    const txt = await getRes.text().catch(() => "");
+    throw createProviderHttpError("supabase", getRes.status, txt);
+  }
+  const rows = await getRes.json();
+  const current = Number(rows?.[0]?.message_count);
+  const safeCurrent = Number.isFinite(current) ? Math.floor(current) : 0;
+  const next = Math.max(0, safeCurrent + Math.trunc(numericDelta));
+
+  const patchUrl = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
+  const patchRes = await fetchWithTimeout(
+    patchUrl,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({ message_count: next }),
+    },
+    15000,
+    "Supabase request",
+  );
+  if (!patchRes.ok) {
+    const txt = await patchRes.text().catch(() => "");
+    throw createProviderHttpError("supabase", patchRes.status, txt);
+  }
+}
+
+async function supabaseSetMessageCount({ linkedin_url, message_count }) {
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
+  const targetUrl = normalizeProfileField(linkedin_url);
+  if (!targetUrl) {
+    throw new Error("Missing linkedin_url.");
+  }
+  const numeric = Number(message_count);
+  const safeCount = Number.isFinite(numeric)
+    ? Math.max(0, Math.floor(numeric))
+    : 0;
+  const patchUrl = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
+  const patchRes = await fetchWithTimeout(
+    patchUrl,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({ message_count: safeCount }),
+    },
+    15000,
+    "Supabase request",
+  );
+  if (!patchRes.ok) {
+    const txt = await patchRes.text().catch(() => "");
+    throw createProviderHttpError("supabase", patchRes.status, txt);
+  }
 }
 
 async function supabaseListCampaigns() {
@@ -2160,6 +2248,38 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       emitUiStatus("Communicating to database\u2026");
       try {
         await supabaseClearAcceptedAt(msg.payload || {});
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "DB_INCREMENT_MESSAGE_COUNT") {
+    (async () => {
+      emitUiStatus("Updating\u2026");
+      try {
+        await supabaseIncrementMessageCount(msg?.payload || {});
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "DB_SET_MESSAGE_COUNT") {
+    (async () => {
+      emitUiStatus("Updating\u2026");
+      try {
+        await supabaseSetMessageCount(msg?.payload || {});
         sendResponse({ ok: true });
       } catch (e) {
         sendResponse({

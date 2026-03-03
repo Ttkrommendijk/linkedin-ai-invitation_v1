@@ -153,7 +153,12 @@
                             data-step="first_message_sent"
                         >
                             <div class="status-circle"></div>
-                            <div class="status-label">1st sent</div>
+                            <div class="status-label">message sent</div>
+                            <span
+                                id="messageCountBadge"
+                                class="step-badge"
+                                hidden
+                            ></span>
                         </div>
                         <div
                             id="step-message-responded"
@@ -162,6 +167,32 @@
                         >
                             <div class="status-circle"></div>
                             <div class="status-label">Responded</div>
+                        </div>
+                    </div>
+                    <div id="stepperUnderlay" class="stepper-underlay">
+                        <div
+                            id="messageCountControls"
+                            class="message-count-controls"
+                            hidden
+                        >
+                            <button
+                                id="messageCountDecrement"
+                                type="button"
+                                class="msgcount-btn"
+                                title="Decrease message count"
+                                aria-label="Decrease message count"
+                            >
+                                -
+                            </button>
+                            <button
+                                id="messageCountIncrement"
+                                type="button"
+                                class="msgcount-btn"
+                                title="Increase message count"
+                                aria-label="Increase message count"
+                            >
+                                +
+                            </button>
                         </div>
                     </div>
                     <div class="section-divider"></div>
