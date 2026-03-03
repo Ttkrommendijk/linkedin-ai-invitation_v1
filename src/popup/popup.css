@@ -801,6 +801,11 @@ pre {
 .overview-grid .icon-green {
     color: #1b7f3b;
 }
+.overview-actions-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
 .sort-btn {
     width: auto;
     margin-top: 0;

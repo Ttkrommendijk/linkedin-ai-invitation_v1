@@ -1550,7 +1550,7 @@ function renderOverviewTable(rows) {
   if (!safeRows.length) {
     const tr = document.createElement("tr");
     const td = document.createElement("td");
-    td.colSpan = 8;
+    td.colSpan = 7;
     td.textContent = "No rows.";
     tr.appendChild(td);
     overviewTbodyEl.appendChild(tr);
@@ -1561,20 +1561,22 @@ function renderOverviewTable(rows) {
   for (const row of safeRows) {
     const tr = document.createElement("tr");
 
-    const openTd = document.createElement("td");
+    const actionsTd = document.createElement("td");
+    const actionsWrap = document.createElement("div");
+    actionsWrap.className = "overview-actions-inline";
     const openBtn = createOverviewIconButton({
       title: "Open",
       ariaLabel: "Open",
       pathD:
         "M10 2h4v4h-1.8V4.9L7.5 9.6 6.4 8.5 11.1 3.8H10V2ZM3 4h4v1.5H4.5v6h6V9H12v4H3V4Z",
     });
-    openBtn.addEventListener("click", () => {
+    openBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
       openLinkedIn(row?.url || "");
     });
-    openTd.appendChild(openBtn);
-    tr.appendChild(openTd);
+    actionsWrap.appendChild(openBtn);
 
-    const archiveTd = document.createElement("td");
     const isArchived = isOverviewRowArchived(row);
     const archiveBtn = isArchived
       ? createOverviewIconButton({
@@ -1591,11 +1593,14 @@ function renderOverviewTable(rows) {
           pathD:
             "M2 3.5 3.2 2h9.6L14 3.5V5H2V3.5Zm1 2.5h10v7.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6Zm2 2v1.5h6V8H5Z",
         });
-    archiveBtn.addEventListener("click", async () => {
+    archiveBtn.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
       await setArchivedRow(row?.url || "", !isArchived);
     });
-    archiveTd.appendChild(archiveBtn);
-    tr.appendChild(archiveTd);
+    actionsWrap.appendChild(archiveBtn);
+    actionsTd.appendChild(actionsWrap);
+    tr.appendChild(actionsTd);
 
     const nameTd = document.createElement("td");
     nameTd.className = "overview-cell-text";
@@ -1633,25 +1638,23 @@ function renderOverviewTable(rows) {
 }
 
 function getOverviewColumnBounds(index) {
-  // Column index map: 0 Open, 1 Archive action, 2 Name, 3 Company,
-  // 4 Status, 5 Most relevant date, 6 Campaign, 7 Archived.
+  // Column index map: 0 Actions, 1 Name, 2 Company,
+  // 3 Status, 4 Most relevant date, 5 Campaign, 6 Archived.
   const bounds = [
-    { min: 56, max: 64 },
-    { min: 56, max: 64 },
+    { min: 72, max: 220 },
     { min: 90, max: 260 },
     { min: 90, max: 260 },
     { min: 80, max: 180 },
     { min: 110, max: 180 },
     { min: 100, max: 240 },
-    { min: 70, max: 90 },
+    { min: 70, max: 120 },
   ];
   return bounds[index] || { min: 70, max: 420 };
 }
 
 function getOverviewColumnKey(index) {
   const keys = [
-    "open",
-    "archive_action",
+    "actions",
     "name",
     "company",
     "status",
@@ -1855,7 +1858,7 @@ async function fetchOverviewPage() {
       overviewTbodyEl.innerHTML = "";
       const tr = document.createElement("tr");
       const td = document.createElement("td");
-      td.colSpan = 8;
+      td.colSpan = 7;
       td.textContent = getErrorMessage(result.error);
       tr.appendChild(td);
       overviewTbodyEl.appendChild(tr);
@@ -1878,7 +1881,7 @@ async function fetchOverviewPage() {
     overviewTbodyEl.innerHTML = "";
     const tr = document.createElement("tr");
     const td = document.createElement("td");
-    td.colSpan = 8;
+    td.colSpan = 7;
     td.textContent = getErrorMessage(e);
     tr.appendChild(td);
     overviewTbodyEl.appendChild(tr);
