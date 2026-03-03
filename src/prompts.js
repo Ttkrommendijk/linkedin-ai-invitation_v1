@@ -69,7 +69,7 @@ Return strict JSON only (no markdown, no prose) with exactly:
 
 Rules:
 - "headline" means the person's current job title/role (cargo), not a marketing headline.
-- Ignore/remove leading ordinal or line markers in headline, like "2�", "1�", "3�", "#2", "I", "II", "III", and similar.
+- Ignore/remove leading ordinal or line markers in headline, like "2o", "1o", "3o", "#2", "I", "II", "III", and similar.
 - "company" must be only the company/organization name.
 - "language" must be the dominant profile language (prefer: Portuguese, English, Dutch, Spanish).
 - If possible, return language as one of: Portuguese, English, Dutch, Spanish.
