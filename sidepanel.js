@@ -72,12 +72,27 @@ const sendRuntimeMessage =
       };
 
 const REFRESH_DEBOUNCE_MS = 500;
+const STORAGE_KEY_NAV_PACING = "lef_nav_pacing_v1";
+const DEFAULT_NAV_PACING_CONFIG = Object.freeze({
+  enabled: true,
+  burst_free_count: 3,
+  cooldown_min_ms: 1200,
+  cooldown_max_ms: 3200,
+  quiet_reset_ms: 12000,
+});
 let refreshTimer = null;
 let lastNotifiedUrl = "";
 let prevListUrl = "";
 let nextListUrl = "";
 let navListItems = [];
 let navAnchorIndex = -1;
+const navPacingState = {
+  lastNavTs: 0,
+  burstCount: 0,
+  cooldownTimer: null,
+  countdownTimer: null,
+  cooldownUntilTs: 0,
+};
 
 function isLinkedInProfileLikeUrl(url) {
   if (typeof LEF_UTILS.isLinkedInProfileLikeUrl === "function") {
@@ -107,6 +122,67 @@ function canonicalizeLinkedInUrl(rawUrl) {
 
 function setRefreshStatus(text) {
   if (refreshStatusEl) refreshStatusEl.textContent = text;
+}
+
+function mergeNavPacingConfig(rawConfig) {
+  const cfg =
+    rawConfig && typeof rawConfig === "object"
+      ? rawConfig
+      : Object.create(null);
+  const minMs = Number(cfg.cooldown_min_ms);
+  const maxMs = Number(cfg.cooldown_max_ms);
+  const safeMin = Number.isFinite(minMs) && minMs > 0 ? minMs : 1200;
+  const safeMaxBase = Number.isFinite(maxMs) && maxMs > 0 ? maxMs : 3200;
+  const safeMax = Math.max(safeMin, safeMaxBase);
+  const quietReset = Number(cfg.quiet_reset_ms);
+  const burstFree = Number(cfg.burst_free_count);
+  return {
+    ...DEFAULT_NAV_PACING_CONFIG,
+    ...cfg,
+    enabled:
+      typeof cfg.enabled === "boolean"
+        ? cfg.enabled
+        : DEFAULT_NAV_PACING_CONFIG.enabled,
+    burst_free_count:
+      Number.isFinite(burstFree) && burstFree >= 0 ? burstFree : 3,
+    cooldown_min_ms: safeMin,
+    cooldown_max_ms: safeMax,
+    quiet_reset_ms:
+      Number.isFinite(quietReset) && quietReset > 0 ? quietReset : 12000,
+  };
+}
+
+async function getNavPacingConfig() {
+  const data = await chrome.storage.local.get([STORAGE_KEY_NAV_PACING]);
+  return mergeNavPacingConfig(data?.[STORAGE_KEY_NAV_PACING]);
+}
+
+function isNavCooldownActive() {
+  return Boolean(
+    navPacingState.cooldownTimer || Date.now() < navPacingState.cooldownUntilTs,
+  );
+}
+
+function clearNavCooldownTimers() {
+  if (navPacingState.cooldownTimer) {
+    clearTimeout(navPacingState.cooldownTimer);
+    navPacingState.cooldownTimer = null;
+  }
+  if (navPacingState.countdownTimer) {
+    clearInterval(navPacingState.countdownTimer);
+    navPacingState.countdownTimer = null;
+  }
+  navPacingState.cooldownUntilTs = 0;
+}
+
+function setSideNavButtonsDisabled(disabled) {
+  if (disabled) {
+    if (navPrevBtnEl) navPrevBtnEl.disabled = true;
+    if (navNextBtnEl) navNextBtnEl.disabled = true;
+    return;
+  }
+  if (navPrevBtnEl) navPrevBtnEl.disabled = !prevListUrl;
+  if (navNextBtnEl) navNextBtnEl.disabled = !nextListUrl;
 }
 
 function findNoProfileEl() {
@@ -205,8 +281,7 @@ async function computeSideNavTargets() {
   if (index < 0) {
     prevListUrl = "";
     nextListUrl = "";
-    if (navPrevBtnEl) navPrevBtnEl.disabled = true;
-    if (navNextBtnEl) navNextBtnEl.disabled = true;
+    setSideNavButtonsDisabled(true);
     if (uniqueItems.length) {
       setRefreshStatus(
         "Navigation context out of sync. Open a profile from the overview list again.",
@@ -218,8 +293,11 @@ async function computeSideNavTargets() {
   prevListUrl = index > 0 ? uniqueItems[index - 1] : "";
   nextListUrl =
     index >= 0 && index < uniqueItems.length - 1 ? uniqueItems[index + 1] : "";
-  if (navPrevBtnEl) navPrevBtnEl.disabled = !prevListUrl;
-  if (navNextBtnEl) navNextBtnEl.disabled = !nextListUrl;
+  if (isNavCooldownActive()) {
+    setSideNavButtonsDisabled(true);
+  } else {
+    setSideNavButtonsDisabled(false);
+  }
 }
 
 function resetSideNavTargets() {
@@ -227,8 +305,7 @@ function resetSideNavTargets() {
   nextListUrl = "";
   navListItems = [];
   navAnchorIndex = -1;
-  if (navPrevBtnEl) navPrevBtnEl.disabled = true;
-  if (navNextBtnEl) navNextBtnEl.disabled = true;
+  setSideNavButtonsDisabled(true);
 }
 
 async function navigateToListNeighbor(direction) {
@@ -249,6 +326,55 @@ async function navigateToListNeighbor(direction) {
   });
   await chrome.tabs.update(activeTab.id, { url: targetUrl, active: true });
   scheduleRefresh(`nav-${direction}`);
+}
+
+async function performPacedNavigation(direction) {
+  const pacingConfig = await getNavPacingConfig();
+  if (!pacingConfig.enabled) {
+    await computeSideNavTargets();
+    await navigateToListNeighbor(direction);
+    return;
+  }
+
+  const now = Date.now();
+  if (now - navPacingState.lastNavTs > pacingConfig.quiet_reset_ms) {
+    navPacingState.burstCount = 0;
+  }
+  navPacingState.burstCount += 1;
+  navPacingState.lastNavTs = now;
+
+  if (navPacingState.burstCount <= pacingConfig.burst_free_count) {
+    await computeSideNavTargets();
+    await navigateToListNeighbor(direction);
+    return;
+  }
+
+  const minMs = pacingConfig.cooldown_min_ms;
+  const maxMs = Math.max(minMs, pacingConfig.cooldown_max_ms);
+  const delayMs =
+    minMs + Math.floor(Math.random() * Math.max(1, maxMs - minMs + 1));
+
+  clearNavCooldownTimers();
+  navPacingState.cooldownUntilTs = Date.now() + delayMs;
+  setSideNavButtonsDisabled(true);
+
+  const updateCountdownStatus = () => {
+    const remainingMs = Math.max(
+      0,
+      navPacingState.cooldownUntilTs - Date.now(),
+    );
+    const seconds = (remainingMs / 1000).toFixed(1);
+    setRefreshStatus(`Please wait ${seconds}s before navigating`);
+  };
+  updateCountdownStatus();
+  navPacingState.countdownTimer = setInterval(updateCountdownStatus, 200);
+
+  navPacingState.cooldownTimer = setTimeout(async () => {
+    clearNavCooldownTimers();
+    await computeSideNavTargets();
+    await navigateToListNeighbor(direction);
+    setRefreshStatus("Navigating...");
+  }, delayMs);
 }
 
 function sendExtractMessage(tabId) {
@@ -460,10 +586,12 @@ function runSidePanelInit() {
   if (!panelFrameEl) return;
 
   navPrevBtnEl?.addEventListener("click", () => {
-    navigateToListNeighbor("prev").catch(() => null);
+    if (isNavCooldownActive()) return;
+    performPacedNavigation("prev").catch(() => null);
   });
   navNextBtnEl?.addEventListener("click", () => {
-    navigateToListNeighbor("next").catch(() => null);
+    if (isNavCooldownActive()) return;
+    performPacedNavigation("next").catch(() => null);
   });
 
   refreshNowBtnEl?.addEventListener("click", () => {

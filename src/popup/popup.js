@@ -105,7 +105,15 @@ const STORAGE_KEY_LAST_ACTIVE_CAMPAIGN = "last_active_campaign";
 const STORAGE_KEY_LIST_FILTERS = "lef_list_filters_v1";
 const STORAGE_KEY_LIST_COLUMN_WIDTHS = "lef_list_column_widths_v1";
 const STORAGE_KEY_SUPABASE_URL = "supabase_url";
+const STORAGE_KEY_NAV_PACING = "lef_nav_pacing_v1";
 const DEFAULT_SUPABASE_URL = "https://nkhujuqjnbzsfqyqfndc.supabase.co";
+const DEFAULT_NAV_PACING_CONFIG = Object.freeze({
+  enabled: true,
+  burst_free_count: 3,
+  cooldown_min_ms: 1200,
+  cooldown_max_ms: 3200,
+  quiet_reset_ms: 12000,
+});
 const SUPPORTED_LANGUAGES = ["Portuguese", "English", "Dutch", "Spanish"];
 const DEFAULT_FIRST_MESSAGE_PROMPT = messagePromptEl?.value || "";
 const LEF_UTILS_SOURCE = globalThis.LEFUtils;
@@ -310,6 +318,7 @@ const overviewTableEl = document.querySelector("#tabOverview .overview-table");
 
 const webhookBaseUrlEl = document.getElementById("webhookBaseUrl");
 const webhookSecretEl = document.getElementById("webhookSecret");
+const navPacingEnabledEl = document.getElementById("navPacingEnabled");
 
 let lastProfileContextSent = {};
 let lastProfileContextEnriched = null;
@@ -432,6 +441,37 @@ async function saveSupabaseUrlOverride(rawValue, { showStatus = true } = {}) {
   if (webhookBaseUrlEl) webhookBaseUrlEl.value = normalized;
   if (showStatus) setFooterStatus("Supabase URL saved.");
   return normalized;
+}
+
+function mergeNavPacingConfig(rawConfig) {
+  const cfg =
+    rawConfig && typeof rawConfig === "object"
+      ? rawConfig
+      : Object.create(null);
+  return {
+    ...DEFAULT_NAV_PACING_CONFIG,
+    ...cfg,
+    enabled:
+      typeof cfg.enabled === "boolean"
+        ? cfg.enabled
+        : DEFAULT_NAV_PACING_CONFIG.enabled,
+  };
+}
+
+async function loadNavPacingConfigForUi() {
+  const data = await chrome.storage.local.get([STORAGE_KEY_NAV_PACING]);
+  return mergeNavPacingConfig(data?.[STORAGE_KEY_NAV_PACING]);
+}
+
+async function saveNavPacingEnabled(enabled) {
+  const current = await loadNavPacingConfigForUi();
+  const next = {
+    ...current,
+    enabled: Boolean(enabled),
+  };
+  await chrome.storage.local.set({
+    [STORAGE_KEY_NAV_PACING]: next,
+  });
 }
 
 function truncateCampaignLabel(value, maxLen = OVERVIEW_CAMPAIGN_LABEL_MAX) {
@@ -2925,6 +2965,10 @@ async function loadSettings() {
       webhookBaseUrl,
     );
   }
+  const navPacingConfig = await loadNavPacingConfigForUi();
+  if (navPacingEnabledEl) {
+    navPacingEnabledEl.checked = Boolean(navPacingConfig.enabled);
+  }
 }
 let popupInitErrorLogged = false;
 function logPopupInitError(error) {
@@ -3117,6 +3161,9 @@ function runPopupInit() {
   });
   webhookBaseUrlEl?.addEventListener("change", async () => {
     await saveSupabaseUrlOverride(webhookBaseUrlEl.value || "");
+  });
+  navPacingEnabledEl?.addEventListener("change", async () => {
+    await saveNavPacingEnabled(Boolean(navPacingEnabledEl.checked));
   });
 
   campaignSelectEl?.addEventListener("change", async () => {
