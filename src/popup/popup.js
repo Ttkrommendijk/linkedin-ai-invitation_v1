@@ -309,6 +309,7 @@ let overviewAutoSizeTimer = null;
 let overviewColumnWidths = {};
 let overviewColumnOverridden = {};
 let overviewColumnPersistTimer = null;
+let overviewContextRefreshPromise = null;
 let chatExtractSeq = 0;
 let detailInnerTab = "invite";
 let stepperAllowedActions = {
@@ -330,6 +331,7 @@ let followupCopyIconResetTimer = null;
 let freePromptCopyIconResetTimer = null;
 let readyResetTimer = null;
 let knownCampaignValues = [];
+let overviewContextItems = [];
 const OVERVIEW_CAMPAIGN_LABEL_MAX = 52;
 const COPY_ICON_GLYPH = "\u29c9";
 const COPY_TOOLTIP_DEFAULT = "Copy to clipboard";
@@ -1765,6 +1767,7 @@ function scheduleOverviewAutoSize() {
 async function fetchOverviewPage() {
   setFooterFetchingStatus();
   overviewLoadingEl.hidden = false;
+  let contextRefreshPromise = null;
   try {
     const result = await sendRuntimeMessage("DB_LIST_INVITATIONS_OVERVIEW", {
       payload: buildOverviewQueryState(),
@@ -1787,7 +1790,9 @@ async function fetchOverviewPage() {
     overviewTotal = Number.isFinite(resp?.total) ? resp.total : null;
     const visibleRows = applyOverviewClientFilters(resp?.rows || []);
     renderOverviewTable(visibleRows);
-    await persistOverviewListContext(visibleRows);
+    contextRefreshPromise = persistOverviewListContext();
+    overviewContextRefreshPromise = contextRefreshPromise;
+    await contextRefreshPromise;
     renderOverviewSortIndicators();
     renderOverviewPagination();
   } catch (e) {
@@ -1800,25 +1805,78 @@ async function fetchOverviewPage() {
     overviewTbodyEl.appendChild(tr);
     scheduleOverviewAutoSize();
   } finally {
+    if (overviewContextRefreshPromise === contextRefreshPromise) {
+      overviewContextRefreshPromise = null;
+    }
     overviewLoadingEl.hidden = true;
     setFooterReady();
   }
 }
 
-async function persistOverviewListContext(rows) {
-  const safeRows = Array.isArray(rows) ? rows : [];
-  const items = safeRows
-    .map((row) => String(row?.url || "").trim())
-    .filter((url) =>
-      /^https:\/\/www\.linkedin\.com\/(in|company)\/[^/?#]+/i.test(url),
-    );
+async function buildOverviewListContextItems() {
+  const queryBase = buildOverviewQueryState();
+  const pageSize = 200;
+  const maxPages = 100;
+  let page = 1;
+  const allItems = [];
+  const seen = new Set();
+
+  while (page <= maxPages) {
+    const result = await sendRuntimeMessage("DB_LIST_INVITATIONS_OVERVIEW", {
+      payload: {
+        ...queryBase,
+        page,
+        pageSize,
+      },
+    });
+    if (!result.ok) break;
+    const resp = result.data || {};
+    const sourceRows = Array.isArray(resp?.rows) ? resp.rows : [];
+    const filteredRows = applyOverviewClientFilters(sourceRows);
+    filteredRows.forEach((row) => {
+      const canonicalUrl = canonicalizeLinkedInUrl(row?.url || "");
+      if (
+        !/^https:\/\/www\.linkedin\.com\/(in|company)\/[^/?#]+/i.test(
+          canonicalUrl,
+        )
+      ) {
+        return;
+      }
+      if (seen.has(canonicalUrl)) return;
+      seen.add(canonicalUrl);
+      allItems.push(canonicalUrl);
+    });
+    if (sourceRows.length < pageSize) break;
+    if (Number.isFinite(resp?.total) && page * pageSize >= resp.total) break;
+    page += 1;
+  }
+
+  return allItems;
+}
+
+async function persistOverviewListContext() {
+  const items = await buildOverviewListContextItems();
+  overviewContextItems = items;
+  const queryBase = buildOverviewQueryState();
   await chrome.storage.local.set({
     lef_list_context: {
       version: 1,
       updated_at: new Date().toISOString(),
       items,
+      source: "overview",
+      sort: {
+        field: queryBase.sortField,
+        dir: queryBase.sortDir,
+      },
     },
   });
+}
+
+async function refreshOverviewListContextSnapshot() {
+  if (!OVERVIEW_ENABLED) return;
+  try {
+    await persistOverviewListContext();
+  } catch (_e) {}
 }
 
 async function openLinkedIn(url) {
@@ -1829,7 +1887,26 @@ async function openLinkedIn(url) {
       ? LEF_UTILS.isLinkedInProfileLikeUrl(targetUrl)
       : /^https:\/\/www\.linkedin\.com\/(in|company)\/[^/?#]+/i.test(targetUrl);
   if (!isLinkedInTarget) return;
-  await chrome.storage.local.set({ lef_list_last_opened_url: targetUrl });
+  if (overviewContextRefreshPromise) {
+    try {
+      await overviewContextRefreshPromise;
+    } catch (_e) {}
+  }
+  const canonicalTargetUrl = canonicalizeLinkedInUrl(targetUrl);
+  const canonicalSessionItems = (overviewContextItems || [])
+    .map((itemUrl) => canonicalizeLinkedInUrl(itemUrl))
+    .filter(Boolean);
+  const contextIndex = canonicalSessionItems.indexOf(canonicalTargetUrl);
+  const navSessionId = String(Date.now());
+  await chrome.storage.local.set({
+    lef_list_last_opened_url: canonicalTargetUrl,
+    lef_list_last_opened_key: canonicalTargetUrl,
+    lef_list_last_opened_index:
+      Number.isFinite(contextIndex) && contextIndex >= 0 ? contextIndex : null,
+    lef_nav_session_id: navSessionId,
+    lef_nav_session_items: canonicalSessionItems,
+    lef_nav_session_anchor: canonicalTargetUrl,
+  });
   await sendRuntimeMessage("OPEN_LINKEDIN_URL", {
     payload: { url: targetUrl },
   });
@@ -1989,6 +2066,21 @@ function isLinkedInProfileLikeUrl(url) {
   }
   if (!url || typeof url !== "string") return false;
   return /^https:\/\/www\.linkedin\.com\/(in|company)\/[^/?#]+/i.test(url);
+}
+
+function canonicalizeLinkedInUrl(rawUrl) {
+  const input = String(rawUrl || "").trim();
+  if (!input) return "";
+  try {
+    const parsed = new URL(input);
+    const pathname = (parsed.pathname || "").replace(/\/+$/, "") || "/";
+    return `https://www.linkedin.com${pathname}`;
+  } catch (_e) {
+    const noHash = input.split("#")[0];
+    const noQuery = noHash.split("?")[0];
+    const noTrailing = noQuery.replace(/\/+$/, "");
+    return noTrailing || "";
+  }
 }
 
 function getProfileMatchForUrl(url) {
@@ -3267,6 +3359,7 @@ async function setAcceptedToggleForStepper() {
     );
     if (resp?.ok) {
       await refreshInvitationRowFromDb({ preserveTabs: true });
+      await refreshOverviewListContextSnapshot();
       footerHandled = true;
     } else {
       setFooterStatus(

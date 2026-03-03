@@ -76,6 +76,8 @@ let refreshTimer = null;
 let lastNotifiedUrl = "";
 let prevListUrl = "";
 let nextListUrl = "";
+let navListItems = [];
+let navAnchorIndex = -1;
 
 function isLinkedInProfileLikeUrl(url) {
   if (typeof LEF_UTILS.isLinkedInProfileLikeUrl === "function") {
@@ -85,12 +87,19 @@ function isLinkedInProfileLikeUrl(url) {
   return /^https:\/\/www\.linkedin\.com\/(in|company)\/[^/?#]+/i.test(url);
 }
 
-function normalizeLinkedinUrl(url) {
-  const raw = String(url || "").trim();
-  if (!raw) return "";
-  const noHash = raw.split("#")[0];
-  const noQuery = noHash.split("?")[0];
-  return noQuery.replace(/\/+$/, "");
+function canonicalizeLinkedInUrl(rawUrl) {
+  const input = String(rawUrl || "").trim();
+  if (!input) return "";
+  try {
+    const parsed = new URL(input);
+    const pathname = (parsed.pathname || "").replace(/\/+$/, "") || "/";
+    return `https://www.linkedin.com${pathname}`;
+  } catch (_e) {
+    const noHash = input.split("#")[0];
+    const noQuery = noHash.split("?")[0];
+    const noTrailing = noQuery.replace(/\/+$/, "");
+    return noTrailing || "";
+  }
 }
 
 function setRefreshStatus(text) {
@@ -137,32 +146,75 @@ async function getActiveTabProfileState() {
 }
 
 async function computeSideNavTargets() {
-  const [{ lef_list_context, lef_list_last_opened_url }, activeState] =
-    await Promise.all([
-      chrome.storage.local.get([
-        "lef_list_context",
-        "lef_list_last_opened_url",
-      ]),
-      getActiveTabProfileState(),
-    ]);
+  const [
+    {
+      lef_list_context,
+      lef_list_last_opened_url,
+      lef_list_last_opened_key,
+      lef_nav_session_items,
+      lef_nav_session_anchor,
+    },
+    activeState,
+  ] = await Promise.all([
+    chrome.storage.local.get([
+      "lef_list_context",
+      "lef_list_last_opened_url",
+      "lef_list_last_opened_key",
+      "lef_nav_session_items",
+      "lef_nav_session_anchor",
+    ]),
+    getActiveTabProfileState(),
+  ]);
 
-  const items = Array.isArray(lef_list_context?.items)
-    ? lef_list_context.items
-        .map((url) => normalizeLinkedinUrl(url))
-        .filter(Boolean)
-    : [];
-
-  const normalizedCurrentUrl = normalizeLinkedinUrl(activeState?.tabUrl || "");
-  const normalizedLastOpened = normalizeLinkedinUrl(
-    lef_list_last_opened_url || "",
+  const sourceItems = Array.isArray(lef_nav_session_items)
+    ? lef_nav_session_items
+    : Array.isArray(lef_list_context?.items)
+      ? lef_list_context.items
+      : [];
+  const uniqueItems = Array.from(
+    new Set(
+      sourceItems.map((url) => canonicalizeLinkedInUrl(url)).filter(Boolean),
+    ),
   );
-  let index = normalizedCurrentUrl ? items.indexOf(normalizedCurrentUrl) : -1;
+
+  const normalizedCurrentUrl = canonicalizeLinkedInUrl(
+    activeState?.tabUrl || "",
+  );
+  const normalizedLastOpened = canonicalizeLinkedInUrl(
+    lef_list_last_opened_key || lef_list_last_opened_url || "",
+  );
+  const normalizedSessionAnchor = canonicalizeLinkedInUrl(
+    lef_nav_session_anchor || "",
+  );
+  let index = normalizedCurrentUrl
+    ? uniqueItems.indexOf(normalizedCurrentUrl)
+    : -1;
   if (index < 0 && normalizedLastOpened) {
-    index = items.indexOf(normalizedLastOpened);
+    index = uniqueItems.indexOf(normalizedLastOpened);
+  }
+  if (index < 0 && normalizedSessionAnchor) {
+    index = uniqueItems.indexOf(normalizedSessionAnchor);
   }
 
-  prevListUrl = index > 0 ? items[index - 1] : "";
-  nextListUrl = index >= 0 && index < items.length - 1 ? items[index + 1] : "";
+  navListItems = uniqueItems;
+  navAnchorIndex = index;
+
+  if (index < 0) {
+    prevListUrl = "";
+    nextListUrl = "";
+    if (navPrevBtnEl) navPrevBtnEl.disabled = true;
+    if (navNextBtnEl) navNextBtnEl.disabled = true;
+    if (uniqueItems.length) {
+      setRefreshStatus(
+        "Navigation context out of sync. Open a profile from the overview list again.",
+      );
+    }
+    return;
+  }
+
+  prevListUrl = index > 0 ? uniqueItems[index - 1] : "";
+  nextListUrl =
+    index >= 0 && index < uniqueItems.length - 1 ? uniqueItems[index + 1] : "";
   if (navPrevBtnEl) navPrevBtnEl.disabled = !prevListUrl;
   if (navNextBtnEl) navNextBtnEl.disabled = !nextListUrl;
 }
@@ -170,6 +222,8 @@ async function computeSideNavTargets() {
 function resetSideNavTargets() {
   prevListUrl = "";
   nextListUrl = "";
+  navListItems = [];
+  navAnchorIndex = -1;
   if (navPrevBtnEl) navPrevBtnEl.disabled = true;
   if (navNextBtnEl) navNextBtnEl.disabled = true;
 }
@@ -181,7 +235,14 @@ async function navigateToListNeighbor(direction) {
   const activeTab = await getActiveTab();
   if (!Number.isInteger(activeTab?.id)) return;
 
-  await chrome.storage.local.set({ lef_list_last_opened_url: targetUrl });
+  const canonicalTarget = canonicalizeLinkedInUrl(targetUrl);
+  const targetIndex = navListItems.indexOf(canonicalTarget);
+  await chrome.storage.local.set({
+    lef_list_last_opened_url: canonicalTarget,
+    lef_list_last_opened_key: canonicalTarget,
+    lef_list_last_opened_index:
+      Number.isFinite(targetIndex) && targetIndex >= 0 ? targetIndex : null,
+  });
   await chrome.tabs.update(activeTab.id, { url: targetUrl, active: true });
   scheduleRefresh(`nav-${direction}`);
 }
@@ -421,7 +482,14 @@ function runSidePanelInit() {
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName !== "local") return;
-    if (!changes?.lef_list_context && !changes?.lef_list_last_opened_url)
+    if (
+      !changes?.lef_list_context &&
+      !changes?.lef_list_last_opened_url &&
+      !changes?.lef_list_last_opened_key &&
+      !changes?.lef_nav_session_items &&
+      !changes?.lef_nav_session_anchor &&
+      !changes?.lef_list_last_opened_index
+    )
       return;
     computeSideNavTargets().catch(() => null);
   });
