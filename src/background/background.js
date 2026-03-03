@@ -1245,6 +1245,40 @@ async function supabaseMarkStatus({ linkedin_url, status }) {
   }
 }
 
+async function supabaseMarkFirstMessageSent({ linkedin_url }) {
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
+  const targetUrl = normalizeProfileField(linkedin_url);
+  if (!targetUrl) {
+    throw new Error("Missing linkedin_url.");
+  }
+  const patch = {
+    status: "first message sent",
+    first_message_sent_at: new Date().toISOString(),
+    message_count: 1,
+  };
+  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify(patch),
+    },
+    15000,
+    "Supabase request",
+  );
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+}
+
 async function supabaseSetStatusOnly({ linkedin_url, status }) {
   const { supabaseUrl, supabaseAnonKey, accessToken, userId } =
     await getSupabaseRequestContext();
@@ -2200,6 +2234,22 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       emitUiStatus("Communicating to database\u2026");
       try {
         await supabaseMarkStatus(msg.payload);
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "DB_MARK_FIRST_MESSAGE_SENT") {
+    (async () => {
+      emitUiStatus("Communicating to database\u2026");
+      try {
+        await supabaseMarkFirstMessageSent(msg.payload || {});
         sendResponse({ ok: true });
       } catch (e) {
         sendResponse({

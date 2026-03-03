@@ -369,6 +369,7 @@ let stepperBackTarget = null;
 let stepperBackAction = null;
 let stepperStatusStage = "";
 let stepperForwardSteps = new Set();
+let isMarkingMessageSent = false;
 let currentLanguage = "Portuguese";
 let inviteCopyIconResetTimer = null;
 let firstMessageCopyIconResetTimer = null;
@@ -3694,12 +3695,35 @@ async function onStepAcceptedClick() {
 }
 
 async function onStepFirstMessageSentClick() {
-  const statusResult = await setMarkedStatusForStepper(
-    "first message sent",
-    UI_TEXT.markedFirstMessageSent,
-  );
-  if (!statusResult?.ok) return;
-  await adjustMessageCountForCurrentProfile(1);
+  if (isMarkingMessageSent) return;
+  isMarkingMessageSent = true;
+  let footerHandled = false;
+  setFooterDbStatus();
+  try {
+    const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
+    if (!linkedin_url) {
+      setFooterStatus(UI_TEXT.openLinkedInProfileFirst);
+      footerHandled = true;
+      return;
+    }
+    const result = await sendRuntimeMessage("DB_MARK_FIRST_MESSAGE_SENT", {
+      payload: { linkedin_url },
+    });
+    const resp = result.data || {};
+    if (resp?.ok) {
+      await refreshInvitationRowFromDb({ preserveTabs: true });
+      setFooterStatus("Successfully set status first message sent");
+      footerHandled = true;
+    } else {
+      setFooterStatus(
+        `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error || result.error)}`,
+      );
+      footerHandled = true;
+    }
+  } finally {
+    isMarkingMessageSent = false;
+    if (!footerHandled) setFooterReady();
+  }
 }
 
 async function onStepMessageRespondedClick() {
