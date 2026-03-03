@@ -273,7 +273,6 @@ const overviewStatusFilterEl = document.getElementById("overviewStatusFilter");
 const filterAcceptedEl = document.getElementById("filterAccepted");
 const overviewSearchEl = document.getElementById("overviewSearch");
 const overviewTbodyEl = document.getElementById("overviewTbody");
-const overviewLoadingEl = document.getElementById("overviewLoading");
 const overviewPageSizeEl = document.getElementById("overviewPageSize");
 const overviewPrevBtnEl = document.getElementById("overviewPrevBtn");
 const overviewNextBtnEl = document.getElementById("overviewNextBtn");
@@ -1785,16 +1784,15 @@ function scheduleOverviewAutoSize() {
 }
 
 async function fetchOverviewPage() {
-  setFooterFetchingStatus();
-  overviewLoadingEl.hidden = false;
+  setFooterStatus("Loading overview...");
   let contextRefreshPromise = null;
+  let shouldSetReady = true;
   try {
     const result = await sendRuntimeMessage("DB_LIST_INVITATIONS_OVERVIEW", {
       payload: buildOverviewQueryState(),
     });
     const resp = result.data || {};
     if (!result.ok) {
-      overviewLoadingEl.hidden = true;
       overviewTbodyEl.innerHTML = "";
       const tr = document.createElement("tr");
       const td = document.createElement("td");
@@ -1805,6 +1803,8 @@ async function fetchOverviewPage() {
       overviewTotal = null;
       renderOverviewPagination();
       scheduleOverviewAutoSize();
+      setFooterStatus(getErrorMessage(result.error));
+      shouldSetReady = false;
       return;
     }
     overviewTotal = Number.isFinite(resp?.total) ? resp.total : null;
@@ -1824,12 +1824,15 @@ async function fetchOverviewPage() {
     tr.appendChild(td);
     overviewTbodyEl.appendChild(tr);
     scheduleOverviewAutoSize();
+    setFooterStatus(getErrorMessage(e));
+    shouldSetReady = false;
   } finally {
     if (overviewContextRefreshPromise === contextRefreshPromise) {
       overviewContextRefreshPromise = null;
     }
-    overviewLoadingEl.hidden = true;
-    setFooterReady();
+    if (shouldSetReady) {
+      setFooterReady();
+    }
   }
 }
 

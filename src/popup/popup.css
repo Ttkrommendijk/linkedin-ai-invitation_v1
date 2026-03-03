@@ -828,11 +828,6 @@ pre {
     width: auto;
     margin-top: 0;
 }
-.overview-loading {
-    font-size: 12px;
-    color: #555;
-    margin-bottom: 6px;
-}
 .overview-cell-campaign {
     white-space: nowrap;
     overflow: hidden;
