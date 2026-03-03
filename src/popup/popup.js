@@ -269,6 +269,7 @@ const tabSupabaseAuth = document.getElementById("tabSupabaseAuth");
 
 const authInnerSignupBtnEl = document.getElementById("authInnerSignupBtn");
 const authInnerLoginBtnEl = document.getElementById("authInnerLoginBtn");
+const supabaseAuthFormsEl = document.getElementById("supabaseAuthForms");
 const authSignupPanelEl = document.getElementById("authSignupPanel");
 const authLoginPanelEl = document.getElementById("authLoginPanel");
 const supabaseSignupNameEl = document.getElementById("supabaseSignupName");
@@ -285,7 +286,10 @@ const supabaseLoginBtnEl = document.getElementById("supabaseLoginBtn");
 const supabaseResetPasswordBtnEl = document.getElementById(
   "supabaseResetPasswordBtn",
 );
-const supabaseAuthUserEl = document.getElementById("supabaseAuthUser");
+const supabaseLoggedInPanelEl = document.getElementById(
+  "supabaseLoggedInPanel",
+);
+const supabaseUserEmailEl = document.getElementById("supabaseUserEmail");
 const supabaseLogoutBtnEl = document.getElementById("supabaseLogoutBtn");
 
 const filterCampaignEl = document.getElementById("filterCampaign");
@@ -354,6 +358,8 @@ let freePromptCopyIconResetTimer = null;
 let readyResetTimer = null;
 let knownCampaignValues = [];
 let overviewContextItems = [];
+let supabaseAuthIsLoggedIn = false;
+let supabaseAuthInnerTab = "signup";
 const OVERVIEW_CAMPAIGN_LABEL_MAX = 52;
 const COPY_ICON_GLYPH = "\u29c9";
 const COPY_TOOLTIP_DEFAULT = "Copy to clipboard";
@@ -2655,11 +2661,28 @@ async function onMessagesTabOpenedByUser() {
 }
 
 function setAuthInnerTab(which) {
-  const signupActive = which !== "login";
+  supabaseAuthInnerTab = which === "login" ? "login" : "signup";
+  const signupActive = supabaseAuthInnerTab !== "login";
   if (authInnerSignupBtnEl)
     authInnerSignupBtnEl.classList.toggle("active", signupActive);
   if (authInnerLoginBtnEl)
     authInnerLoginBtnEl.classList.toggle("active", !signupActive);
+  renderSupabaseAuthUiState();
+}
+
+function renderSupabaseAuthUiState() {
+  if (supabaseAuthFormsEl) {
+    supabaseAuthFormsEl.hidden = supabaseAuthIsLoggedIn;
+  }
+  if (supabaseLoggedInPanelEl) {
+    supabaseLoggedInPanelEl.hidden = !supabaseAuthIsLoggedIn;
+  }
+  if (supabaseAuthIsLoggedIn) {
+    if (authSignupPanelEl) authSignupPanelEl.hidden = true;
+    if (authLoginPanelEl) authLoginPanelEl.hidden = true;
+    return;
+  }
+  const signupActive = supabaseAuthInnerTab !== "login";
   if (authSignupPanelEl) authSignupPanelEl.hidden = !signupActive;
   if (authLoginPanelEl) authLoginPanelEl.hidden = signupActive;
 }
@@ -2684,14 +2707,14 @@ function normalizeSupabaseAuthError(errorLike) {
 
 function applySupabaseAuthUi(session) {
   const userEmail = String(session?.user?.email || "").trim();
-  if (supabaseAuthUserEl) {
-    supabaseAuthUserEl.textContent = userEmail
-      ? `Logged in as: ${userEmail}`
-      : "Not logged in";
+  supabaseAuthIsLoggedIn = Boolean(userEmail);
+  if (supabaseUserEmailEl) {
+    supabaseUserEmailEl.textContent = userEmail || "";
   }
   if (supabaseLogoutBtnEl) {
-    supabaseLogoutBtnEl.hidden = !userEmail;
+    supabaseLogoutBtnEl.hidden = !supabaseAuthIsLoggedIn;
   }
+  renderSupabaseAuthUiState();
 }
 
 async function refreshSupabaseAuthUi() {
@@ -3124,9 +3147,12 @@ async function saveConfig() {
   const webhookBaseUrl = (webhookBaseUrlEl.value || "")
     .trim()
     .replace(/\/+$/, "");
-  const webhookSecret = (webhookSecretEl.value || "").trim();
+  const localConfigPayload = { apiKey };
+  if (webhookSecretEl) {
+    localConfigPayload.webhookSecret = (webhookSecretEl.value || "").trim();
+  }
 
-  await chrome.storage.local.set({ apiKey, webhookSecret });
+  await chrome.storage.local.set(localConfigPayload);
   await chrome.storage.sync.set({ model, strategyCore, webhookBaseUrl });
 
   setFooterStatus(UI_TEXT.configSaved);

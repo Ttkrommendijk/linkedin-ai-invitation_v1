@@ -140,6 +140,9 @@ button:disabled {
     border: 1px solid #d1d5db;
     color: #374151;
 }
+.btn-enrich svg {
+    display: block;
+}
 .status-stepper {
     display: flex;
     justify-content: space-between;
@@ -835,6 +838,24 @@ pre {
 .auth-action-row .btn-small-secondary {
     width: auto;
     margin-top: 0;
+}
+#supabaseLoggedInPanel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 8px;
+    padding-top: 10px;
+}
+#supabaseLoggedInPanel small {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1f2937;
+}
+#supabaseLoggedInPanel #supabaseLogoutBtn {
+    margin-top: 0;
+    width: auto;
 }
 .overview-cell-campaign {
     white-space: nowrap;

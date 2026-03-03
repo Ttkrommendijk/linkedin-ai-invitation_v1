@@ -53,8 +53,20 @@
                                 type="button"
                                 class="btn-enrich"
                                 title="Enrich data with AI"
+                                aria-label="Enrich data with AI"
                             >
-                                ðŸª„
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    viewBox="0 0 16 16"
+                                    width="14"
+                                    height="14"
+                                    aria-hidden="true"
+                                >
+                                    <path
+                                        d="M7.2 1.2 8.6 4.3l3.1 1.4-3.1 1.4-1.4 3.1-1.4-3.1L2.7 5.7l3.1-1.4L7.2 1.2Zm5.1 5.6.8 1.8 1.8.8-1.8.8-.8 1.8-.8-1.8-1.8-.8 1.8-.8.8-1.8Zm-8.1 4 .8 1.8 1.8.8-1.8.8-.8 1.8-.8-1.8-1.8-.8 1.8-.8.8-1.8Z"
+                                        fill="currentColor"
+                                    />
+                                </svg>
                             </button>
                         </div>
                         <div id="detailCompany" class="detail-person-company">
@@ -680,102 +692,105 @@
                 </div>
 
                 <div id="tabSupabaseAuth" class="tab-panel">
-                    <div class="row inline auth-inner-tabs">
-                        <button
-                            id="authInnerSignupBtn"
-                            class="detail-tab-btn active"
-                            type="button"
-                        >
-                            Signup
-                        </button>
-                        <button
-                            id="authInnerLoginBtn"
-                            class="detail-tab-btn"
-                            type="button"
-                        >
-                            Login
-                        </button>
-                    </div>
-
-                    <div class="row">
-                        <small id="supabaseAuthUser">Not logged in</small>
-                        <button
-                            id="supabaseLogoutBtn"
-                            class="btn-small-secondary"
-                            type="button"
-                            hidden
-                        >
-                            Logout
-                        </button>
-                    </div>
-
-                    <div id="authSignupPanel">
-                        <div class="row">
-                            <label><small>Name</small></label>
-                            <input
-                                id="supabaseSignupName"
-                                type="text"
-                                placeholder="Your name"
-                            />
-                        </div>
-                        <div class="row">
-                            <label><small>Email</small></label>
-                            <input
-                                id="supabaseSignupEmail"
-                                type="email"
-                                placeholder="you@example.com"
-                            />
-                        </div>
-                        <div class="row">
-                            <label><small>Password</small></label>
-                            <input
-                                id="supabaseSignupPassword"
-                                type="password"
-                                placeholder="Password"
-                            />
-                        </div>
-                        <button
-                            id="supabaseSignupBtn"
-                            class="btn btn-primary"
-                            type="button"
-                        >
-                            Signup
-                        </button>
-                    </div>
-
-                    <div id="authLoginPanel" hidden>
-                        <div class="row">
-                            <label><small>Email</small></label>
-                            <input
-                                id="supabaseLoginEmail"
-                                type="email"
-                                placeholder="you@example.com"
-                            />
-                        </div>
-                        <div class="row">
-                            <label><small>Password</small></label>
-                            <input
-                                id="supabaseLoginPassword"
-                                type="password"
-                                placeholder="Password"
-                            />
-                        </div>
-                        <div class="row inline auth-action-row">
+                    <div id="supabaseAuthForms" hidden>
+                        <div class="row inline auth-inner-tabs">
                             <button
-                                id="supabaseLoginBtn"
-                                class="btn-small-primary"
+                                id="authInnerSignupBtn"
+                                class="detail-tab-btn active"
+                                type="button"
+                            >
+                                Signup
+                            </button>
+                            <button
+                                id="authInnerLoginBtn"
+                                class="detail-tab-btn"
                                 type="button"
                             >
                                 Login
                             </button>
+                        </div>
+
+                        <div id="authSignupPanel" hidden>
+                            <div class="row">
+                                <label><small>Name</small></label>
+                                <input
+                                    id="supabaseSignupName"
+                                    type="text"
+                                    placeholder="Your name"
+                                />
+                            </div>
+                            <div class="row">
+                                <label><small>Email</small></label>
+                                <input
+                                    id="supabaseSignupEmail"
+                                    type="email"
+                                    placeholder="you@example.com"
+                                />
+                            </div>
+                            <div class="row">
+                                <label><small>Password</small></label>
+                                <input
+                                    id="supabaseSignupPassword"
+                                    type="password"
+                                    placeholder="Password"
+                                />
+                            </div>
                             <button
-                                id="supabaseResetPasswordBtn"
-                                class="btn-small-secondary"
+                                id="supabaseSignupBtn"
+                                class="btn btn-primary"
                                 type="button"
                             >
-                                Reset password
+                                Signup
                             </button>
                         </div>
+
+                        <div id="authLoginPanel" hidden>
+                            <div class="row">
+                                <label><small>Email</small></label>
+                                <input
+                                    id="supabaseLoginEmail"
+                                    type="email"
+                                    placeholder="you@example.com"
+                                />
+                            </div>
+                            <div class="row">
+                                <label><small>Password</small></label>
+                                <input
+                                    id="supabaseLoginPassword"
+                                    type="password"
+                                    placeholder="Password"
+                                />
+                            </div>
+                            <div class="row inline auth-action-row">
+                                <button
+                                    id="supabaseLoginBtn"
+                                    class="btn-small-primary"
+                                    type="button"
+                                >
+                                    Login
+                                </button>
+                                <button
+                                    id="supabaseResetPasswordBtn"
+                                    class="btn-small-secondary"
+                                    type="button"
+                                >
+                                    Reset password
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="supabaseLoggedInPanel" class="row" hidden>
+                        <small
+                            >Logged in as: <span id="supabaseUserEmail"></span
+                        ></small>
+                        <button
+                            id="supabaseLogoutBtn"
+                            class="btn-small-secondary"
+                            type="button"
+                        >
+                            Logout
+                        </button>
                     </div>
                 </div>
 
@@ -803,19 +818,10 @@
                     </div>
 
                     <div class="row">
-                        <label><small>Webhook base URL (saved)</small></label>
+                        <label><small>Supabase URL</small></label>
                         <input
                             id="webhookBaseUrl"
                             placeholder="https://yourdomain.com"
-                        />
-                    </div>
-
-                    <div class="row">
-                        <label><small>Webhook secret (saved)</small></label>
-                        <input
-                            id="webhookSecret"
-                            type="password"
-                            placeholder="shared secret"
                         />
                     </div>
 
@@ -826,16 +832,6 @@
                     >
                         Save config
                     </button>
-
-                    <div class="row">
-                        <small>Tip</small>
-                        <div>
-                            <small
-                                >Edits are saved when you click "Save config" or
-                                "Generate".</small
-                            >
-                        </div>
-                    </div>
                 </div>
             </div>
             <div id="commFooter" class="comm-status-footer">
