@@ -1203,6 +1203,7 @@ function toOverviewSortField(value) {
     "archived",
   ]);
   const field = String(value || "");
+  if (field === "full_name") return "name";
   return allowed.has(field) ? field : "most_relevant_date";
 }
 
