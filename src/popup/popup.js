@@ -270,6 +270,7 @@ const overviewArchivedFilterEl = document.getElementById(
   "overviewArchivedFilter",
 );
 const overviewStatusFilterEl = document.getElementById("overviewStatusFilter");
+const filterAcceptedEl = document.getElementById("filterAccepted");
 const overviewSearchEl = document.getElementById("overviewSearch");
 const overviewTbodyEl = document.getElementById("overviewTbody");
 const overviewLoadingEl = document.getElementById("overviewLoading");
@@ -296,7 +297,12 @@ let overviewPageSize = 25;
 let overviewTotal = null;
 let overviewSortField = "most_relevant_date";
 let overviewSortDir = "desc";
-let overviewFilters = { campaign: "", archived: "", status: "" };
+let overviewFilters = {
+  campaign: "",
+  archived: "",
+  status: "",
+  accepted: "",
+};
 let overviewSearch = "";
 let overviewSearchDebounceTimer = null;
 let overviewAutoSizeTimer = null;
@@ -334,6 +340,12 @@ const OVERVIEW_ENABLED = Boolean(
 
 function getLifecycleStatusValue(dbRow) {
   return (dbRow?.status || "").trim().toLowerCase();
+}
+
+function isAcceptedRow(dbRow) {
+  if (dbRow?.accepted === true) return true;
+  if (dbRow?.accepted === false) return false;
+  return dbRow?.accepted_at != null && String(dbRow.accepted_at).trim() !== "";
 }
 
 function getActiveTopTabKey() {
@@ -517,6 +529,7 @@ function collectOverviewFilterUiState() {
     campaign: filterCampaignEl?.value || "",
     archived: overviewArchivedFilterEl?.value || "",
     status: overviewStatusFilterEl?.value || "",
+    accepted: filterAcceptedEl?.value || "",
     search: overviewSearchEl?.value || "",
   };
 }
@@ -538,6 +551,7 @@ async function restoreOverviewFiltersFromStorage() {
   const savedCampaign = String(saved.campaign || "");
   const savedArchived = String(saved.archived || "");
   const savedStatus = String(saved.status || "");
+  const savedAccepted = String(saved.accepted || "");
   const savedSearch = String(saved.search || "");
 
   if (overviewArchivedFilterEl) {
@@ -555,6 +569,12 @@ async function restoreOverviewFiltersFromStorage() {
   if (overviewSearchEl) {
     overviewSearchEl.value = savedSearch;
   }
+  if (filterAcceptedEl) {
+    const acceptedOptionExists = Array.from(
+      filterAcceptedEl.options || [],
+    ).some((option) => option.value === savedAccepted);
+    filterAcceptedEl.value = acceptedOptionExists ? savedAccepted : "";
+  }
   if (filterCampaignEl) {
     const campaignOptionExists = Array.from(
       filterCampaignEl.options || [],
@@ -565,6 +585,7 @@ async function restoreOverviewFiltersFromStorage() {
   overviewFilters.campaign = filterCampaignEl?.value || "";
   overviewFilters.archived = overviewArchivedFilterEl?.value || "";
   overviewFilters.status = overviewStatusFilterEl?.value || "";
+  overviewFilters.accepted = filterAcceptedEl?.value || "";
   overviewSearch = overviewSearchEl?.value || "";
   updateOverviewCampaignFilterTitle();
 }
@@ -716,7 +737,7 @@ function updateStepperInteractivity() {
   const rawStatus = getLifecycleStatusValue(dbInvitationRow);
   const status = rawStatus === "accepted" ? "invited" : rawStatus;
   const hasRow = Boolean(dbInvitationRow);
-  const isAccepted = Boolean(dbInvitationRow?.accepted_at);
+  const isAccepted = isAcceptedRow(dbInvitationRow);
   const normalizedStatus =
     status === "first_message_sent"
       ? "first message sent"
@@ -1327,6 +1348,7 @@ function buildOverviewQueryState() {
       campaign: campaignFilterValue,
       archived: overviewFilters.archived || "",
       status: overviewFilters.status || "",
+      accepted: overviewFilters.accepted || "",
     },
     search: overviewSearch || "",
   };
@@ -1337,10 +1359,27 @@ function isOverviewRowNoCampaign(row) {
   return campaignValue == null || String(campaignValue).trim() === "";
 }
 
+function isOverviewRowAccepted(row) {
+  return row?.accepted === true;
+}
+
 function applyOverviewClientFilters(rows) {
   const safeRows = Array.isArray(rows) ? rows : [];
-  if (overviewFilters.campaign !== "__no_campaign__") return safeRows;
-  return safeRows.filter((row) => isOverviewRowNoCampaign(row));
+  return safeRows.filter((row) => {
+    if (
+      overviewFilters.campaign === "__no_campaign__" &&
+      !isOverviewRowNoCampaign(row)
+    ) {
+      return false;
+    }
+    if (overviewFilters.accepted === "true") {
+      return isOverviewRowAccepted(row);
+    }
+    if (overviewFilters.accepted === "false") {
+      return !isOverviewRowAccepted(row);
+    }
+    return true;
+  });
 }
 
 function isOverviewRowArchived(row) {
@@ -1857,6 +1896,13 @@ function wireOverviewEvents() {
 
   overviewStatusFilterEl?.addEventListener("change", () => {
     overviewFilters.status = overviewStatusFilterEl.value;
+    persistOverviewFiltersToStorage().catch(() => null);
+    overviewPage = 1;
+    fetchOverviewPage();
+  });
+
+  filterAcceptedEl?.addEventListener("change", () => {
+    overviewFilters.accepted = filterAcceptedEl.value || "";
     persistOverviewFiltersToStorage().catch(() => null);
     overviewPage = 1;
     fetchOverviewPage();
@@ -3205,7 +3251,7 @@ async function setAcceptedToggleForStepper() {
       footerHandled = true;
       return;
     }
-    const hasAccepted = Boolean(dbInvitationRow?.accepted_at);
+    const hasAccepted = isAcceptedRow(dbInvitationRow);
     const messageType = hasAccepted
       ? "DB_CLEAR_ACCEPTED_AT"
       : "DB_SET_ACCEPTED_AT_NOW";

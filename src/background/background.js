@@ -985,7 +985,10 @@ async function supabaseSetStatusOnly({ linkedin_url, status }) {
 async function supabaseSetAcceptedAtNow({ linkedin_url }) {
   const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
   const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}`;
-  const patch = { accepted_at: new Date().toISOString() };
+  const patch = {
+    accepted: true,
+    accepted_at: new Date().toISOString(),
+  };
 
   const res = await fetchWithTimeout(
     url,
@@ -1012,7 +1015,10 @@ async function supabaseSetAcceptedAtNow({ linkedin_url }) {
 async function supabaseClearAcceptedAt({ linkedin_url }) {
   const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
   const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}`;
-  const patch = { accepted_at: null };
+  const patch = {
+    accepted: false,
+    accepted_at: null,
+  };
 
   const res = await fetchWithTimeout(
     url,
@@ -1077,7 +1083,7 @@ async function supabaseUpdateProfileDetailsOnly({
 
 async function supabaseGetInvitationByLinkedinUrl(linkedin_url) {
   const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
-  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}&select=linkedin_url,status,message,generated_at,invited_at,accepted_at,first_message,first_message_generated_at,first_message_sent_at,company,headline,language,full_name,campaign`;
+  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}&select=linkedin_url,status,message,generated_at,invited_at,accepted,accepted_at,first_message,first_message_generated_at,first_message_sent_at,company,headline,language,full_name,campaign`;
 
   const res = await fetchWithTimeout(
     url,
@@ -1228,7 +1234,7 @@ async function supabaseListInvitationsOverview({
   const params = new URLSearchParams();
   params.set(
     "select",
-    "url,name,company,most_relevant_date,archived,campaign,status",
+    "url,name,company,most_relevant_date,archived,campaign,status,accepted",
   );
   params.set("limit", String(safePageSize));
   params.set("offset", String(offset));
@@ -1245,6 +1251,9 @@ async function supabaseListInvitationsOverview({
     params.set("status", "in.(registered,generated)");
   } else if (statusFilter) {
     params.set("status", `eq.${statusFilter}`);
+  }
+  if (filters?.accepted === "true" || filters?.accepted === "false") {
+    params.set("accepted", `eq.${filters.accepted}`);
   }
   if (search && String(search).trim()) {
     const q = String(search).trim().replace(/\*/g, "");
