@@ -17,6 +17,8 @@ const sanitizeHeadlineJobTitle = LEF_UTILS.sanitizeHeadlineJobTitle;
 
 const DEBUG = false;
 const STORAGE_KEY_SUPABASE_SESSION = "lef_supabase_session_v1";
+const STORAGE_KEY_SUPABASE_URL = "supabase_url";
+const DEFAULT_SUPABASE_URL = "https://nkhujuqjnbzsfqyqfndc.supabase.co";
 
 function debug(...args) {
   if (DEBUG) console.log(...args);
@@ -846,19 +848,28 @@ async function callOpenAIFreePrompt({
 }
 
 async function getSupabaseConfig() {
-  const [{ webhookSecret }, { webhookBaseUrl }] = await Promise.all([
-    chrome.storage.local.get(["webhookSecret"]),
+  const [
+    { webhookSecret, [STORAGE_KEY_SUPABASE_URL]: supabaseUrlLocal },
+    { webhookBaseUrl },
+  ] = await Promise.all([
+    chrome.storage.local.get(["webhookSecret", STORAGE_KEY_SUPABASE_URL]),
     chrome.storage.sync.get(["webhookBaseUrl"]),
   ]);
 
-  if (!webhookBaseUrl || !webhookSecret) {
+  const supabaseUrl = String(
+    supabaseUrlLocal || webhookBaseUrl || DEFAULT_SUPABASE_URL,
+  )
+    .trim()
+    .replace(/\/+$/, "");
+
+  if (!supabaseUrl || !webhookSecret) {
     throw new Error(
-      "Missing config. Set webhookBaseUrl = Supabase URL and webhookSecret = Supabase publishable key.",
+      "Missing config. Set Supabase URL and Supabase publishable key.",
     );
   }
 
   return {
-    supabaseUrl: webhookBaseUrl.replace(/\/+$/, ""),
+    supabaseUrl,
     supabaseAnonKey: webhookSecret,
   };
 }

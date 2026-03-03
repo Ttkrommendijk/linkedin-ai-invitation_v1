@@ -104,6 +104,8 @@ const STORAGE_KEY_FREE_PROMPT_LANGUAGE = "free_prompt_language";
 const STORAGE_KEY_LAST_ACTIVE_CAMPAIGN = "last_active_campaign";
 const STORAGE_KEY_LIST_FILTERS = "lef_list_filters_v1";
 const STORAGE_KEY_LIST_COLUMN_WIDTHS = "lef_list_column_widths_v1";
+const STORAGE_KEY_SUPABASE_URL = "supabase_url";
+const DEFAULT_SUPABASE_URL = "https://nkhujuqjnbzsfqyqfndc.supabase.co";
 const SUPPORTED_LANGUAGES = ["Portuguese", "English", "Dutch", "Spanish"];
 const DEFAULT_FIRST_MESSAGE_PROMPT = messagePromptEl?.value || "";
 const LEF_UTILS_SOURCE = globalThis.LEFUtils;
@@ -402,6 +404,34 @@ function restoreActiveTabState(tabState) {
 
 function normalizeCampaignValue(value) {
   return safeTrim(value);
+}
+
+function normalizeSupabaseUrl(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\/+$/, "");
+}
+
+function getEffectiveSupabaseUrl(localUrl, legacyUrl) {
+  const normalizedLocal = normalizeSupabaseUrl(localUrl);
+  if (normalizedLocal) return normalizedLocal;
+  const normalizedLegacy = normalizeSupabaseUrl(legacyUrl);
+  if (normalizedLegacy) return normalizedLegacy;
+  return DEFAULT_SUPABASE_URL;
+}
+
+async function saveSupabaseUrlOverride(rawValue, { showStatus = true } = {}) {
+  const normalized = normalizeSupabaseUrl(rawValue);
+  if (!normalized) {
+    await chrome.storage.local.remove([STORAGE_KEY_SUPABASE_URL]);
+    if (webhookBaseUrlEl) webhookBaseUrlEl.value = DEFAULT_SUPABASE_URL;
+    if (showStatus) setFooterStatus("Supabase URL saved.");
+    return DEFAULT_SUPABASE_URL;
+  }
+  await chrome.storage.local.set({ [STORAGE_KEY_SUPABASE_URL]: normalized });
+  if (webhookBaseUrlEl) webhookBaseUrlEl.value = normalized;
+  if (showStatus) setFooterStatus("Supabase URL saved.");
+  return normalized;
 }
 
 function truncateCampaignLabel(value, maxLen = OVERVIEW_CAMPAIGN_LABEL_MAX) {
@@ -2869,19 +2899,29 @@ tabSupabaseAuthBtn?.addEventListener("click", () =>
 );
 
 async function loadSettings() {
-  const [{ apiKey, webhookSecret }, { model, strategyCore, webhookBaseUrl }] =
-    await Promise.all([
-      chrome.storage.local.get(["apiKey", "webhookSecret"]),
-      chrome.storage.sync.get(["model", "strategyCore", "webhookBaseUrl"]),
-    ]);
+  const [
+    { apiKey, webhookSecret, [STORAGE_KEY_SUPABASE_URL]: supabaseUrlLocal },
+    { model, strategyCore, webhookBaseUrl },
+  ] = await Promise.all([
+    chrome.storage.local.get([
+      "apiKey",
+      "webhookSecret",
+      STORAGE_KEY_SUPABASE_URL,
+    ]),
+    chrome.storage.sync.get(["model", "strategyCore", "webhookBaseUrl"]),
+  ]);
 
   if (apiKeyEl && apiKey) apiKeyEl.value = apiKey;
   if (webhookSecretEl && webhookSecret) webhookSecretEl.value = webhookSecret;
 
   if (modelEl) modelEl.value = model || "gpt-4.1";
   if (strategyEl && strategyCore) strategyEl.value = strategyCore;
-  if (webhookBaseUrlEl && webhookBaseUrl)
-    webhookBaseUrlEl.value = webhookBaseUrl;
+  if (webhookBaseUrlEl) {
+    webhookBaseUrlEl.value = getEffectiveSupabaseUrl(
+      supabaseUrlLocal,
+      webhookBaseUrl,
+    );
+  }
 }
 let popupInitErrorLogged = false;
 function logPopupInitError(error) {
@@ -3072,6 +3112,9 @@ function runPopupInit() {
   freePromptLanguageEl?.addEventListener("change", async () => {
     await setFreePromptLanguage(freePromptLanguageEl.value);
   });
+  webhookBaseUrlEl?.addEventListener("change", async () => {
+    await saveSupabaseUrlOverride(webhookBaseUrlEl.value || "");
+  });
 
   campaignSelectEl?.addEventListener("change", async () => {
     updateDetailCampaignSelectTitle();
@@ -3144,9 +3187,10 @@ async function saveConfig() {
   const model = (modelEl.value || "gpt-4.1").trim();
   const strategyCore = (strategyEl.value || "").trim();
 
-  const webhookBaseUrl = (webhookBaseUrlEl.value || "")
-    .trim()
-    .replace(/\/+$/, "");
+  const webhookBaseUrl = await saveSupabaseUrlOverride(
+    webhookBaseUrlEl?.value || "",
+    { showStatus: false },
+  );
   const localConfigPayload = { apiKey };
   if (webhookSecretEl) {
     localConfigPayload.webhookSecret = (webhookSecretEl.value || "").trim();
