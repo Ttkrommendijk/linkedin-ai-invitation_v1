@@ -1,12 +1,17 @@
 const LEF_UTILS = globalThis.LEFUtils || {};
 const debugLog =
   typeof LEF_UTILS.debugLog === "function" ? LEF_UTILS.debugLog : () => {};
+const safeTrim =
+  typeof LEF_UTILS.safeTrim === "function"
+    ? LEF_UTILS.safeTrim
+    : (value) => (value == null ? "" : String(value).trim());
+const normalizeWhitespace =
+  typeof LEF_UTILS.normalizeWhitespace === "function"
+    ? LEF_UTILS.normalizeWhitespace
+    : (value) => safeTrim(value).replace(/\s+/g, " ");
 
 function cleanText(s) {
-  return (s || "")
-    .replace(/\u00A0/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return normalizeWhitespace(String(s || "").replace(/\u00A0/g, " "));
 }
 
 function sanitizeExcerpt(text, maxChars = 800) {
@@ -157,7 +162,7 @@ function isUiNoiseLine(text) {
 }
 
 function normalizeChatText(value) {
-  return (value || "").toString().trim().replace(/\s+/g, " ");
+  return normalizeWhitespace(String(value || ""));
 }
 
 function looksLikeSenderName(value) {

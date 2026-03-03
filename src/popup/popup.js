@@ -1835,11 +1835,7 @@ async function buildOverviewListContextItems() {
     const filteredRows = applyOverviewClientFilters(sourceRows);
     filteredRows.forEach((row) => {
       const canonicalUrl = canonicalizeLinkedInUrl(row?.url || "");
-      if (
-        !/^https:\/\/www\.linkedin\.com\/(in|company)\/[^/?#]+/i.test(
-          canonicalUrl,
-        )
-      ) {
+      if (!isLinkedInProfileLikeUrl(canonicalUrl)) {
         return;
       }
       if (seen.has(canonicalUrl)) return;
@@ -2069,6 +2065,9 @@ function isLinkedInProfileLikeUrl(url) {
 }
 
 function canonicalizeLinkedInUrl(rawUrl) {
+  if (typeof LEF_UTILS.canonicalizeLinkedInUrl === "function") {
+    return LEF_UTILS.canonicalizeLinkedInUrl(rawUrl);
+  }
   const input = String(rawUrl || "").trim();
   if (!input) return "";
   try {

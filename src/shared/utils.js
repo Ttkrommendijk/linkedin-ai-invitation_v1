@@ -78,6 +78,21 @@
     );
   }
 
+  function canonicalizeLinkedInUrl(rawUrl) {
+    const input = safeTrim(rawUrl);
+    if (!input) return "";
+    try {
+      const parsed = new URL(input);
+      const pathname = (parsed.pathname || "").replace(/\/+$/, "") || "/";
+      return `https://www.linkedin.com${pathname}`;
+    } catch (_e) {
+      const noHash = input.split("#")[0];
+      const noQuery = noHash.split("?")[0];
+      const noTrailing = noQuery.replace(/\/+$/, "");
+      return noTrailing || "";
+    }
+  }
+
   function sanitizeHeadlineJobTitle(value) {
     let out = normalizeWhitespace(value);
     if (!out) return "";
@@ -111,6 +126,7 @@
     safeTrim,
     normalizeWhitespace,
     isLinkedInProfileLikeUrl,
+    canonicalizeLinkedInUrl,
     sanitizeHeadlineJobTitle,
   });
 })(typeof globalThis !== "undefined" ? globalThis : window);

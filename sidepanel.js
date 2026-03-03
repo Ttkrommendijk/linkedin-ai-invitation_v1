@@ -88,6 +88,9 @@ function isLinkedInProfileLikeUrl(url) {
 }
 
 function canonicalizeLinkedInUrl(rawUrl) {
+  if (typeof LEF_UTILS.canonicalizeLinkedInUrl === "function") {
+    return LEF_UTILS.canonicalizeLinkedInUrl(rawUrl);
+  }
   const input = String(rawUrl || "").trim();
   if (!input) return "";
   try {
@@ -231,6 +234,7 @@ function resetSideNavTargets() {
 async function navigateToListNeighbor(direction) {
   const targetUrl = direction === "prev" ? prevListUrl : nextListUrl;
   if (!targetUrl) return;
+  if (!isLinkedInProfileLikeUrl(targetUrl)) return;
 
   const activeTab = await getActiveTab();
   if (!Number.isInteger(activeTab?.id)) return;
