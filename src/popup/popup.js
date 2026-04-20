@@ -2453,6 +2453,11 @@ async function extractProfileContextFromActiveTab() {
   return getProfileForGeneration(resp.profile);
 }
 
+function clearFreePromptPreview() {
+  if (freePromptPreviewEl) freePromptPreviewEl.textContent = "";
+  updateFreePromptCopyButtonState();
+}
+
 function applyProfileExtractionFailureState(statusText) {
   currentProfileContext = null;
   lastProfileContextSent = {};
@@ -2462,11 +2467,10 @@ function applyProfileExtractionFailureState(statusText) {
   if (previewEl) previewEl.textContent = "";
   if (firstMessagePreviewEl) firstMessagePreviewEl.textContent = "";
   if (followupPreviewEl) followupPreviewEl.value = "";
-  if (freePromptPreviewEl) freePromptPreviewEl.textContent = "";
+  clearFreePromptPreview();
   updateInviteCopyIconVisibility();
   updateMessageTabControls();
   updateFollowupCopyIconVisibility();
-  updateFreePromptCopyButtonState();
   setCommunicationStatus(statusText || UI_TEXT.couldNotExtractProfileContext);
   applyLifecycleUiState(dbInvitationRow);
   outreachMessageStatus = "accepted";
@@ -2495,6 +2499,7 @@ async function refreshAll() {
     lastProfileContextEnriched = null;
     dbInvitationRow = null;
     setCampaignSelectValue("");
+    clearFreePromptPreview();
     updateMessageTabControls();
     applyLifecycleUiState(dbInvitationRow);
     outreachMessageStatus = "accepted";
@@ -2516,6 +2521,15 @@ async function refreshAll() {
       dom: getNoProfileDomDebugInfo(),
     });
     const profileContext = await extractProfileContextFromActiveTab();
+    const previousProfileUrl = canonicalizeLinkedInUrl(
+      getLinkedinUrlFromContext(currentProfileContext) || "",
+    );
+    const nextProfileUrl = canonicalizeLinkedInUrl(
+      getLinkedinUrlFromContext(profileContext) || "",
+    );
+    if (previousProfileUrl !== nextProfileUrl) {
+      clearFreePromptPreview();
+    }
     currentProfileContext = profileContext;
     lastProfileContextSent = profileContext;
     lastProfileContextEnriched = null;
@@ -3659,6 +3673,8 @@ async function onStepRegisterClick() {
         headline: extracted.headline || null,
         language: extracted.language || getLanguage(),
         status: "registered",
+        campaign:
+          normalizeCampaignValue(campaignSelectEl?.value || "") || null,
       },
     });
     const resp = result.data || {};
