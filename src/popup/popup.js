@@ -459,6 +459,13 @@ const OVERVIEW_ENABLED = Boolean(
   IS_SIDE_PANEL_CONTEXT && tabOverviewBtn && tabOverview,
 );
 
+function timingLog(eventName, details = {}) {
+  console.log("[LEF][timing]", eventName, {
+    ts: Date.now(),
+    ...details,
+  });
+}
+
 function getLifecycleStatusValue(dbRow) {
   return (dbRow?.status || "").trim().toLowerCase();
 }
@@ -1146,6 +1153,7 @@ function syncSelectedExistingCompanyFromInput() {
 
 async function searchExistingCompaniesForCompanyPage(term) {
   const query = safeTrim(term);
+  timingLog("DB search triggered with term", { term: query });
   if (!query) {
     setCompanyExistingLinkOptions([]);
     selectedExistingCompanyForLink = null;
@@ -3326,6 +3334,10 @@ function applyProfileExtractionFailureState(statusText) {
 async function refreshAll() {
   const activeTab = await getActiveTabForProfileCheck().catch(() => null);
   const tabUrl = activeTab?.url || "";
+  timingLog("UI refresh requested", {
+    source: IS_SIDE_PANEL_CONTEXT ? "sidepanel/popup" : "popup",
+    tab_url: tabUrl,
+  });
   const { isProfileOpen, matchedRule } = getProfileMatchForUrl(tabUrl);
 
   if (!isProfileOpen) {
@@ -3370,6 +3382,10 @@ async function refreshAll() {
       dom: getNoProfileDomDebugInfo(),
     });
     const profileContext = await extractProfileContextFromActiveTab();
+    timingLog("extraction completed", {
+      scraped_url: getLinkedinUrlFromContext(profileContext) || "",
+      is_company_profile: isCompanyProfileMode(profileContext),
+    });
     const previousProfileUrl = canonicalizeLinkedInUrl(
       getLinkedinUrlFromContext(currentProfileContext) || "",
     );

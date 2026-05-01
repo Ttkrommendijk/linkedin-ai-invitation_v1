@@ -94,6 +94,13 @@ const navPacingState = {
   cooldownUntilTs: 0,
 };
 
+function timingLog(eventName, details = {}) {
+  console.log("[LEF][timing]", eventName, {
+    ts: Date.now(),
+    ...details,
+  });
+}
+
 function isLinkedInProfileLikeUrl(url) {
   if (typeof LEF_UTILS.isLinkedInProfileLikeUrl === "function") {
     return LEF_UTILS.isLinkedInProfileLikeUrl(url);
@@ -508,6 +515,7 @@ async function clearPreviewIfNotInDb(frameDocument, profile) {
 
 async function refreshFromIframe(reason = "manual") {
   try {
+    timingLog("UI refresh requested", { source: "sidepanel", reason });
     setRefreshStatus(`Refreshing (${reason})...`);
 
     const { tabId, isProfileOpen } = await getActiveTabProfileState();
@@ -562,6 +570,7 @@ async function refreshFromIframe(reason = "manual") {
 }
 
 function scheduleRefresh(reason) {
+  timingLog("UI refresh requested", { source: "sidepanel.schedule", reason });
   if (refreshTimer) clearTimeout(refreshTimer);
   refreshTimer = setTimeout(() => {
     refreshFromIframe(reason).catch((error) => {

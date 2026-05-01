@@ -2263,6 +2263,13 @@ const sidePanelRefreshTimers = new Map();
 const lastSidePanelUrlByTab = new Map();
 let lastActivatedLinkedInTabId = null;
 
+function timingLog(eventName, details = {}) {
+  console.log("[LEF][timing]", eventName, {
+    ts: Date.now(),
+    ...details,
+  });
+}
+
 function isLinkedInProfileLikeUrl(url) {
   if (typeof LEF_UTILS.isLinkedInProfileLikeUrl === "function") {
     return LEF_UTILS.isLinkedInProfileLikeUrl(url);
@@ -2302,6 +2309,11 @@ function scheduleSidePanelRefresh(tabId, url, reason, { force = false } = {}) {
 chrome.tabs.onActivated.addListener(async ({ tabId }) => {
   try {
     const tab = await chrome.tabs.get(tabId);
+    timingLog("tab_url_change", {
+      source: "tabs.onActivated",
+      tabId,
+      url: tab?.url || "",
+    });
     const shouldForceRefresh = lastActivatedLinkedInTabId !== tabId;
     lastActivatedLinkedInTabId = tabId;
     scheduleSidePanelRefresh(tabId, tab?.url || "", "tabs.onActivated", {
@@ -2314,16 +2326,31 @@ chrome.tabs.onActivated.addListener(async ({ tabId }) => {
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (typeof changeInfo.url === "string") {
+    timingLog("tab_url_change", {
+      source: "tabs.onUpdated.url",
+      tabId,
+      url: changeInfo.url,
+    });
     scheduleSidePanelRefresh(tabId, changeInfo.url, "tabs.onUpdated.url");
     return;
   }
   if (changeInfo.status === "complete") {
+    timingLog("tab_url_change", {
+      source: "tabs.onUpdated.complete",
+      tabId,
+      url: tab?.url || "",
+    });
     scheduleSidePanelRefresh(tabId, tab?.url || "", "tabs.onUpdated.complete");
   }
 });
 
 chrome.webNavigation.onCommitted.addListener((details) => {
   if (details.frameId !== 0) return;
+  timingLog("tab_url_change", {
+    source: "webNavigation.onCommitted",
+    tabId: details.tabId,
+    url: details.url,
+  });
   scheduleSidePanelRefresh(
     details.tabId,
     details.url,
@@ -2333,6 +2360,11 @@ chrome.webNavigation.onCommitted.addListener((details) => {
 
 chrome.webNavigation.onHistoryStateUpdated.addListener((details) => {
   if (details.frameId !== 0) return;
+  timingLog("tab_url_change", {
+    source: "webNavigation.onHistoryStateUpdated",
+    tabId: details.tabId,
+    url: details.url,
+  });
   scheduleSidePanelRefresh(
     details.tabId,
     details.url,
@@ -2989,6 +3021,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Fetching\u2026");
       try {
+        timingLog("db_search_unlinked_companies_called", {
+          term: normalizeProfileField(msg?.payload?.term),
+          limit: msg?.payload?.limit,
+        });
+        console.log("[LEF][company search]", {
+          ts: Date.now(),
+          term: normalizeProfileField(msg?.payload?.term),
+          limit: msg?.payload?.limit,
+        });
         const companies = await supabaseSearchUnlinkedCompanies(
           msg?.payload || {},
         );

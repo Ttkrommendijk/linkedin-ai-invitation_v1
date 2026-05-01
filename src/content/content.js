@@ -10,6 +10,14 @@ const normalizeWhitespace =
     ? LEF_UTILS.normalizeWhitespace
     : (value) => safeTrim(value).replace(/\s+/g, " ");
 
+function timingLog(eventName, details = {}) {
+  console.log("[LEF][timing]", eventName, {
+    ts: Date.now(),
+    url: window.location.href,
+    ...details,
+  });
+}
+
 function cleanText(s) {
   return normalizeWhitespace(String(s || "").replace(/\u00A0/g, " "));
 }
@@ -28,6 +36,7 @@ function sanitizeExcerpt(text, maxChars = 800) {
 }
 
 const COMPANY_PROFILE_URL_RE = /linkedin\.com\/(company|school)\//i;
+let mainContainerReadyLogged = false;
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -128,6 +137,14 @@ function hasCompanyProfileDom() {
       mainText,
     )
   );
+}
+
+function hasMainCompanyContainer() {
+  return Boolean(document.querySelector("main"));
+}
+
+function isCompanyPageReadyForExtraction() {
+  return document.readyState === "complete" && hasMainCompanyContainer();
 }
 
 async function waitForCompanyProfileDom({ timeoutMs = 5000 } = {}) {
@@ -242,6 +259,13 @@ function extractProfile() {
     profile.it_members = itMembers || "";
     profile.linkedin_id = url;
     profile.company_page_excerpt = sanitizeExcerpt(truncatedMain, 2200);
+    timingLog("company_extraction_result", {
+      company_name: profile.company_name || "",
+      raw_text_length: main.length,
+      excerpt_length: String(profile.company_page_excerpt || "").length,
+      ready_state: document.readyState,
+      has_main: hasMainCompanyContainer(),
+    });
     console.log("[LEF][company scrape result]", {
       company_name: profile.company_name || "",
       employee_number: profile.employee_number || "",
@@ -566,13 +590,61 @@ function extractChatHistoryFromInteropShadow() {
     },
   };
 }
+
+timingLog("content_script_loaded", { ready_state: document.readyState });
+document.addEventListener("readystatechange", () => {
+  timingLog("document_readystatechange", { ready_state: document.readyState });
+  if (
+    !mainContainerReadyLogged &&
+    document.readyState === "complete" &&
+    hasMainCompanyContainer()
+  ) {
+    mainContainerReadyLogged = true;
+    timingLog("main_container_available", { ready_state: document.readyState });
+  }
+});
+window.addEventListener("load", () => {
+  timingLog("window_load", { ready_state: document.readyState });
+  if (!mainContainerReadyLogged && hasMainCompanyContainer()) {
+    mainContainerReadyLogged = true;
+    timingLog("main_container_available", { ready_state: document.readyState });
+  }
+});
+if (hasMainCompanyContainer()) {
+  mainContainerReadyLogged = true;
+  timingLog("main_container_available", { ready_state: document.readyState });
+}
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === "EXTRACT_PROFILE_CONTEXT") {
     (async () => {
       try {
+        timingLog("extraction_requested", {
+          is_company_profile: isCompanyProfileUrl(),
+          ready_state: document.readyState,
+          has_main: hasMainCompanyContainer(),
+        });
         if (isCompanyProfileUrl()) {
           await waitForCompanyProfileDom();
+          if (!isCompanyPageReadyForExtraction()) {
+            timingLog("skipped extraction - page not ready", {
+              ready_state: document.readyState,
+              has_main: hasMainCompanyContainer(),
+            });
+            sendResponse({
+              ok: false,
+              error: {
+                code: "PAGE_NOT_READY",
+                message: "Company page not ready for extraction.",
+              },
+            });
+            return;
+          }
+          timingLog("company_profile_detected", {
+            ready_state: document.readyState,
+            has_main: hasMainCompanyContainer(),
+          });
         }
+        timingLog("extraction_running", { is_company_profile: isCompanyProfileUrl() });
         const profile = extractProfile();
         sendResponse({ ok: true, profile });
       } catch (e) {
