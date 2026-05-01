@@ -238,6 +238,12 @@ const acceptCompanySuggestionBtnEl = document.getElementById(
 );
 const companyLinkedRowEl = document.getElementById("companyLinkedRow");
 const companyLinkedNameEl = document.getElementById("companyLinkedName");
+const companyLinkSearchInputEl = document.getElementById(
+  "companyLinkSearchInput",
+);
+const companyLinkSearchOptionsEl = document.getElementById(
+  "companyLinkSearchOptions",
+);
 const companySuggestionWarningEl = document.getElementById(
   "companySuggestionWarning",
 );
@@ -347,6 +353,9 @@ let isProfileSaveInFlight = false;
 let companySuggestion = null;
 let companySuggestionLookupSeq = 0;
 let isAcceptingCompanySuggestion = false;
+let companyLinkSearchDebounceTimer = null;
+let companyLinkSearchResults = [];
+let selectedCompanyForSave = null;
 let firstMessage = "";
 let lastSavedFirstMessagePrompt = "";
 let isMessagePromptCollapsed = true;
@@ -884,16 +893,27 @@ function renderProfileEditControls() {
     if (!fieldEl) continue;
     fieldEl.readOnly = !isProfileEditMode;
   }
+  if (companyLinkSearchInputEl) {
+    companyLinkSearchInputEl.hidden = !isProfileEditMode;
+  }
+  if (companyLinkedNameEl) {
+    companyLinkedNameEl.hidden = isProfileEditMode;
+  }
+  if (acceptCompanySuggestionBtnEl && isProfileEditMode) {
+    acceptCompanySuggestionBtnEl.hidden = true;
+  }
 }
 
 function setProfileEditMode(nextMode) {
   isProfileEditMode = Boolean(nextMode);
   renderProfileEditControls();
   if (isProfileEditMode) {
+    prepareCompanyDropdownForEdit().catch(() => null);
     detailPersonNameEl?.focus();
     detailPersonNameEl?.select();
     return;
   }
+  selectedCompanyForSave = null;
   renderDetailHeader({ force: true });
 }
 
@@ -941,12 +961,20 @@ function renderDetailHeader({ force = false } = {}) {
 
 function hideCompanySuggestionUi() {
   companySuggestion = null;
+  selectedCompanyForSave = null;
+  companyLinkSearchResults = [];
   if (companyLinkedRowEl) companyLinkedRowEl.hidden = true;
   if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = true;
   if (companyLinkedNameEl) {
+    companyLinkedNameEl.hidden = false;
     companyLinkedNameEl.textContent = "-";
     companyLinkedNameEl.classList.remove("is-linked", "is-unlinked");
   }
+  if (companyLinkSearchInputEl) {
+    companyLinkSearchInputEl.hidden = true;
+    companyLinkSearchInputEl.value = "";
+  }
+  if (companyLinkSearchOptionsEl) companyLinkSearchOptionsEl.innerHTML = "";
   if (acceptCompanySuggestionBtnEl) {
     acceptCompanySuggestionBtnEl.disabled = false;
     acceptCompanySuggestionBtnEl.hidden = true;
@@ -955,6 +983,7 @@ function hideCompanySuggestionUi() {
 
 function renderLinkedCompanyName(companyName) {
   if (companyLinkedNameEl) {
+    companyLinkedNameEl.hidden = isProfileEditMode;
     companyLinkedNameEl.textContent = safeTrim(companyName) || "-";
     companyLinkedNameEl.classList.add("is-linked");
     companyLinkedNameEl.classList.remove("is-unlinked");
@@ -967,13 +996,16 @@ function renderLinkedCompanyName(companyName) {
 function renderCompanySuggestionFound(companyRow) {
   companySuggestion = companyRow || null;
   if (companyLinkedNameEl) {
+    companyLinkedNameEl.hidden = isProfileEditMode;
     companyLinkedNameEl.textContent = safeTrim(companyRow?.company_name) || "-";
     companyLinkedNameEl.classList.add("is-unlinked");
     companyLinkedNameEl.classList.remove("is-linked");
   }
   if (companyLinkedRowEl) companyLinkedRowEl.hidden = false;
   if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = true;
-  if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.hidden = false;
+  if (acceptCompanySuggestionBtnEl) {
+    acceptCompanySuggestionBtnEl.hidden = isProfileEditMode;
+  }
 }
 
 function renderCompanySuggestionNotFound() {
@@ -1024,6 +1056,113 @@ async function refreshCompanySuggestionUiForCurrentInvitation() {
     company_name: companyRow.company_name,
   });
   renderCompanySuggestionFound(companyRow);
+}
+
+function setCompanyLinkSearchOptions(rows) {
+  companyLinkSearchResults = Array.isArray(rows) ? rows : [];
+  if (!companyLinkSearchOptionsEl) return;
+  companyLinkSearchOptionsEl.innerHTML = "";
+  for (const row of companyLinkSearchResults) {
+    const name = safeTrim(row?.company_name);
+    const id = safeTrim(row?.company_id);
+    if (!name || !id) continue;
+    const optionEl = document.createElement("option");
+    optionEl.value = name;
+    optionEl.dataset.companyId = id;
+    companyLinkSearchOptionsEl.appendChild(optionEl);
+  }
+}
+
+function setCompanyDropdownSelected(companyRow) {
+  const id = safeTrim(companyRow?.company_id);
+  const name = safeTrim(companyRow?.company_name);
+  selectedCompanyForSave = id && name ? { company_id: id, company_name: name } : null;
+  if (companyLinkSearchInputEl) companyLinkSearchInputEl.value = name;
+  console.log("[LEF][company dropdown] company selected", {
+    company_id: id,
+    company_name: name,
+  });
+}
+
+async function searchCompaniesForEditDropdown(term) {
+  const query = safeTrim(term);
+  if (!query) {
+    setCompanyLinkSearchOptions([]);
+    return;
+  }
+  const result = await sendRuntimeMessage("DB_SEARCH_COMPANIES", {
+    payload: { term: query, limit: 10 },
+  });
+  const resp = result.data || {};
+  const rows = result.ok ? resp?.companies || [] : [];
+  setCompanyLinkSearchOptions(rows);
+  console.log("[LEF][company dropdown] company search results", {
+    term: query,
+    count: rows.length,
+  });
+}
+
+async function prepareCompanyDropdownForEdit() {
+  if (!dbInvitationRow || !companyLinkedRowEl || !companyLinkSearchInputEl) return;
+  const savedCompany = safeTrim(dbInvitationRow?.company);
+  const savedCompanyId = safeTrim(dbInvitationRow?.company_id);
+  selectedCompanyForSave = null;
+  setCompanyLinkSearchOptions([]);
+  companyLinkedRowEl.hidden = false;
+  companyLinkSearchInputEl.hidden = false;
+  companyLinkSearchInputEl.value = "";
+  if (companyLinkedNameEl) companyLinkedNameEl.hidden = true;
+  if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.hidden = true;
+  if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = true;
+
+  console.log("[LEF][company dropdown] initial load", {
+    company_id: savedCompanyId,
+    company_name: savedCompany,
+  });
+
+  if (savedCompanyId) {
+    const result = await sendRuntimeMessage("DB_GET_COMPANY_BY_ID", {
+      payload: { company_id: savedCompanyId },
+    });
+    const companyRow = result.ok ? result.data?.company || null : null;
+    if (companyRow?.company_id && safeTrim(companyRow?.company_name)) {
+      setCompanyDropdownSelected(companyRow);
+      setCompanyLinkSearchOptions([companyRow]);
+    }
+    return;
+  }
+
+  if (!savedCompany) return;
+  const result = await sendRuntimeMessage("DB_FIND_COMPANY_BY_NAME", {
+    payload: { company_name: savedCompany },
+  });
+  const companyRow = result.ok ? result.data?.company || null : null;
+  if (companyRow?.company_id && safeTrim(companyRow?.company_name)) {
+    console.log("[LEF][company dropdown] exact match found", {
+      company_id: companyRow.company_id,
+      company_name: companyRow.company_name,
+    });
+    setCompanyDropdownSelected(companyRow);
+    setCompanyLinkSearchOptions([companyRow]);
+    return;
+  }
+  console.log("[LEF][company dropdown] no exact match found", {
+    company_name: savedCompany,
+  });
+}
+
+function syncSelectedCompanyFromDropdownInput() {
+  const typed = safeTrim(companyLinkSearchInputEl?.value);
+  if (!typed) {
+    selectedCompanyForSave = null;
+    return;
+  }
+  const matched = companyLinkSearchResults.find(
+    (row) => safeTrim(row?.company_name).toLowerCase() === typed.toLowerCase(),
+  );
+  if (matched?.company_id) {
+    setCompanyDropdownSelected(matched);
+  }
 }
 
 function updateStepperInteractivity() {
@@ -3823,12 +3962,17 @@ function bindProfileEditControls() {
           ? ""
           : detailCommentsEl?.value || "",
       );
+      syncSelectedCompanyFromDropdownInput();
+      const selectedCompanyId = safeTrim(selectedCompanyForSave?.company_id);
+      const selectedCompanyName = safeTrim(selectedCompanyForSave?.company_name);
+      const companyToSave = selectedCompanyName || company;
 
       const result = await sendRuntimeMessage("DB_UPDATE_PROFILE_FIELDS", {
         payload: {
           linkedin_url,
           full_name,
-          company,
+          company: companyToSave,
+          company_id: selectedCompanyId || undefined,
           headline,
           comments,
         },
@@ -3842,15 +3986,22 @@ function bindProfileEditControls() {
       if (currentProfileContext) {
         currentProfileContext.name = full_name;
         currentProfileContext.full_name = full_name;
-        currentProfileContext.company = company;
+        currentProfileContext.company = companyToSave;
         currentProfileContext.headline = headline;
         currentProfileContext.comments = comments;
       }
       if (dbInvitationRow) {
         dbInvitationRow.full_name = full_name;
-        dbInvitationRow.company = company;
+        dbInvitationRow.company = companyToSave;
+        if (selectedCompanyId) dbInvitationRow.company_id = selectedCompanyId;
         dbInvitationRow.headline = headline;
         dbInvitationRow.comments = comments;
+      }
+      if (selectedCompanyId) {
+        console.log("[LEF][company dropdown] company saved", {
+          company_id: selectedCompanyId,
+          company_name: companyToSave,
+        });
       }
 
       isProfileEditMode = false;
@@ -4510,6 +4661,22 @@ acceptCompanySuggestionBtnEl?.addEventListener("click", async () => {
     isAcceptingCompanySuggestion = false;
     if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.disabled = false;
   }
+});
+
+companyLinkSearchInputEl?.addEventListener("input", () => {
+  selectedCompanyForSave = null;
+  if (companyLinkSearchDebounceTimer) {
+    clearTimeout(companyLinkSearchDebounceTimer);
+  }
+  companyLinkSearchDebounceTimer = setTimeout(() => {
+    searchCompaniesForEditDropdown(companyLinkSearchInputEl.value || "").catch(
+      () => null,
+    );
+  }, 250);
+});
+
+companyLinkSearchInputEl?.addEventListener("change", () => {
+  syncSelectedCompanyFromDropdownInput();
 });
 
 markMessageSentBtnEl?.addEventListener("click", async () => {

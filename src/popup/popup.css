@@ -157,6 +157,11 @@ button:disabled {
 .company-link-name.is-linked {
     color: #166534;
 }
+.company-link-search {
+    min-height: 26px;
+    padding: 4px 6px;
+    font-size: 12px;
+}
 .company-suggestion-accept {
     width: 18px;
     min-width: 18px;

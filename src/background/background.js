@@ -1413,6 +1413,7 @@ async function supabaseUpdateProfileFields({
   linkedin_url,
   full_name,
   company,
+  company_id,
   headline,
   comments,
 }) {
@@ -1430,6 +1431,8 @@ async function supabaseUpdateProfileFields({
     headline: sanitizeHeadlineJobTitle(headline),
     comments: normalizeProfileField(comments),
   };
+  const safeCompanyId = normalizeProfileField(company_id);
+  if (safeCompanyId) patch.company_id = safeCompanyId;
 
   const res = await fetchWithTimeout(
     url,
@@ -1521,6 +1524,66 @@ async function supabaseFindCompanyByName({ company_name }) {
   }
 
   return null;
+}
+
+async function supabaseGetCompanyById({ company_id }) {
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
+  const normalizedCompanyId = normalizeProfileField(company_id);
+  if (!normalizedCompanyId) return null;
+  const url = `${supabaseUrl}/rest/v1/company?select=company_id,company_name&company_id=eq.${encodeURIComponent(normalizedCompanyId)}&limit=1`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "GET",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    },
+    15000,
+    "Supabase request",
+  );
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+  const rows = await res.json();
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  return rows[0] || null;
+}
+
+async function supabaseSearchCompanies({ term, limit }) {
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
+  const normalizedTerm = normalizeProfileField(term);
+  if (!normalizedTerm) return [];
+  const parsedLimit = Number(limit);
+  const safeLimit =
+    Number.isFinite(parsedLimit) && parsedLimit > 0
+      ? Math.min(50, Math.floor(parsedLimit))
+      : 10;
+  const url = `${supabaseUrl}/rest/v1/company?select=company_id,company_name&company_name=ilike.${encodeURIComponent(`*${normalizedTerm}*`)}&order=company_name.asc&limit=${safeLimit}`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "GET",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    },
+    15000,
+    "Supabase request",
+  );
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+  const rows = await res.json();
+  return Array.isArray(rows) ? rows : [];
 }
 
 async function supabaseConfirmCompanyLink({
@@ -2519,6 +2582,38 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       try {
         const company = await supabaseFindCompanyByName(msg?.payload || {});
         sendResponse({ ok: true, company });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_GET_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "DB_GET_COMPANY_BY_ID") {
+    (async () => {
+      emitUiStatus("Fetching\u2026");
+      try {
+        const company = await supabaseGetCompanyById(msg?.payload || {});
+        sendResponse({ ok: true, company });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_GET_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "DB_SEARCH_COMPANIES") {
+    (async () => {
+      emitUiStatus("Fetching\u2026");
+      try {
+        const companies = await supabaseSearchCompanies(msg?.payload || {});
+        sendResponse({ ok: true, companies });
       } catch (e) {
         sendResponse({
           ok: false,
