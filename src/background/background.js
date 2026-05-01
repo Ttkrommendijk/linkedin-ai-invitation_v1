@@ -1483,6 +1483,72 @@ async function supabaseGetInvitationByLinkedinUrl(linkedin_url) {
   return rows[0] || null;
 }
 
+async function supabaseFindCompanyByName({ company_name }) {
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
+  const normalizedName = normalizeProfileField(company_name);
+  if (!normalizedName) return null;
+  const url = `${supabaseUrl}/rest/v1/company?select=company_id,company_name&company_name=eq.${encodeURIComponent(normalizedName)}&limit=1`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "GET",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    },
+    15000,
+    "Supabase request",
+  );
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+  const rows = await res.json();
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  return rows[0] || null;
+}
+
+async function supabaseConfirmCompanyLink({
+  linkedin_url,
+  company_id,
+  company_name,
+}) {
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
+  const targetUrl = normalizeProfileField(linkedin_url);
+  if (!targetUrl) throw new Error("Missing linkedin_url.");
+  const normalizedCompanyId = normalizeProfileField(company_id);
+  const normalizedCompanyName = normalizeProfileField(company_name);
+  if (!normalizedCompanyId) throw new Error("Missing company_id.");
+  if (!normalizedCompanyName) throw new Error("Missing company_name.");
+  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({
+        company_id: normalizedCompanyId,
+        company: normalizedCompanyName,
+      }),
+    },
+    15000,
+    "Supabase request",
+  );
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+}
+
 async function supabaseIncrementMessageCount({ linkedin_url, delta }) {
   const { supabaseUrl, supabaseAnonKey, accessToken } =
     await getSupabaseRequestContext();
@@ -2429,6 +2495,38 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse({
           ok: false,
           error: normalizeError(e, "SUPABASE_GET_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "DB_FIND_COMPANY_BY_NAME") {
+    (async () => {
+      emitUiStatus("Fetching\u2026");
+      try {
+        const company = await supabaseFindCompanyByName(msg?.payload || {});
+        sendResponse({ ok: true, company });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_GET_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "DB_CONFIRM_COMPANY_LINK") {
+    (async () => {
+      emitUiStatus("Updating\u2026");
+      try {
+        await supabaseConfirmCompanyLink(msg?.payload || {});
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
         });
       }
     })();

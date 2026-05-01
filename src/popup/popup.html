@@ -100,6 +100,7 @@
                                 </button>
                             </div>
                         </div>
+                        <div class="company-display-label">Company:</div>
                         <input
                             id="detailCompany"
                             class="detail-person-company"
@@ -107,6 +108,42 @@
                             value="-"
                             readonly
                         />
+                        <div
+                            id="companySuggestionRow"
+                            class="company-suggestion-row"
+                            hidden
+                        >
+                            <span class="company-suggestion-label"
+                                >Suggested company link:</span
+                            >
+                            <span id="companySuggestionName">-</span>
+                            <button
+                                id="acceptCompanySuggestionBtn"
+                                type="button"
+                                class="btn-icon company-suggestion-accept"
+                                title="Link company"
+                                aria-label="Link company"
+                            >
+                                &#10003;
+                            </button>
+                        </div>
+                        <div
+                            id="companyLinkedRow"
+                            class="company-suggestion-row"
+                            hidden
+                        >
+                            <span class="company-suggestion-label"
+                                >Suggested company link:</span
+                            >
+                            <span id="companyLinkedName">-</span>
+                        </div>
+                        <div
+                            id="companySuggestionWarning"
+                            class="company-suggestion-warning"
+                            hidden
+                        >
+                            No linked company found
+                        </div>
                         <input
                             id="detailHeadline"
                             class="detail-person-headline"

@@ -138,6 +138,39 @@ button:disabled {
     margin-top: 2px;
     color: #374151;
 }
+.company-display-label {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--muted);
+}
+.company-suggestion-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    font-size: 12px;
+    color: #374151;
+}
+.company-suggestion-label {
+    color: var(--muted);
+}
+.company-suggestion-accept {
+    width: 18px;
+    min-width: 18px;
+    height: 18px;
+    min-height: 18px;
+    padding: 0;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: #f9fafb;
+    color: #166534;
+    line-height: 1;
+}
+.company-suggestion-warning {
+    margin-top: 4px;
+    font-size: 12px;
+    color: #b91c1c;
+}
 .detail-person-headline {
     font-size: 12px;
     margin-top: 4px;

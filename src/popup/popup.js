@@ -233,6 +233,16 @@ const detailCommentsEl = document.getElementById("detailComments");
 const enrichProfileBtnEl = document.getElementById("enrichProfileBtn");
 const editProfileBtnEl = document.getElementById("editProfileBtn");
 const saveProfileFieldsBtnEl = document.getElementById("saveProfileFieldsBtn");
+const companySuggestionRowEl = document.getElementById("companySuggestionRow");
+const companySuggestionNameEl = document.getElementById("companySuggestionName");
+const acceptCompanySuggestionBtnEl = document.getElementById(
+  "acceptCompanySuggestionBtn",
+);
+const companyLinkedRowEl = document.getElementById("companyLinkedRow");
+const companyLinkedNameEl = document.getElementById("companyLinkedName");
+const companySuggestionWarningEl = document.getElementById(
+  "companySuggestionWarning",
+);
 const statusStepperEl = document.getElementById("statusStepper");
 const stepRegisterEl = document.getElementById("step-register");
 const stepInvitedEl = document.getElementById("step-invited");
@@ -336,6 +346,9 @@ let lastProfileContextEnriched = null;
 let currentProfileContext = null;
 let isProfileEditMode = false;
 let isProfileSaveInFlight = false;
+let companySuggestion = null;
+let companySuggestionLookupSeq = 0;
+let isAcceptingCompanySuggestion = false;
 let firstMessage = "";
 let lastSavedFirstMessagePrompt = "";
 let isMessagePromptCollapsed = true;
@@ -928,6 +941,83 @@ function renderDetailHeader({ force = false } = {}) {
   renderProfileEditControls();
 }
 
+function hideCompanySuggestionUi() {
+  companySuggestion = null;
+  if (companySuggestionRowEl) companySuggestionRowEl.hidden = true;
+  if (companyLinkedRowEl) companyLinkedRowEl.hidden = true;
+  if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = true;
+  if (companySuggestionNameEl) companySuggestionNameEl.textContent = "-";
+  if (companyLinkedNameEl) companyLinkedNameEl.textContent = "-";
+  if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.disabled = false;
+}
+
+function renderLinkedCompanyName(companyName) {
+  if (companyLinkedNameEl) companyLinkedNameEl.textContent = safeTrim(companyName) || "-";
+  if (companyLinkedRowEl) companyLinkedRowEl.hidden = false;
+  if (companySuggestionRowEl) companySuggestionRowEl.hidden = true;
+  if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = true;
+}
+
+function renderCompanySuggestionFound(companyRow) {
+  companySuggestion = companyRow || null;
+  if (companySuggestionNameEl) {
+    companySuggestionNameEl.textContent = safeTrim(companyRow?.company_name) || "-";
+  }
+  if (companySuggestionRowEl) companySuggestionRowEl.hidden = false;
+  if (companyLinkedRowEl) companyLinkedRowEl.hidden = true;
+  if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = true;
+}
+
+function renderCompanySuggestionNotFound() {
+  companySuggestion = null;
+  if (companySuggestionRowEl) companySuggestionRowEl.hidden = true;
+  if (companyLinkedRowEl) companyLinkedRowEl.hidden = true;
+  if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = false;
+}
+
+async function refreshCompanySuggestionUiForCurrentInvitation() {
+  hideCompanySuggestionUi();
+  if (!dbInvitationRow) return;
+  const savedCompany = safeTrim(dbInvitationRow?.company);
+  const savedCompanyId = safeTrim(dbInvitationRow?.company_id);
+  if (!savedCompany || savedCompany === "-") return;
+
+  if (savedCompanyId) {
+    renderLinkedCompanyName(savedCompany);
+    return;
+  }
+
+  const lookupSeq = ++companySuggestionLookupSeq;
+  console.log("[LEF][company suggestion search]", { company_name: savedCompany });
+  const result = await sendRuntimeMessage("DB_FIND_COMPANY_BY_NAME", {
+    payload: { company_name: savedCompany },
+  });
+  if (lookupSeq !== companySuggestionLookupSeq) return;
+  const resp = result.data || {};
+  if (!result.ok) {
+    console.log("[LEF][company suggestion not found]", {
+      company_name: savedCompany,
+      reason: getErrorMessage(result.error),
+    });
+    renderCompanySuggestionNotFound();
+    return;
+  }
+
+  const companyRow = resp?.company || null;
+  if (!companyRow?.company_id || !safeTrim(companyRow?.company_name)) {
+    console.log("[LEF][company suggestion not found]", {
+      company_name: savedCompany,
+    });
+    renderCompanySuggestionNotFound();
+    return;
+  }
+  console.log("[LEF][company suggestion found]", {
+    company_id: companyRow.company_id,
+    company_name: companyRow.company_name,
+  });
+  renderCompanySuggestionFound(companyRow);
+}
+
 function updateStepperInteractivity() {
   if (!statusStepperEl) return;
 
@@ -1436,6 +1526,7 @@ async function refreshInvitationRowFromDb({ preserveTabs = false } = {}) {
   const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
   if (!linkedin_url) {
     dbInvitationRow = null;
+    hideCompanySuggestionUi();
     setCampaignSelectValue("");
     setCommunicationStatus(UI_TEXT.lifecycleOpenLinkedInProfileFirst);
     applyLifecycleUiState(dbInvitationRow, { preserveTabs });
@@ -1454,6 +1545,7 @@ async function refreshInvitationRowFromDb({ preserveTabs = false } = {}) {
     const resp = result.data || {};
     if (!result.ok) {
       dbInvitationRow = null;
+      hideCompanySuggestionUi();
       setCommunicationStatus(getErrorMessage(result.error));
       applyLifecycleUiState(dbInvitationRow, { preserveTabs });
       outreachMessageStatus = "accepted";
@@ -1484,6 +1576,7 @@ async function refreshInvitationRowFromDb({ preserveTabs = false } = {}) {
     renderMessageTab(outreachMessageStatus);
     updateMessageTabControls();
     renderDetailHeader();
+    await refreshCompanySuggestionUiForCurrentInvitation();
     updatePhaseButtons();
   } finally {
     setFooterReady();
@@ -4371,6 +4464,45 @@ function bindGenerateInviteClickHandler() {
 }
 
 bindGenerateInviteClickHandler();
+
+acceptCompanySuggestionBtnEl?.addEventListener("click", async () => {
+  if (isAcceptingCompanySuggestion) return;
+  if (!companySuggestion?.company_id || !companySuggestion?.company_name) return;
+  const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
+  if (!linkedin_url) {
+    setFooterStatus(UI_TEXT.missingLinkedinUrl);
+    return;
+  }
+
+  isAcceptingCompanySuggestion = true;
+  if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.disabled = true;
+  setFooterUpdatingStatus();
+  try {
+    const result = await sendRuntimeMessage("DB_CONFIRM_COMPANY_LINK", {
+      payload: {
+        linkedin_url,
+        company_id: companySuggestion.company_id,
+        company_name: companySuggestion.company_name,
+      },
+    });
+    const resp = result.data || {};
+    if (!result.ok || !resp?.ok) {
+      throw new Error(getErrorMessage(result.error || resp?.error));
+    }
+    console.log("[LEF][company suggestion accepted]", {
+      linkedin_url,
+      company_id: companySuggestion.company_id,
+      company_name: companySuggestion.company_name,
+    });
+    await refreshInvitationRowFromDb({ preserveTabs: true });
+    setFooterStatus("Saved.");
+  } catch (e) {
+    setFooterStatus(`${UI_TEXT.dbErrorPrefix} ${getErrorMessage(e)}`);
+  } finally {
+    isAcceptingCompanySuggestion = false;
+    if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.disabled = false;
+  }
+});
 
 markMessageSentBtnEl?.addEventListener("click", async () => {
   setFooterDbStatus();
