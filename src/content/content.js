@@ -27,6 +27,12 @@ function sanitizeExcerpt(text, maxChars = 800) {
   return cleaned;
 }
 
+const COMPANY_PROFILE_URL_RE = /linkedin\.com\/(company|school)\//i;
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function nameFromTitle() {
   const t = cleanText(document.title);
   if (!t) return "";
@@ -71,9 +77,71 @@ function firstNonEmptyText(selectors) {
   return "";
 }
 
+function isCompanyProfileUrl(url = window.location.href) {
+  return COMPANY_PROFILE_URL_RE.test(String(url || ""));
+}
+
+function getCompanyTopCardName() {
+  return firstNonEmptyText([
+    ".org-top-card-summary__title",
+    ".org-top-card-primary-content__title",
+    "main h1",
+  ]);
+}
+
+function normalizeCompanyTitleName(value) {
+  return cleanText(value)
+    .replace(/^\(\d+\)\s*/, "")
+    .replace(/\s*:\s*(vis[aã]o geral|overview).*$/i, "")
+    .trim();
+}
+
+function companyNameMatchesDocumentTitle(companyName) {
+  const normalizedName = normalizeCompanyTitleName(companyName).toLowerCase();
+  const normalizedTitle = normalizeCompanyTitleName(
+    (document.title || "").split("|")[0],
+  ).toLowerCase();
+  if (!normalizedName || !normalizedTitle) return false;
+  return (
+    normalizedTitle.includes(normalizedName) ||
+    normalizedName.includes(normalizedTitle)
+  );
+}
+
+function hasCompanyProfileDom() {
+  const companyName = getCompanyTopCardName();
+  if (!companyName || /^\(\d+\)/.test(companyName)) return false;
+
+  const mainText = cleanText(document.querySelector("main")?.innerText || "");
+  if (!mainText) return false;
+
+  const hasOrgTopCard = Boolean(
+    document.querySelector(
+      ".org-top-card, .org-top-card-summary, .org-top-card-primary-content",
+    ),
+  );
+  if (hasOrgTopCard) return true;
+
+  return (
+    companyNameMatchesDocumentTitle(companyName) &&
+    /\b(Início|Publicações|Vagas|Ex-alunos|Visão geral|Overview|Posts|Jobs|Alumni)\b/i.test(
+      mainText,
+    )
+  );
+}
+
+async function waitForCompanyProfileDom({ timeoutMs = 5000 } = {}) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (!isCompanyProfileUrl()) return;
+    if (hasCompanyProfileDom()) return;
+    await delay(150);
+  }
+}
+
 function extractProfile() {
   const url = window.location.href;
-  const isCompanyProfile = /linkedin\.com\/(company|school)\//i.test(url);
+  const isCompanyProfile = isCompanyProfileUrl(url);
 
   let name =
     cleanText(document.querySelector("h1")?.innerText) ||
@@ -500,18 +568,23 @@ function extractChatHistoryFromInteropShadow() {
 }
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === "EXTRACT_PROFILE_CONTEXT") {
-    try {
-      const profile = extractProfile();
-      sendResponse({ ok: true, profile });
-    } catch (e) {
-      sendResponse({
-        ok: false,
-        error: {
-          code: "EXTRACTION_FAILED",
-          message: e instanceof Error ? e.message : String(e || "unknown"),
-        },
-      });
-    }
+    (async () => {
+      try {
+        if (isCompanyProfileUrl()) {
+          await waitForCompanyProfileDom();
+        }
+        const profile = extractProfile();
+        sendResponse({ ok: true, profile });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: {
+            code: "EXTRACTION_FAILED",
+            message: e instanceof Error ? e.message : String(e || "unknown"),
+          },
+        });
+      }
+    })();
     return true;
   }
 

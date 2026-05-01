@@ -60,7 +60,13 @@ ${fallbackExcerpt}`
   function buildProfileExtractionPrompt() {
     return `Extract structured profile fields from the provided LinkedIn profile context.
 
-Return strict JSON only (no markdown, no prose) with exactly:
+Output requirements (mandatory):
+- Return exactly one valid JSON object.
+- No markdown, no prose, no code fences, no comments.
+- Do not include keys outside the required schema.
+- Every value must be a string; use "" when unknown.
+
+Return this exact schema:
 {
   "company": string,
   "headline": string,
@@ -74,7 +80,8 @@ Rules:
 - "language" must be the dominant profile language (prefer: Portuguese, English, Dutch, Spanish).
 - If possible, return language as one of: Portuguese, English, Dutch, Spanish.
 - Never invent facts; use only the provided profile context.
-- If a value cannot be confidently extracted, return an empty string for that field.`;
+- If a value cannot be confidently extracted, return an empty string for that field.
+- Final output must be valid JSON parseable by JSON.parse.`;
   }
 
   /**
@@ -87,21 +94,30 @@ Rules:
   function buildCompanyExtractionPrompt() {
     return `Extract company fields from a LinkedIn company page context.
 
-Return strict JSON only (no markdown, no prose) with exactly:
+Output requirements (mandatory):
+- Return exactly one valid JSON object.
+- No markdown, no prose, no code fences, no comments.
+- Do not include keys outside the required schema.
+- Every value must be a string; use "" when unknown.
+
+Return this exact schema:
 {
   "company_name": string,
   "employee_number": string,
   "sector": string,
   "city": string,
+  "it_members": string
 }
 
 Rules:
 - "company_name" must be only the company/organization name.
-- "employee_number" means total employee count or company size if available. lok for employee of funcionários
-- "sector" means industry/sector use the exact name as in the page information.
+- "employee_number" means total employee count or company size if available.
+- "sector" means industry/sector, use the exact name from the page information.
 - "city" means headquarters or primary location city.
+- "it_members" means number of IT employees if clearly available; otherwise "".
 - Never invent facts; use only the provided company page context.
-- If a value cannot be confidently extracted, return an empty string for that field.`;
+- If a value cannot be confidently extracted, return an empty string for that field.
+- Final output must be valid JSON parseable by JSON.parse.`;
   }
 
   /**
@@ -351,3 +367,5 @@ ${profileContextBlock(profileContext || {})}
     buildFollowupUserInput,
   };
 })(globalThis);
+
+

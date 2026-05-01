@@ -283,12 +283,39 @@ button:disabled {
     min-width: 0;
 }
 .company-person-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-size: 12px;
     font-weight: 600;
     color: var(--text);
+}
+.company-person-name-label {
+    min-width: 0;
+    flex: 1 1 auto;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+.company-person-connection {
+    flex: 0 0 auto;
+    font-size: 10px;
+    line-height: 1;
+    padding: 3px 6px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    white-space: nowrap;
+    font-weight: 600;
+}
+.company-person-connection.is-connected {
+    color: #166534;
+    background: #dcfce7;
+    border-color: #86efac;
+}
+.company-person-connection.is-not-connected {
+    color: #475569;
+    background: #f1f5f9;
+    border-color: #cbd5e1;
 }
 .company-person-function {
     margin-top: 1px;

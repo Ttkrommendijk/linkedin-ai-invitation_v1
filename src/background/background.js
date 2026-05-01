@@ -1821,7 +1821,10 @@ async function supabaseListInvitationsByCompany({ company_id }) {
   if (!normalizedCompanyId) return [];
 
   const params = new URLSearchParams();
-  params.set("select", "linkedin_url,full_name,headline,company,company_id");
+  params.set(
+    "select",
+    "linkedin_url,full_name,headline,company,company_id,accepted",
+  );
   params.set("order", "full_name.asc.nullslast");
   params.set("limit", "50");
   params.set("company_id", `eq.${normalizedCompanyId}`);
@@ -2258,6 +2261,7 @@ async function supabaseSetArchived({ linkedin_url, archived }) {
 const SIDEPANEL_REFRESH_DEBOUNCE_MS = 500;
 const sidePanelRefreshTimers = new Map();
 const lastSidePanelUrlByTab = new Map();
+let lastActivatedLinkedInTabId = null;
 
 function isLinkedInProfileLikeUrl(url) {
   if (typeof LEF_UTILS.isLinkedInProfileLikeUrl === "function") {
@@ -2278,7 +2282,7 @@ async function notifySidePanelRefresh({ tabId, url, reason }) {
   }
 }
 
-function scheduleSidePanelRefresh(tabId, url, reason) {
+function scheduleSidePanelRefresh(tabId, url, reason, { force = false } = {}) {
   if (!Number.isInteger(tabId) || !isLinkedInProfileLikeUrl(url)) return;
 
   const existingTimer = sidePanelRefreshTimers.get(tabId);
@@ -2287,7 +2291,7 @@ function scheduleSidePanelRefresh(tabId, url, reason) {
   const timer = setTimeout(async () => {
     sidePanelRefreshTimers.delete(tabId);
     const prevUrl = lastSidePanelUrlByTab.get(tabId);
-    if (prevUrl === url) return;
+    if (!force && prevUrl === url) return;
     lastSidePanelUrlByTab.set(tabId, url);
     await notifySidePanelRefresh({ tabId, url, reason });
   }, SIDEPANEL_REFRESH_DEBOUNCE_MS);
@@ -2298,7 +2302,11 @@ function scheduleSidePanelRefresh(tabId, url, reason) {
 chrome.tabs.onActivated.addListener(async ({ tabId }) => {
   try {
     const tab = await chrome.tabs.get(tabId);
-    scheduleSidePanelRefresh(tabId, tab?.url || "", "tabs.onActivated");
+    const shouldForceRefresh = lastActivatedLinkedInTabId !== tabId;
+    lastActivatedLinkedInTabId = tabId;
+    scheduleSidePanelRefresh(tabId, tab?.url || "", "tabs.onActivated", {
+      force: shouldForceRefresh,
+    });
   } catch (_e) {
     // Ignore transient tab errors.
   }

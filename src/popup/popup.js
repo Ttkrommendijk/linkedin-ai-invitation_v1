@@ -1314,6 +1314,7 @@ function renderCompanyPeopleList() {
     const linkedinUrl = safeTrim(row?.linkedin_url);
     const name = safeTrim(row?.full_name || row?.name) || "-";
     const headline = safeTrim(row?.headline) || "-";
+    const isConnected = row?.accepted === true;
     const rowEl = document.createElement("div");
     rowEl.className = "company-person-card";
     rowEl.dataset.linkedinUrl = linkedinUrl;
@@ -1327,7 +1328,16 @@ function renderCompanyPeopleList() {
     textEl.className = "company-person-text";
     const nameEl = document.createElement("div");
     nameEl.className = "company-person-name";
-    nameEl.textContent = name;
+    const nameLabelEl = document.createElement("span");
+    nameLabelEl.className = "company-person-name-label";
+    nameLabelEl.textContent = name;
+    const statusEl = document.createElement("span");
+    statusEl.className = isConnected
+      ? "company-person-connection is-connected"
+      : "company-person-connection is-not-connected";
+    statusEl.textContent = isConnected ? "Connected" : "Not connected";
+    nameEl.appendChild(nameLabelEl);
+    nameEl.appendChild(statusEl);
     const headlineEl = document.createElement("div");
     headlineEl.className = "company-person-function";
     headlineEl.textContent = headline;
