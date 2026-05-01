@@ -1646,7 +1646,7 @@ async function supabaseGetCompanyById({ company_id }) {
     await getSupabaseRequestContext();
   const normalizedCompanyId = normalizeProfileField(company_id);
   if (!normalizedCompanyId) return null;
-  const url = `${supabaseUrl}/rest/v1/company?select=company_id,company_name&company_id=eq.${encodeURIComponent(normalizedCompanyId)}&limit=1`;
+  const url = `${supabaseUrl}/rest/v1/company?select=company_id,company_name,linkedin_id&company_id=eq.${encodeURIComponent(normalizedCompanyId)}&limit=1`;
   const res = await fetchWithTimeout(
     url,
     {

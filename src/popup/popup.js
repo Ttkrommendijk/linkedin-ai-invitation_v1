@@ -269,6 +269,9 @@ const companyLinkedNameEl = document.getElementById("companyLinkedName");
 const companyLinkSearchInputEl = document.getElementById(
   "companyLinkSearchInput",
 );
+const companyLinkedIndicatorEl = document.getElementById(
+  "companyLinkedIndicator",
+);
 const companyLinkSearchOptionsEl = document.getElementById(
   "companyLinkSearchOptions",
 );
@@ -954,14 +957,20 @@ function renderProfileEditControls() {
   if (acceptCompanySuggestionBtnEl && isProfileEditMode) {
     acceptCompanySuggestionBtnEl.hidden = true;
   }
+  if (companyLinkedIndicatorEl) {
+    companyLinkedIndicatorEl.hidden =
+      isCompany || !isProfileEditMode || !safeTrim(dbInvitationRow?.company_id);
+  }
   if (isCompany) {
     if (companyLinkedRowEl) companyLinkedRowEl.hidden = true;
     if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = true;
     if (companyLinkedNameEl) companyLinkedNameEl.hidden = true;
     if (companyLinkSearchInputEl) companyLinkSearchInputEl.hidden = true;
+    if (companyLinkedIndicatorEl) companyLinkedIndicatorEl.hidden = true;
     if (companyLinkSearchOptionsEl) companyLinkSearchOptionsEl.innerHTML = "";
     if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.hidden = true;
   }
+  applyProfileModeUi();
 }
 
 function applyProfileModeUi() {
@@ -972,10 +981,11 @@ function applyProfileModeUi() {
   tabMain?.classList.toggle("company-profile-mode", isCompany);
   if (detailCompanyLabelEl) {
     detailCompanyLabelEl.textContent = "Company:";
-    detailCompanyLabelEl.hidden = isCompany;
+    detailCompanyLabelEl.hidden = isCompany || (!isProfileEditMode && !isCompany);
   }
   if (detailCompanyEl) {
-    detailCompanyEl.hidden = isCompany;
+    detailCompanyEl.hidden =
+      isCompany || (!isProfileEditMode && Boolean(safeTrim(dbInvitationRow?.company_id)));
   }
   if (detailEmployeeNumberLabelEl) {
     detailEmployeeNumberLabelEl.hidden = !isCompany;
@@ -985,6 +995,7 @@ function applyProfileModeUi() {
   }
   if (detailHeadlineLabelEl) {
     detailHeadlineLabelEl.textContent = isCompany ? "Sector:" : "Job title:";
+    detailHeadlineLabelEl.hidden = !isCompany && !isProfileEditMode;
   }
   if (detailCommentsLabelEl) {
     detailCommentsLabelEl.textContent = "Comments:";
@@ -1280,14 +1291,13 @@ function renderCompanyPeopleList() {
     const name = safeTrim(row?.full_name || row?.name) || "-";
     const headline = safeTrim(row?.headline) || "-";
     const rowEl = document.createElement("div");
-    rowEl.className = "company-person-row";
-
-    const openBtn = document.createElement("button");
-    openBtn.type = "button";
-    openBtn.className = "btn-small-secondary company-person-open";
-    openBtn.textContent = "Open";
-    openBtn.dataset.linkedinUrl = linkedinUrl;
-    openBtn.disabled = !linkedinUrl;
+    rowEl.className = "company-person-card";
+    rowEl.dataset.linkedinUrl = linkedinUrl;
+    if (linkedinUrl) {
+      rowEl.setAttribute("role", "button");
+      rowEl.setAttribute("tabindex", "0");
+      rowEl.title = "Open person profile";
+    }
 
     const textEl = document.createElement("div");
     textEl.className = "company-person-text";
@@ -1300,7 +1310,6 @@ function renderCompanyPeopleList() {
 
     textEl.appendChild(nameEl);
     textEl.appendChild(headlineEl);
-    rowEl.appendChild(openBtn);
     rowEl.appendChild(textEl);
     companyPeopleListEl.appendChild(rowEl);
   }
@@ -1398,6 +1407,7 @@ function hideCompanySuggestionUi() {
     companyLinkedNameEl.textContent = "-";
     companyLinkedNameEl.classList.remove("is-linked", "is-unlinked");
   }
+  if (companyLinkedIndicatorEl) companyLinkedIndicatorEl.hidden = true;
   if (companyLinkSearchInputEl) {
     companyLinkSearchInputEl.hidden = true;
     companyLinkSearchInputEl.value = "";
@@ -1409,12 +1419,26 @@ function hideCompanySuggestionUi() {
   }
 }
 
-function renderLinkedCompanyName(companyName) {
+function renderLinkedCompanyName(companyName, companyUrl = "") {
   if (companyLinkedNameEl) {
     companyLinkedNameEl.hidden = isProfileEditMode;
     companyLinkedNameEl.textContent = safeTrim(companyName) || "-";
     companyLinkedNameEl.classList.add("is-linked");
     companyLinkedNameEl.classList.remove("is-unlinked");
+    const normalizedCompanyUrl = safeTrim(companyUrl);
+    if (normalizedCompanyUrl) {
+      companyLinkedNameEl.dataset.companyUrl = normalizedCompanyUrl;
+      companyLinkedNameEl.classList.add("has-company-url");
+      companyLinkedNameEl.setAttribute("role", "button");
+      companyLinkedNameEl.setAttribute("tabindex", "0");
+      companyLinkedNameEl.title = "Open company profile";
+    } else {
+      delete companyLinkedNameEl.dataset.companyUrl;
+      companyLinkedNameEl.classList.remove("has-company-url");
+      companyLinkedNameEl.removeAttribute("role");
+      companyLinkedNameEl.removeAttribute("tabindex");
+      companyLinkedNameEl.removeAttribute("title");
+    }
   }
   if (companyLinkedRowEl) companyLinkedRowEl.hidden = false;
   if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = true;
@@ -1451,39 +1475,17 @@ async function refreshCompanySuggestionUiForCurrentInvitation() {
   if (!savedCompany || savedCompany === "-") return;
 
   if (savedCompanyId) {
-    renderLinkedCompanyName(savedCompany);
-    return;
-  }
-
-  const lookupSeq = ++companySuggestionLookupSeq;
-  console.log("[LEF][company suggestion search]", { company_name: savedCompany });
-  const result = await sendRuntimeMessage("DB_FIND_COMPANY_BY_NAME", {
-    payload: { company_name: savedCompany },
-  });
-  if (lookupSeq !== companySuggestionLookupSeq) return;
-  const resp = result.data || {};
-  if (!result.ok) {
-    console.log("[LEF][company suggestion not found]", {
-      company_name: savedCompany,
-      reason: getErrorMessage(result.error),
+    const result = await sendRuntimeMessage("DB_GET_COMPANY_BY_ID", {
+      payload: { company_id: savedCompanyId },
     });
-    renderCompanySuggestionNotFound();
+    const companyRow = result.ok ? result.data?.company || null : null;
+    renderLinkedCompanyName(
+      safeTrim(companyRow?.company_name) || savedCompany,
+      safeTrim(companyRow?.linkedin_id),
+    );
     return;
   }
-
-  const companyRow = resp?.company || null;
-  if (!companyRow?.company_id || !safeTrim(companyRow?.company_name)) {
-    console.log("[LEF][company suggestion not found]", {
-      company_name: savedCompany,
-    });
-    renderCompanySuggestionNotFound();
-    return;
-  }
-  console.log("[LEF][company suggestion found]", {
-    company_id: companyRow.company_id,
-    company_name: companyRow.company_name,
-  });
-  renderCompanySuggestionFound(companyRow);
+  if (detailCompanyEl) detailCompanyEl.hidden = false;
 }
 
 function setCompanyLinkSearchOptions(rows) {
@@ -5332,6 +5334,22 @@ companyLinkSearchInputEl?.addEventListener("change", () => {
   syncSelectedCompanyFromDropdownInput();
 });
 
+companyLinkedNameEl?.addEventListener("click", async () => {
+  if (isProfileEditMode || isCompanyProfileMode()) return;
+  const companyUrl = safeTrim(companyLinkedNameEl.dataset.companyUrl || "");
+  if (!companyUrl) return;
+  await openLinkedIn(companyUrl);
+});
+
+companyLinkedNameEl?.addEventListener("keydown", async (event) => {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  if (isProfileEditMode || isCompanyProfileMode()) return;
+  const companyUrl = safeTrim(companyLinkedNameEl.dataset.companyUrl || "");
+  if (!companyUrl) return;
+  event.preventDefault();
+  await openLinkedIn(companyUrl);
+});
+
 companyExistingLinkInputEl?.addEventListener("input", () => {
   selectedExistingCompanyForLink = null;
   updateExistingCompanyLinkUi();
@@ -5364,11 +5382,24 @@ companyExistingLinkButtonEl?.addEventListener("click", async () => {
 companyPeopleListEl?.addEventListener("click", async (event) => {
   const target =
     event.target instanceof Element
-      ? event.target.closest(".company-person-open")
+      ? event.target.closest(".company-person-card")
       : null;
   if (!target) return;
   const linkedinUrl = safeTrim(target.dataset.linkedinUrl || "");
   if (!linkedinUrl) return;
+  await openLinkedIn(linkedinUrl);
+});
+
+companyPeopleListEl?.addEventListener("keydown", async (event) => {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  const target =
+    event.target instanceof Element
+      ? event.target.closest(".company-person-card")
+      : null;
+  if (!target) return;
+  const linkedinUrl = safeTrim(target.dataset.linkedinUrl || "");
+  if (!linkedinUrl) return;
+  event.preventDefault();
   await openLinkedIn(linkedinUrl);
 });
 
