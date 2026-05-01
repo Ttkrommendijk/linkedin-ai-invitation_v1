@@ -958,15 +958,22 @@ function renderProfileEditControls() {
     acceptCompanySuggestionBtnEl.hidden = true;
   }
   if (companyLinkedIndicatorEl) {
-    companyLinkedIndicatorEl.hidden =
-      isCompany || !isProfileEditMode || !safeTrim(dbInvitationRow?.company_id);
+    const showLinkedIndicator =
+      !isCompany && isProfileEditMode && Boolean(safeTrim(dbInvitationRow?.company_id));
+    companyLinkedIndicatorEl.hidden = !showLinkedIndicator;
+    companyLinkedIndicatorEl.style.display = showLinkedIndicator
+      ? "inline-flex"
+      : "none";
   }
   if (isCompany) {
     if (companyLinkedRowEl) companyLinkedRowEl.hidden = true;
     if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = true;
     if (companyLinkedNameEl) companyLinkedNameEl.hidden = true;
     if (companyLinkSearchInputEl) companyLinkSearchInputEl.hidden = true;
-    if (companyLinkedIndicatorEl) companyLinkedIndicatorEl.hidden = true;
+    if (companyLinkedIndicatorEl) {
+      companyLinkedIndicatorEl.hidden = true;
+      companyLinkedIndicatorEl.style.display = "none";
+    }
     if (companyLinkSearchOptionsEl) companyLinkSearchOptionsEl.innerHTML = "";
     if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.hidden = true;
   }
@@ -1407,7 +1414,10 @@ function hideCompanySuggestionUi() {
     companyLinkedNameEl.textContent = "-";
     companyLinkedNameEl.classList.remove("is-linked", "is-unlinked");
   }
-  if (companyLinkedIndicatorEl) companyLinkedIndicatorEl.hidden = true;
+  if (companyLinkedIndicatorEl) {
+    companyLinkedIndicatorEl.hidden = true;
+    companyLinkedIndicatorEl.style.display = "none";
+  }
   if (companyLinkSearchInputEl) {
     companyLinkSearchInputEl.hidden = true;
     companyLinkSearchInputEl.value = "";

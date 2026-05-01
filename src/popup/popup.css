@@ -181,6 +181,9 @@ button:disabled {
     font-weight: 700;
     line-height: 1;
 }
+.company-linked-indicator[hidden] {
+    display: none !important;
+}
 .company-suggestion-accept {
     width: 18px;
     min-width: 18px;
