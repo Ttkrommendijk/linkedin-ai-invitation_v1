@@ -73,7 +73,7 @@
   function isLinkedInProfileLikeUrl(url) {
     const normalized = safeTrim(url);
     if (!normalized) return false;
-    return /^https:\/\/www\.linkedin\.com\/(in|company)\/[^/?#]+/i.test(
+    return /^https:\/\/www\.linkedin\.com\/(in|company|school)\/[^/?#]+/i.test(
       normalized,
     );
   }

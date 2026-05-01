@@ -2880,7 +2880,7 @@ async function openLinkedIn(url) {
   const isLinkedInTarget =
     typeof LEF_UTILS.isLinkedInProfileLikeUrl === "function"
       ? LEF_UTILS.isLinkedInProfileLikeUrl(targetUrl)
-      : /^https:\/\/www\.linkedin\.com\/(in|company)\/[^/?#]+/i.test(targetUrl);
+    : /^https:\/\/www\.linkedin\.com\/(in|company|school)\/[^/?#]+/i.test(targetUrl);
   if (!isLinkedInTarget) return;
   if (overviewContextRefreshPromise) {
     try {
@@ -3057,7 +3057,7 @@ function getProfileForGeneration(profile) {
 
 function isCompanyProfileMode(profileContext = currentProfileContext) {
   const url = String(getLinkedinUrlFromContext(profileContext) || "");
-  return /linkedin\.com\/company\//i.test(url);
+  return /linkedin\.com\/(company|school)\//i.test(url);
 }
 
 function normalizeCompanyLinkedinId(profileContext = currentProfileContext) {
@@ -3090,7 +3090,7 @@ function isLinkedInProfileLikeUrl(url) {
     return LEF_UTILS.isLinkedInProfileLikeUrl(url);
   }
   if (!url || typeof url !== "string") return false;
-  return /^https:\/\/www\.linkedin\.com\/(in|company)\/[^/?#]+/i.test(url);
+  return /^https:\/\/www\.linkedin\.com\/(in|company|school)\/[^/?#]+/i.test(url);
 }
 
 function canonicalizeLinkedInUrl(rawUrl) {
@@ -3116,12 +3116,12 @@ function getProfileMatchForUrl(url) {
   const inRule = /^https:\/\/www\.linkedin\.com\/in\/[^/?#]+/i.test(
     normalizedUrl,
   );
-  const companyRule = /^https:\/\/www\.linkedin\.com\/company\/[^/?#]+/i.test(
+  const companyRule = /^https:\/\/www\.linkedin\.com\/(company|school)\/[^/?#]+/i.test(
     normalizedUrl,
   );
   const fallbackMatch = isLinkedInProfileLikeUrl(normalizedUrl);
   if (inRule) return { isProfileOpen: true, matchedRule: "/in/" };
-  if (companyRule) return { isProfileOpen: true, matchedRule: "/company/" };
+  if (companyRule) return { isProfileOpen: true, matchedRule: "/company|school/" };
   return {
     isProfileOpen: Boolean(fallbackMatch),
     matchedRule: fallbackMatch ? "fallback" : "none",

@@ -2264,7 +2264,7 @@ function isLinkedInProfileLikeUrl(url) {
     return LEF_UTILS.isLinkedInProfileLikeUrl(url);
   }
   if (!url || typeof url !== "string") return false;
-  return /^https:\/\/www\.linkedin\.com\/(in|company)\/[^/?#]+/i.test(url);
+  return /^https:\/\/www\.linkedin\.com\/(in|company|school)\/[^/?#]+/i.test(url);
 }
 
 async function notifySidePanelRefresh({ tabId, url, reason }) {

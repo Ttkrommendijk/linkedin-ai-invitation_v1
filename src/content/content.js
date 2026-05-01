@@ -73,7 +73,7 @@ function firstNonEmptyText(selectors) {
 
 function extractProfile() {
   const url = window.location.href;
-  const isCompanyProfile = /linkedin\.com\/company\//i.test(url);
+  const isCompanyProfile = /linkedin\.com\/(company|school)\//i.test(url);
 
   let name =
     cleanText(document.querySelector("h1")?.innerText) ||
