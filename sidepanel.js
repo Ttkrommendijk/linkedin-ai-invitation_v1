@@ -384,11 +384,11 @@ async function performPacedNavigation(direction) {
   }, delayMs);
 }
 
-function sendExtractMessage(tabId) {
+function sendExtractMessage(tabId, extractType = "EXTRACT_PROFILE_CONTEXT") {
   return new Promise((resolve) => {
     chrome.tabs.sendMessage(
       tabId,
-      { type: "EXTRACT_PROFILE_CONTEXT" },
+      { type: extractType },
       (resp) => {
         const lastError = chrome.runtime.lastError;
         if (lastError) {
@@ -413,8 +413,8 @@ function shouldRetryWithInjection(lastErrorMessage) {
   );
 }
 
-async function extractProfileWithInjectionFallback(tabId) {
-  let firstAttempt = await sendExtractMessage(tabId);
+async function extractProfileWithInjectionFallback(tabId, extractType) {
+  let firstAttempt = await sendExtractMessage(tabId, extractType);
   if (
     !firstAttempt.ok &&
     shouldRetryWithInjection(firstAttempt.lastErrorMessage)
@@ -431,7 +431,7 @@ async function extractProfileWithInjectionFallback(tabId) {
           e instanceof Error ? e.message : String(e || "Injection failed."),
       };
     }
-    firstAttempt = await sendExtractMessage(tabId);
+    firstAttempt = await sendExtractMessage(tabId, extractType);
   }
 
   if (!firstAttempt.ok) {
@@ -451,7 +451,11 @@ async function extractProfileWithInjectionFallback(tabId) {
     return { ok: false, error: msg };
   }
 
-  return { ok: true, profile: firstAttempt.resp.profile || {} };
+  return {
+    ok: true,
+    profile: firstAttempt.resp.profile || null,
+    company: firstAttempt.resp.company || null,
+  };
 }
 
 function resetIframeUiState(frameDocument, frameWindow) {
@@ -488,6 +492,9 @@ function getLinkedinUrlFromProfile(profile) {
 async function clearPreviewIfNotInDb(frameDocument, profile) {
   const linkedin_url = getLinkedinUrlFromProfile(profile);
   if (!linkedin_url) return;
+  if (!/^https:\/\/www\.linkedin\.com\/in\/[^/?#]+/i.test(linkedin_url)) {
+    return;
+  }
 
   const dbResult = await sendRuntimeMessage("DB_GET_INVITATION", {
     payload: { linkedin_url },
@@ -518,7 +525,7 @@ async function refreshFromIframe(reason = "manual") {
     timingLog("UI refresh requested", { source: "sidepanel", reason });
     setRefreshStatus(`Refreshing (${reason})...`);
 
-    const { tabId, isProfileOpen } = await getActiveTabProfileState();
+    const { tabId, isProfileOpen, tabUrl } = await getActiveTabProfileState();
 
     if (!tabId) {
       resetSideNavTargets();
@@ -549,16 +556,31 @@ async function refreshFromIframe(reason = "manual") {
     }
 
     resetIframeUiState(frameDocument, frameWindow);
-
-    const extractResp = await extractProfileWithInjectionFallback(tabId);
+    const isCompanyUrl =
+      /^https:\/\/www\.linkedin\.com\/(company|school)\/[^/?#]+/i.test(
+        tabUrl || "",
+      );
+    const extractType = isCompanyUrl
+      ? "EXTRACT_COMPANY_CONTEXT"
+      : "EXTRACT_PROFILE_CONTEXT";
+    const extractResp = await extractProfileWithInjectionFallback(
+      tabId,
+      extractType,
+    );
     if (!extractResp.ok) {
-      resetSideNavTargets();
-      setRefreshStatus(extractResp.error || "Refresh failed.");
-      return;
+      console.warn("[LEF][refresh] pre-extract failed, continuing", {
+        reason,
+        extractType,
+        error: extractResp.error || "unknown",
+      });
     }
 
     await frameWindow.loadProfileContextOnOpen();
-    await clearPreviewIfNotInDb(frameDocument, extractResp.profile);
+    const profileForPreview =
+      extractResp.ok && (isCompanyUrl ? extractResp.company : extractResp.profile);
+    if (profileForPreview) {
+      await clearPreviewIfNotInDb(frameDocument, profileForPreview);
+    }
     await computeSideNavTargets();
     setRefreshStatus(`Refreshed (${reason}).`);
   } catch (e) {

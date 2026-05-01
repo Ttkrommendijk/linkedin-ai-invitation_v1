@@ -1152,7 +1152,7 @@ function syncSelectedExistingCompanyFromInput() {
 }
 
 async function searchExistingCompaniesForCompanyPage(term) {
-  const query = safeTrim(term);
+  const query = sanitizeCompanySearchTerm(term);
   timingLog("DB search triggered with term", { term: query });
   if (!query) {
     setCompanyExistingLinkOptions([]);
@@ -1175,7 +1175,7 @@ async function searchExistingCompaniesForCompanyPage(term) {
   console.log("[LEF][company link search]", { term: query, count: rows.length });
 }
 
-async function prepareExistingCompanyLinkDropdown() {
+async function prepareExistingCompanyLinkDropdown({ allowSearch = true } = {}) {
   selectedExistingCompanyForLink = null;
   setCompanyExistingLinkOptions([]);
   if (!isCompanyProfileMode() || dbCompanyRow) {
@@ -1191,10 +1191,12 @@ async function prepareExistingCompanyLinkDropdown() {
     companyExistingLinkSectionEl.hidden = false;
     companyExistingLinkSectionEl.style.display = "";
   }
-  const scrapedName = getCompanyNameForPeopleList();
+  const scrapedName = sanitizeCompanySearchTerm(getCompanyNameForPeopleList());
   if (companyExistingLinkInputEl) companyExistingLinkInputEl.value = scrapedName;
   updateExistingCompanyLinkUi();
-  if (scrapedName) await searchExistingCompaniesForCompanyPage(scrapedName);
+  if (allowSearch && !dbCompanyRow && scrapedName) {
+    await searchExistingCompaniesForCompanyPage(scrapedName);
+  }
 }
 
 function setProfileEditMode(nextMode) {
@@ -2214,16 +2216,20 @@ async function refreshInvitationRowFromDb({ preserveTabs = false } = {}) {
   }
 }
 
-async function refreshCompanyRowFromDb() {
+async function refreshCompanyRowFromDb({
+  linkedin_id: linkedinIdOverride,
+  allowNameSearch = true,
+} = {}) {
   setFooterFetchingStatus();
-  const linkedin_id = normalizeCompanyLinkedinId();
+  const linkedin_id =
+    safeTrim(linkedinIdOverride) || normalizeCompanyLinkedinId();
   if (!linkedin_id) {
     dbCompanyRow = null;
     companyPeopleRows = [];
     selectedExistingCompanyForLink = null;
     renderDetailHeader();
     renderCompanyPeopleList();
-    await prepareExistingCompanyLinkDropdown();
+    await prepareExistingCompanyLinkDropdown({ allowSearch: allowNameSearch });
     setFooterReady();
     return;
   }
@@ -2233,7 +2239,7 @@ async function refreshCompanyRowFromDb() {
     });
     dbCompanyRow = result.ok ? result.data?.company || null : null;
     renderDetailHeader();
-    await prepareExistingCompanyLinkDropdown();
+    await prepareExistingCompanyLinkDropdown({ allowSearch: allowNameSearch });
     await refreshCompanyPeopleList();
   } finally {
     setFooterReady();
@@ -3129,6 +3135,14 @@ function canonicalizeLinkedInUrl(rawUrl) {
   }
 }
 
+function sanitizeCompanySearchTerm(value) {
+  return safeTrim(value)
+    .replace(/^\(\d+\)\s*/, "")
+    .replace(/\s*:\s*(vis[aã]o geral|overview).*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function getProfileMatchForUrl(url) {
   const normalizedUrl = String(url || "");
   const inRule = /^https:\/\/www\.linkedin\.com\/in\/[^/?#]+/i.test(
@@ -3300,6 +3314,67 @@ async function extractProfileContextFromActiveTab({ source = "" } = {}) {
   return profile;
 }
 
+async function extractCompanyContextFromActiveTab({ source = "" } = {}) {
+  const activeTab = await getActiveTabForProfileCheck().catch(() => null);
+  if (!Number.isInteger(activeTab?.id)) {
+    throw new Error("No active tab found.");
+  }
+  const activeTabUrl = canonicalizeLinkedInUrl(activeTab?.url || "");
+  if (!/^https:\/\/www\.linkedin\.com\/(company|school)\/[^/?#]+/i.test(activeTabUrl)) {
+    throw new Error("Active page is not a LinkedIn company page.");
+  }
+  console.log("[LEF][company ai] company page detected", {
+    source,
+    url: activeTabUrl,
+  });
+
+  const startedAt = Date.now();
+  const timeoutMs = 3000;
+  const retryDelayMs = 180;
+  let resp = null;
+  let lastErrorMessage = "";
+
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      resp = await chrome.tabs.sendMessage(activeTab.id, {
+        type: "EXTRACT_COMPANY_CONTEXT",
+      });
+    } catch (e) {
+      lastErrorMessage = getErrorMessage(e) || "Could not extract company context.";
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+      continue;
+    }
+
+    if (resp?.ok && resp?.company) {
+      break;
+    }
+    lastErrorMessage =
+      getErrorMessage(resp?.error) || "Could not extract company context.";
+    await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+  }
+
+  if (!resp || !resp?.ok || !resp?.company) {
+    throw new Error(lastErrorMessage || "Could not extract company context.");
+  }
+
+  const company = resp.company || {};
+  const linkedin_id = canonicalizeLinkedInUrl(company.linkedin_id || company.url || "");
+  const companyContext = {
+    url: linkedin_id,
+    is_company_profile: true,
+    linkedin_id,
+    company_name: safeTrim(company.company_name),
+    employee_number: safeTrim(company.employee_number),
+    sector: safeTrim(company.sector),
+    city: safeTrim(company.city),
+    it_members: safeTrim(company.it_members),
+    company_page_excerpt: safeTrim(company.company_page_excerpt),
+  };
+  if (!linkedin_id) throw new Error("Missing linkedin_id.");
+  console.log("[LEF][company ai] scraped company context", companyContext);
+  return companyContext;
+}
+
 function clearFreePromptPreview() {
   if (freePromptPreviewEl) freePromptPreviewEl.textContent = "";
   updateFreePromptCopyButtonState();
@@ -3334,6 +3409,7 @@ function applyProfileExtractionFailureState(statusText) {
 async function refreshAll() {
   const activeTab = await getActiveTabForProfileCheck().catch(() => null);
   const tabUrl = activeTab?.url || "";
+  const canonicalTabUrl = canonicalizeLinkedInUrl(tabUrl);
   timingLog("UI refresh requested", {
     source: IS_SIDE_PANEL_CONTEXT ? "sidepanel/popup" : "popup",
     tab_url: tabUrl,
@@ -3381,6 +3457,55 @@ async function refreshAll() {
       matchedRule,
       dom: getNoProfileDomDebugInfo(),
     });
+    const onCompanyPage =
+      /^https:\/\/www\.linkedin\.com\/(company|school)\/[^/?#]+/i.test(
+        canonicalTabUrl,
+      );
+    if (onCompanyPage) {
+      console.log("[LEF][flow] company load DB check by linkedin_id", {
+        ts: Date.now(),
+        linkedin_id: canonicalTabUrl,
+      });
+      currentProfileContext = {
+        url: canonicalTabUrl,
+        linkedin_id: canonicalTabUrl,
+        is_company_profile: true,
+      };
+      lastProfileContextSent = currentProfileContext;
+      lastProfileContextEnriched = null;
+      dbCompanyRow = null;
+      companyPeopleRows = [];
+      selectedExistingCompanyForLink = null;
+      updateMessageTabControls();
+      await refreshCompanyRowFromDb({
+        linkedin_id: canonicalTabUrl,
+        allowNameSearch: false,
+      });
+      renderDetailHeader();
+      updatePhaseButtons();
+      if (dbCompanyRow) {
+        console.log("[LEF][flow] company exists in DB, skip scrape", {
+          ts: Date.now(),
+          linkedin_id: canonicalTabUrl,
+        });
+      } else {
+        console.log("[LEF][flow] company not found, no scrape until AI click", {
+          ts: Date.now(),
+          linkedin_id: canonicalTabUrl,
+        });
+      }
+      if (IS_SIDE_PANEL_CONTEXT) {
+        setActiveTab("detail", { userInitiated: true });
+      }
+      return true;
+    }
+
+    const onPersonPage =
+      /^https:\/\/www\.linkedin\.com\/in\/[^/?#]+/i.test(canonicalTabUrl);
+    if (!onPersonPage) {
+      throw new Error(UI_TEXT.couldNotExtractProfileContext);
+    }
+
     const profileContext = await extractProfileContextFromActiveTab();
     timingLog("extraction completed", {
       scraped_url: getLinkedinUrlFromContext(profileContext) || "",
@@ -4367,16 +4492,19 @@ function bindGenerateFirstMessageClickHandler() {
 bindGenerateFirstMessageClickHandler();
 
 async function extractAndPersistProfileDetails() {
-  const profileContext = await extractProfileContextFromActiveTab({
-    source: "llm_click",
-  });
-  currentProfileContext = profileContext;
-  lastProfileContextSent = profileContext;
-  lastProfileContextEnriched = null;
-  renderDetailHeader();
-
-  if (isCompanyProfileMode(profileContext)) {
-    const extracted = await extractCompanyDetailsFromLlm(profileContext);
+  const activeTab = await getActiveTabForProfileCheck().catch(() => null);
+  const activeTabUrl = canonicalizeLinkedInUrl(activeTab?.url || "");
+  console.log("[LEF][ai] active URL", { ts: Date.now(), url: activeTabUrl });
+  if (/^https:\/\/www\.linkedin\.com\/(company|school)\/[^/?#]+/i.test(activeTabUrl)) {
+    const companyContext = await extractCompanyContextFromActiveTab({
+      source: "llm_click",
+    });
+    console.log("[LEF][ai] fresh company scrape", companyContext);
+    currentProfileContext = companyContext;
+    lastProfileContextSent = companyContext;
+    lastProfileContextEnriched = null;
+    renderDetailHeader();
+    const extracted = await extractCompanyDetailsFromLlm(companyContext);
     const saveResult = await sendRuntimeMessage("DB_UPSERT_COMPANY_PROFILE", {
       payload: extracted,
     });
@@ -4388,6 +4516,19 @@ async function extractAndPersistProfileDetails() {
     }
     return;
   }
+
+  if (!/^https:\/\/www\.linkedin\.com\/in\/[^/?#]+/i.test(activeTabUrl)) {
+    throw new Error("Active page is not a LinkedIn person profile.");
+  }
+  const profileContext = await extractProfileContextFromActiveTab({
+    source: "llm_click",
+  });
+  console.log("[LEF][ai] fresh person scrape", profileContext);
+  currentProfileContext = profileContext;
+  lastProfileContextSent = profileContext;
+  lastProfileContextEnriched = null;
+  renderDetailHeader();
+
   const extracted = await extractProfileDetailsFromLlm(profileContext);
 
   setFooterUpdatingStatus();
@@ -4457,11 +4598,37 @@ async function extractCompanyDetailsFromLlm(scrapedProfileContext = null) {
     it_members: profileContext.it_members || "",
     excerpt_chars: String(profileContext.company_page_excerpt || "").length,
   });
+  const rawExcerpt = String(profileContext.company_page_excerpt || "");
+  const personLikeSignals = [
+    /enviar mensagem/i,
+    /sales navigator/i,
+    /conex[õo]es em comum/i,
+    /dados de contato/i,
+    /gerente de ti/i,
+  ];
+  const personLikeHits = personLikeSignals.reduce(
+    (sum, pattern) => (pattern.test(rawExcerpt) ? sum + 1 : sum),
+    0,
+  );
+  const isPersonLikeExcerpt = personLikeHits >= 2;
+  const companyPayload = {
+    url: linkedin_id,
+    is_company_profile: true,
+    linkedin_id,
+    company_name: profileContext.company_name || "",
+    employee_number: profileContext.employee_number || "",
+    sector: profileContext.sector || "",
+    city: profileContext.city || "",
+    it_members: profileContext.it_members || "",
+    company_page_excerpt: isPersonLikeExcerpt ? "" : rawExcerpt,
+  };
+  console.log("[LEF][company ai] payload", companyPayload);
+  console.log("[LEF][ai] payload sent", companyPayload);
   const enrichResult = await sendRuntimeMessage("ENRICH_COMPANY_PROFILE", {
     payload: {
       apiKey,
       model: (model || "gpt-4.1").trim(),
-      profile: { ...profileContext, linkedin_id },
+      profile: companyPayload,
     },
   });
   const enrichResp = enrichResult.data || {};
@@ -4514,12 +4681,14 @@ async function extractProfileDetailsFromLlm(scrapedProfileContext = null) {
     throw new Error(UI_TEXT.setApiKeyInConfig);
   }
 
+  const personPayload = { ...profileContext };
+  console.log("[LEF][ai] payload sent", personPayload);
   const enrichResult = await sendRuntimeMessage("ENRICH_PROFILE", {
     // prompt: buildProfileExtractionPrompt (Enrich/Register)
     payload: {
       apiKey,
       model: (model || "gpt-4.1").trim(),
-      profile: { ...currentProfileContext },
+      profile: personPayload,
     },
   });
   const enrichResp = enrichResult.data || {};
@@ -4565,6 +4734,7 @@ if (!enrichProfileBtnEl) {
   console.error("[LEF] enrichProfileBtn element not found");
 } else {
   enrichProfileBtnEl.addEventListener("click", async () => {
+    console.log("[LEF][ai] button clicked", { ts: Date.now() });
     setFooterLlmStatus();
     try {
       await extractAndPersistProfileDetails();

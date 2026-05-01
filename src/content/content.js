@@ -35,8 +35,87 @@ function sanitizeExcerpt(text, maxChars = 800) {
   return cleaned;
 }
 
+function hasPersonLikeContent(text) {
+  const t = cleanText(text).toLowerCase();
+  if (!t) return false;
+  return (
+    t.includes("enviar mensagem") ||
+    t.includes("sales navigator") ||
+    t.includes("conexões em comum") ||
+    t.includes("dados de contato") ||
+    t.includes("gerente de ti") ||
+    t.includes("analista") ||
+    t.includes("coordenador")
+  );
+}
+
+function buildCompanyPageExcerpt(companyName, rawMainText, rawBodyText = "") {
+  const cleanedCompany = cleanText(companyName);
+  const lines = String(rawMainText || "")
+    .split(/\r?\n+/)
+    .map((line) => cleanText(line))
+    .filter(Boolean);
+
+  const contextKeywords = [
+    "visão geral",
+    "overview",
+    "sobre",
+    "about",
+    "setor",
+    "industry",
+    "sede",
+    "headquarters",
+    "funcionários",
+    "employees",
+    "vagas",
+    "jobs",
+    "publicações",
+    "posts",
+    "site",
+  ];
+
+  const filtered = lines.filter((line) => {
+    const lower = line.toLowerCase();
+    if (hasPersonLikeContent(line)) return false;
+    if (cleanedCompany && lower.includes(cleanedCompany.toLowerCase())) return true;
+    return contextKeywords.some((keyword) => lower.includes(keyword));
+  });
+
+  let excerptSource = "";
+  if (filtered.length) {
+    excerptSource = filtered.slice(0, 28).join(" ");
+  } else {
+    const safeFallback = lines.filter((line) => !hasPersonLikeContent(line));
+    excerptSource = safeFallback.slice(0, 22).join(" ");
+  }
+  if (!excerptSource) {
+    const bodyLines = String(rawBodyText || "")
+      .split(/\r?\n+/)
+      .map((line) => cleanText(line))
+      .filter(Boolean);
+    const safeBodyFallback = bodyLines.filter((line) => !hasPersonLikeContent(line));
+    excerptSource = safeBodyFallback.slice(0, 28).join(" ");
+  }
+  if (!excerptSource) return "";
+  return sanitizeExcerpt(excerptSource, 2200);
+}
+
 const COMPANY_PROFILE_URL_RE = /linkedin\.com\/(company|school)\//i;
 let mainContainerReadyLogged = false;
+
+function canonicalizeLinkedinUrl(rawUrl) {
+  const input = cleanText(rawUrl);
+  if (!input) return "";
+  try {
+    const parsed = new URL(input);
+    const pathname = (parsed.pathname || "").replace(/\/+$/, "");
+    return `https://www.linkedin.com${pathname}`;
+  } catch (_e) {
+    const noHash = input.split("#")[0];
+    const noQuery = noHash.split("?")[0];
+    return noQuery.replace(/\/+$/, "");
+  }
+}
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -147,7 +226,7 @@ function isCompanyPageReadyForExtraction() {
   return document.readyState === "complete" && hasMainCompanyContainer();
 }
 
-async function waitForCompanyProfileDom({ timeoutMs = 5000 } = {}) {
+async function waitForCompanyProfileDom({ timeoutMs = 100 } = {}) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
     if (!isCompanyProfileUrl()) return;
@@ -229,11 +308,9 @@ function extractProfile() {
       "main",
     ]);
     const employeeNumber = cleanText(
-      (
-        topCardText.match(
-          /(\d[\d.,\s-]{0,40}(employees|funcion[aá]rios|colaboradores))/i,
-        ) || [""]
-      )[0],
+      (topCardText.match(
+        /(\d[\d.,\s-]{0,40}(employees|funcion[aá]rios|colaboradores))/i,
+      ) || [""])[0],
     );
     const sector = firstNonEmptyText([
       '[data-test-id="about-us__industry"] dd',
@@ -245,11 +322,9 @@ function extractProfile() {
       ".org-top-card-summary-info-list__info-item",
     ]);
     const itMembers = cleanText(
-      (
-        truncatedMain.match(
-          /(\d[\d.,\s-]{0,30}(IT|information technology|engenharia|technology)\s+(members|funcion[aá]rios|people|pessoas))/i,
-        ) || [""]
-      )[0],
+      (truncatedMain.match(
+        /(\d[\d.,\s-]{0,30}(IT|information technology|engenharia|technology)\s+(members|funcion[aá]rios|people|pessoas))/i,
+      ) || [""])[0],
     );
     profile.is_company_profile = true;
     profile.company_name = companyName || "";
@@ -281,6 +356,112 @@ function extractProfile() {
   }
 
   return profile;
+}
+
+function extractCompanyContext() {
+  const url = canonicalizeLinkedinUrl(window.location.href);
+  if (!isCompanyProfileUrl(url)) {
+    throw new Error("Active page is not a LinkedIn company page.");
+  }
+
+  const rawMain = document.querySelector("main")?.innerText || "";
+  const rawBody = document.body?.innerText || "";
+  const main = cleanText(rawMain);
+  const truncatedMain = main.slice(0, 6000);
+  const companyNameRaw =
+    firstNonEmptyText([
+      "main h1",
+      ".org-top-card-summary__title",
+      ".org-top-card-primary-content__title",
+    ]) || nameFromTitle();
+  const companyName = normalizeCompanyTitleName(companyNameRaw);
+  const topCardText = firstNonEmptyText([
+    ".org-top-card-summary__tagline",
+    ".org-top-card-summary-info-list",
+    ".org-about-company-module__company-size-definition-text",
+  ]);
+  const employeeNumber = cleanText(
+    (topCardText.match(
+      /(\d[\d.,\s-]{0,40}(employees|funcion[aÃ¡]rios|colaboradores))/i,
+    ) || [""])[0],
+  );
+  const sector = firstNonEmptyText([
+    '[data-test-id="about-us__industry"] dd',
+    ".org-page-details__definition-text",
+  ]);
+  const city = firstNonEmptyText([
+    '[data-test-id="about-us__headquarters"] dd',
+    ".org-location-card .t-14",
+    ".org-top-card-summary-info-list__info-item",
+  ]);
+  const itMembers = cleanText(
+    (truncatedMain.match(
+      /(\d[\d.,\s-]{0,30}(IT|information technology|engenharia|technology)\s+(members|funcion[aÃ¡]rios|people|pessoas))/i,
+    ) || [""])[0],
+  );
+
+  let companyExcerpt = buildCompanyPageExcerpt(companyName, rawMain, rawBody);
+  if (hasPersonLikeContent(companyExcerpt)) {
+    companyExcerpt = "";
+  }
+  return {
+    url,
+    is_company_profile: true,
+    linkedin_id: url,
+    company_name: companyName || "",
+    employee_number: employeeNumber || "",
+    sector: sector || "",
+    city: city || "",
+    it_members: itMembers || "",
+    company_page_excerpt: companyExcerpt,
+  };
+}
+
+function isStaleCompanyContext(company) {
+  const companyName = normalizeCompanyTitleName(company?.company_name || "");
+  if (!companyName) return true;
+  const excerpt = cleanText(company?.company_page_excerpt || "");
+  if (hasPersonLikeContent(excerpt)) return true;
+  return false;
+}
+
+async function extractFreshCompanyContext({ timeoutMs = 1500 } = {}) {
+  const startedAt = Date.now();
+  let lastCompany = null;
+  while (Date.now() - startedAt < timeoutMs) {
+    await waitForCompanyProfileDom({ timeoutMs: 250 });
+    if (!isCompanyPageReadyForExtraction()) {
+      await delay(80);
+      continue;
+    }
+    lastCompany = extractCompanyContext();
+    if (!isStaleCompanyContext(lastCompany)) {
+      return lastCompany;
+    }
+    // Fast path: if we at least have a normalized company name, don't block for long.
+    if (normalizeCompanyTitleName(lastCompany?.company_name || "")) {
+      return lastCompany;
+    }
+    timingLog("company_context_stale_retry", {
+      company_name: lastCompany?.company_name || "",
+      ready_state: document.readyState,
+      has_main: hasMainCompanyContainer(),
+      has_company_dom: hasCompanyProfileDom(),
+    });
+    await delay(100);
+  }
+  if (lastCompany && !isStaleCompanyContext(lastCompany)) {
+    timingLog("company_context_timeout_fallback", {
+      company_name: lastCompany.company_name || "",
+      ready_state: document.readyState,
+      has_main: hasMainCompanyContainer(),
+      has_company_dom: hasCompanyProfileDom(),
+    });
+    return lastCompany;
+  }
+  throw new Error(
+    `Company page not ready for extraction. Last company_name: ${lastCompany?.company_name || ""}`,
+  );
 }
 
 function isUiNoiseLine(text) {
@@ -624,27 +805,18 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           has_main: hasMainCompanyContainer(),
         });
         if (isCompanyProfileUrl()) {
-          await waitForCompanyProfileDom();
-          if (!isCompanyPageReadyForExtraction()) {
-            timingLog("skipped extraction - page not ready", {
-              ready_state: document.readyState,
-              has_main: hasMainCompanyContainer(),
-            });
-            sendResponse({
-              ok: false,
-              error: {
-                code: "PAGE_NOT_READY",
-                message: "Company page not ready for extraction.",
-              },
-            });
-            return;
-          }
-          timingLog("company_profile_detected", {
-            ready_state: document.readyState,
-            has_main: hasMainCompanyContainer(),
+          sendResponse({
+            ok: false,
+            error: {
+              code: "WRONG_EXTRACTOR",
+              message: "Use EXTRACT_COMPANY_CONTEXT for company pages.",
+            },
           });
+          return;
         }
-        timingLog("extraction_running", { is_company_profile: isCompanyProfileUrl() });
+        timingLog("extraction_running", {
+          is_company_profile: isCompanyProfileUrl(),
+        });
         const profile = extractProfile();
         sendResponse({ ok: true, profile });
       } catch (e) {
@@ -652,6 +824,29 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           ok: false,
           error: {
             code: "EXTRACTION_FAILED",
+            message: e instanceof Error ? e.message : String(e || "unknown"),
+          },
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "EXTRACT_COMPANY_CONTEXT") {
+    (async () => {
+      try {
+        timingLog("company_context_extraction_requested", {
+          ready_state: document.readyState,
+          has_main: hasMainCompanyContainer(),
+        });
+        const company = await extractFreshCompanyContext();
+        console.log("[LEF][company ai] scraped company context", company);
+        sendResponse({ ok: true, company });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: {
+            code: "COMPANY_EXTRACTION_FAILED",
             message: e instanceof Error ? e.message : String(e || "unknown"),
           },
         });
