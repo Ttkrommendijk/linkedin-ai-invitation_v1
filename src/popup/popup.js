@@ -2771,7 +2771,7 @@ async function fetchOverviewPage() {
     overviewTotal = Number.isFinite(resp?.total) ? resp.total : null;
     const visibleRows = applyOverviewClientFilters(resp?.rows || []);
     renderOverviewTable(visibleRows);
-    contextRefreshPromise = persistOverviewListContext();
+    contextRefreshPromise = persistOverviewListContext(visibleRows);
     overviewContextRefreshPromise = contextRefreshPromise;
     await contextRefreshPromise;
     renderOverviewSortIndicators();
@@ -2834,8 +2834,23 @@ async function buildOverviewListContextItems() {
   return allItems;
 }
 
-async function persistOverviewListContext() {
-  const items = await buildOverviewListContextItems();
+function buildOverviewListContextItemsFromRows(rows) {
+  const seen = new Set();
+  return (Array.isArray(rows) ? rows : []).reduce((items, row) => {
+    const canonicalUrl = canonicalizeLinkedInUrl(row?.url || "");
+    if (!isLinkedInProfileLikeUrl(canonicalUrl) || seen.has(canonicalUrl)) {
+      return items;
+    }
+    seen.add(canonicalUrl);
+    items.push(canonicalUrl);
+    return items;
+  }, []);
+}
+
+async function persistOverviewListContext(rows = null) {
+  const items = Array.isArray(rows)
+    ? buildOverviewListContextItemsFromRows(rows)
+    : await buildOverviewListContextItems();
   overviewContextItems = items;
   const queryBase = buildOverviewQueryState();
   await chrome.storage.local.set({
@@ -3847,35 +3862,6 @@ function setActiveTab(which, { userInitiated = false } = {}) {
     fetchOverviewPage();
   }
 }
-
-tabMainBtn.addEventListener("click", async () => {
-  setFooterFetchingStatus();
-  try {
-    setActiveTab("detail", { userInitiated: true });
-    await onInvitationTabOpenedByUser();
-  } finally {
-    setFooterReady();
-  }
-});
-tabMessageBtn?.addEventListener("click", async () => {
-  setFooterFetchingStatus();
-  try {
-    setActiveTab("detail", { userInitiated: true });
-    await onMessagesTabOpenedByUser();
-    setDetailInnerTab("first");
-  } finally {
-    setFooterReady();
-  }
-});
-tabOverviewBtn?.addEventListener("click", () =>
-  setActiveTab("overview", { userInitiated: true }),
-);
-tabConfigBtn.addEventListener("click", () =>
-  setActiveTab("config", { userInitiated: true }),
-);
-tabSupabaseAuthBtn?.addEventListener("click", () =>
-  setActiveTab("supabase_login", { userInitiated: true }),
-);
 
 async function loadSettings() {
   const [
