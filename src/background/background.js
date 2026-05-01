@@ -650,57 +650,62 @@ async function callOpenAIProfileExtraction({ apiKey, model, profile }) {
 }
 
 async function callOpenAICompanyExtraction({ apiKey, model, profile }) {
-  const res = await fetchOpenAIWithRetry("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      max_output_tokens: 180,
-      text: {
-        format: {
-          type: "json_schema",
-          name: "company_extraction",
-          strict: true,
-          schema: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              company_name: { type: "string" },
-              employee_number: { type: "string" },
-              sector: { type: "string" },
-              city: { type: "string" },
-              it_members: { type: "string" },
+  const res = await fetchOpenAIWithRetry(
+    "https://api.openai.com/v1/responses",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        max_output_tokens: 180,
+        text: {
+          format: {
+            type: "json_schema",
+            name: "company_extraction",
+            strict: true,
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                company_name: { type: "string" },
+                employee_number: { type: "string" },
+                sector: { type: "string" },
+                city: { type: "string" },
+                it_members: { type: "string" },
+              },
+              required: [
+                "company_name",
+                "employee_number",
+                "sector",
+                "city",
+                "it_members",
+              ],
             },
-            required: [
-              "company_name",
-              "employee_number",
-              "sector",
-              "city",
-              "it_members",
-            ],
           },
         },
-      },
-      input: [
-        {
-          role: "system",
-          content: [
-            {
-              type: "input_text",
-              text: LEF_PROMPTS.buildCompanyExtractionPrompt(),
-            },
-          ],
-        },
-        {
-          role: "user",
-          content: [{ type: "input_text", text: JSON.stringify(profile || {}) }],
-        },
-      ],
-    }),
-  });
+        input: [
+          {
+            role: "system",
+            content: [
+              {
+                type: "input_text",
+                text: LEF_PROMPTS.buildCompanyExtractionPrompt(),
+              },
+            ],
+          },
+          {
+            role: "user",
+            content: [
+              { type: "input_text", text: JSON.stringify(profile || {}) },
+            ],
+          },
+        ],
+      }),
+    },
+  );
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
     throw createProviderHttpError("openai", res.status, txt || res.statusText);
@@ -1429,6 +1434,7 @@ async function supabaseSetAcceptedAtNow({ linkedin_url }) {
   const patch = {
     accepted: true,
     accepted_at: new Date().toISOString(),
+    status: "accepted",
   };
 
   const res = await fetchWithTimeout(
@@ -1460,6 +1466,7 @@ async function supabaseClearAcceptedAt({ linkedin_url }) {
   const patch = {
     accepted: false,
     accepted_at: null,
+    status: "invited",
   };
 
   const res = await fetchWithTimeout(
@@ -2924,7 +2931,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Fetching\u2026");
       try {
-        const company = await supabaseGetCompanyByLinkedinId(msg?.payload || {});
+        const company = await supabaseGetCompanyByLinkedinId(
+          msg?.payload || {},
+        );
         sendResponse({ ok: true, company });
       } catch (e) {
         sendResponse({
@@ -3006,11 +3015,17 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Updating\u2026");
       try {
-        const existing = await supabaseGetCompanyByLinkedinId(msg?.payload || {});
+        const existing = await supabaseGetCompanyByLinkedinId(
+          msg?.payload || {},
+        );
         const company = await supabaseUpsertCompanyProfile(msg?.payload || {});
         console.log(
-          existing ? "[LEF][company row updated]" : "[LEF][company row created]",
-          { linkedin_id: normalizeLinkedinCompanyUrl(msg?.payload?.linkedin_id) },
+          existing
+            ? "[LEF][company row updated]"
+            : "[LEF][company row created]",
+          {
+            linkedin_id: normalizeLinkedinCompanyUrl(msg?.payload?.linkedin_id),
+          },
         );
         sendResponse({ ok: true, company });
       } catch (e) {
