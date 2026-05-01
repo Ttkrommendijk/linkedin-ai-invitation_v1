@@ -231,6 +231,7 @@ const detailCompanyEl = document.getElementById("detailCompany");
 const detailEmployeeNumberEl = document.getElementById("detailEmployeeNumber");
 const detailHeadlineEl = document.getElementById("detailHeadline");
 const detailCommentsEl = document.getElementById("detailComments");
+const detailCityEl = document.getElementById("detailCity");
 const detailItMembersEl = document.getElementById("detailItMembers");
 const detailCompanyLabelEl = document.getElementById("detailCompanyLabel");
 const detailEmployeeNumberLabelEl = document.getElementById(
@@ -238,7 +239,25 @@ const detailEmployeeNumberLabelEl = document.getElementById(
 );
 const detailHeadlineLabelEl = document.getElementById("detailHeadlineLabel");
 const detailCommentsLabelEl = document.getElementById("detailCommentsLabel");
+const detailCityLabelEl = document.getElementById("detailCityLabel");
 const detailItMembersLabelEl = document.getElementById("detailItMembersLabel");
+const companyExistingLinkSectionEl = document.getElementById(
+  "companyExistingLinkSection",
+);
+const companyExistingLinkInputEl = document.getElementById(
+  "companyExistingLinkInput",
+);
+const companyExistingLinkStatusEl = document.getElementById(
+  "companyExistingLinkStatus",
+);
+const companyExistingLinkButtonEl = document.getElementById(
+  "companyExistingLinkButton",
+);
+const companyExistingLinkOptionsEl = document.getElementById(
+  "companyExistingLinkOptions",
+);
+const companyPeopleSectionEl = document.getElementById("companyPeopleSection");
+const companyPeopleListEl = document.getElementById("companyPeopleList");
 const enrichProfileBtnEl = document.getElementById("enrichProfileBtn");
 const editProfileBtnEl = document.getElementById("editProfileBtn");
 const saveProfileFieldsBtnEl = document.getElementById("saveProfileFieldsBtn");
@@ -376,6 +395,10 @@ let lastSavedFirstMessagePrompt = "";
 let isMessagePromptCollapsed = true;
 let dbInvitationRow = null;
 let dbCompanyRow = null;
+let companyPeopleRows = [];
+let companyExistingLinkResults = [];
+let selectedExistingCompanyForLink = null;
+let companyExistingLinkDebounceTimer = null;
 let extractedChatMessages = [];
 let outreachMessageStatus = "accepted";
 let overviewPage = 1;
@@ -916,6 +939,7 @@ function renderProfileEditControls() {
     detailEmployeeNumberEl,
     detailHeadlineEl,
     detailCommentsEl,
+    detailCityEl,
     detailItMembersEl,
   ]) {
     if (!fieldEl) continue;
@@ -942,6 +966,7 @@ function renderProfileEditControls() {
 
 function applyProfileModeUi() {
   const isCompany = isCompanyProfileMode();
+  const shouldShowExistingCompanyDropdown = isCompany && !dbCompanyRow;
   document.documentElement.classList.toggle("company-profile-mode", isCompany);
   document.body?.classList.toggle("company-profile-mode", isCompany);
   tabMain?.classList.toggle("company-profile-mode", isCompany);
@@ -962,7 +987,17 @@ function applyProfileModeUi() {
     detailHeadlineLabelEl.textContent = isCompany ? "Sector:" : "Job title:";
   }
   if (detailCommentsLabelEl) {
-    detailCommentsLabelEl.textContent = isCompany ? "City:" : "Comments:";
+    detailCommentsLabelEl.textContent = "Comments:";
+    detailCommentsLabelEl.hidden = isCompany;
+  }
+  if (detailCommentsEl) {
+    detailCommentsEl.hidden = isCompany;
+  }
+  if (detailCityLabelEl) {
+    detailCityLabelEl.hidden = !isCompany;
+  }
+  if (detailCityEl) {
+    detailCityEl.hidden = !isCompany;
   }
   if (detailItMembersLabelEl) {
     detailItMembersLabelEl.hidden = !isCompany;
@@ -976,8 +1011,18 @@ function applyProfileModeUi() {
     detailEmployeeNumberEl.placeholder = isCompany ? "Employee number" : "";
   }
   if (detailHeadlineEl) detailHeadlineEl.placeholder = isCompany ? "Sector" : "";
-  if (detailCommentsEl) detailCommentsEl.placeholder = isCompany ? "City" : "";
+  if (detailCommentsEl) detailCommentsEl.placeholder = "";
+  if (detailCityEl) detailCityEl.placeholder = isCompany ? "City" : "";
   if (detailItMembersEl) detailItMembersEl.placeholder = isCompany ? "IT members" : "";
+  if (companyPeopleSectionEl) {
+    companyPeopleSectionEl.hidden = !isCompany;
+  }
+  if (companyExistingLinkSectionEl) {
+    companyExistingLinkSectionEl.hidden = !shouldShowExistingCompanyDropdown;
+    companyExistingLinkSectionEl.style.display =
+      shouldShowExistingCompanyDropdown ? "" : "none";
+  }
+  updateExistingCompanyLinkUi();
 
   const hideInvitationUi = isCompany;
   for (const el of [
@@ -1007,6 +1052,106 @@ function applyProfileModeUi() {
     if (companyLinkSearchInputEl) companyLinkSearchInputEl.hidden = true;
     if (companyLinkSearchOptionsEl) companyLinkSearchOptionsEl.innerHTML = "";
   }
+}
+
+function updateExistingCompanyLinkUi(statusText) {
+  if (companyExistingLinkStatusEl) {
+    companyExistingLinkStatusEl.textContent =
+      statusText || "Company URL not registered";
+    companyExistingLinkStatusEl.hidden =
+      !isCompanyProfileMode() || Boolean(dbCompanyRow);
+  }
+  if (companyExistingLinkButtonEl) {
+    companyExistingLinkButtonEl.disabled = !safeTrim(
+      selectedExistingCompanyForLink?.company_id,
+    );
+  }
+}
+
+function setCompanyExistingLinkOptions(rows) {
+  companyExistingLinkResults = Array.isArray(rows) ? rows : [];
+  if (!companyExistingLinkOptionsEl) return;
+  companyExistingLinkOptionsEl.innerHTML = "";
+  for (const row of companyExistingLinkResults) {
+    const name = safeTrim(row?.company_name);
+    const id = safeTrim(row?.company_id);
+    if (!name || !id) continue;
+    const optionEl = document.createElement("option");
+    optionEl.value = name;
+    optionEl.dataset.companyId = id;
+    companyExistingLinkOptionsEl.appendChild(optionEl);
+  }
+}
+
+function setSelectedExistingCompanyForLink(companyRow) {
+  const company_id = safeTrim(companyRow?.company_id);
+  const company_name = safeTrim(companyRow?.company_name);
+  selectedExistingCompanyForLink =
+    company_id && company_name ? { ...companyRow, company_id, company_name } : null;
+  if (companyExistingLinkInputEl) companyExistingLinkInputEl.value = company_name;
+  updateExistingCompanyLinkUi();
+}
+
+function syncSelectedExistingCompanyFromInput() {
+  const typed = safeTrim(companyExistingLinkInputEl?.value);
+  if (!typed) {
+    selectedExistingCompanyForLink = null;
+    updateExistingCompanyLinkUi();
+    return;
+  }
+  const matched = companyExistingLinkResults.find(
+    (row) => safeTrim(row?.company_name).toLowerCase() === typed.toLowerCase(),
+  );
+  if (matched?.company_id) setSelectedExistingCompanyForLink(matched);
+  else {
+    selectedExistingCompanyForLink = null;
+    updateExistingCompanyLinkUi();
+  }
+}
+
+async function searchExistingCompaniesForCompanyPage(term) {
+  const query = safeTrim(term);
+  if (!query) {
+    setCompanyExistingLinkOptions([]);
+    selectedExistingCompanyForLink = null;
+    updateExistingCompanyLinkUi();
+    return;
+  }
+  const result = await sendRuntimeMessage("DB_SEARCH_UNLINKED_COMPANIES", {
+    payload: { term: query, limit: 10 },
+  });
+  const resp = result.data || {};
+  const rows = result.ok ? resp?.companies || [] : [];
+  setCompanyExistingLinkOptions(rows);
+  syncSelectedExistingCompanyFromInput();
+  updateExistingCompanyLinkUi(
+    rows.length
+      ? "Company URL not registered"
+      : "Company URL not registered. No matching unlinked company found.",
+  );
+  console.log("[LEF][company link search]", { term: query, count: rows.length });
+}
+
+async function prepareExistingCompanyLinkDropdown() {
+  selectedExistingCompanyForLink = null;
+  setCompanyExistingLinkOptions([]);
+  if (!isCompanyProfileMode() || dbCompanyRow) {
+    if (companyExistingLinkSectionEl) {
+      companyExistingLinkSectionEl.hidden = true;
+      companyExistingLinkSectionEl.style.display = "none";
+    }
+    if (companyExistingLinkInputEl) companyExistingLinkInputEl.value = "";
+    updateExistingCompanyLinkUi();
+    return;
+  }
+  if (companyExistingLinkSectionEl) {
+    companyExistingLinkSectionEl.hidden = false;
+    companyExistingLinkSectionEl.style.display = "";
+  }
+  const scrapedName = getCompanyNameForPeopleList();
+  if (companyExistingLinkInputEl) companyExistingLinkInputEl.value = scrapedName;
+  updateExistingCompanyLinkUi();
+  if (scrapedName) await searchExistingCompaniesForCompanyPage(scrapedName);
 }
 
 function setProfileEditMode(nextMode) {
@@ -1051,8 +1196,8 @@ function renderDetailHeader({ force = false } = {}) {
         detailEmployeeNumberEl.value = employeeNumber.trim() || "-";
       }
       if (detailHeadlineEl) detailHeadlineEl.value = sector.trim() || "-";
-      if (detailCommentsEl) detailCommentsEl.value = city.trim() || "-";
       if (detailItMembersEl) detailItMembersEl.value = itMembers.trim() || "-";
+      if (detailCityEl) detailCityEl.value = city.trim() || "-";
     }
     if (currentProfileContext) currentProfileContext.it_members = itMembers.trim();
     applyProfileModeUi();
@@ -1099,9 +1244,147 @@ function renderDetailHeader({ force = false } = {}) {
   if (detailEmployeeNumberEl) detailEmployeeNumberEl.value = "-";
   if (detailHeadlineEl) detailHeadlineEl.value = headline;
   if (detailCommentsEl) detailCommentsEl.value = comments;
+  if (detailCityEl) detailCityEl.value = "-";
   if (detailItMembersEl) detailItMembersEl.value = "-";
   applyProfileModeUi();
   renderProfileEditControls();
+}
+
+function getCompanyNameForPeopleList() {
+  return safeTrim(
+    dbCompanyRow?.company_name ||
+      currentProfileContext?.company_name ||
+      currentProfileContext?.name ||
+      currentProfileContext?.full_name ||
+      "",
+  );
+}
+
+function renderCompanyPeopleList() {
+  if (!companyPeopleSectionEl || !companyPeopleListEl) return;
+  const isCompany = isCompanyProfileMode();
+  companyPeopleSectionEl.hidden = !isCompany;
+  companyPeopleListEl.innerHTML = "";
+  if (!isCompany) return;
+
+  if (!companyPeopleRows.length) {
+    const emptyEl = document.createElement("div");
+    emptyEl.className = "company-people-empty";
+    emptyEl.textContent = "No registered people found";
+    companyPeopleListEl.appendChild(emptyEl);
+    return;
+  }
+
+  for (const row of companyPeopleRows) {
+    const linkedinUrl = safeTrim(row?.linkedin_url);
+    const name = safeTrim(row?.full_name || row?.name) || "-";
+    const headline = safeTrim(row?.headline) || "-";
+    const rowEl = document.createElement("div");
+    rowEl.className = "company-person-row";
+
+    const openBtn = document.createElement("button");
+    openBtn.type = "button";
+    openBtn.className = "btn-small-secondary company-person-open";
+    openBtn.textContent = "Open";
+    openBtn.dataset.linkedinUrl = linkedinUrl;
+    openBtn.disabled = !linkedinUrl;
+
+    const textEl = document.createElement("div");
+    textEl.className = "company-person-text";
+    const nameEl = document.createElement("div");
+    nameEl.className = "company-person-name";
+    nameEl.textContent = name;
+    const headlineEl = document.createElement("div");
+    headlineEl.className = "company-person-function";
+    headlineEl.textContent = headline;
+
+    textEl.appendChild(nameEl);
+    textEl.appendChild(headlineEl);
+    rowEl.appendChild(openBtn);
+    rowEl.appendChild(textEl);
+    companyPeopleListEl.appendChild(rowEl);
+  }
+}
+
+async function refreshCompanyPeopleList() {
+  companyPeopleRows = [];
+  renderCompanyPeopleList();
+  if (!isCompanyProfileMode()) return;
+  const company_id = safeTrim(dbCompanyRow?.company_id);
+  if (!company_id) return;
+  const result = await sendRuntimeMessage("DB_LIST_INVITATIONS_BY_COMPANY", {
+    payload: { company_id },
+  });
+  const resp = result.data || {};
+  companyPeopleRows = result.ok && Array.isArray(resp?.rows) ? resp.rows : [];
+  renderCompanyPeopleList();
+}
+
+function buildCompanyProfileSavePayload() {
+  const payload = {
+    linkedin_id: normalizeCompanyLinkedinId(currentProfileContext),
+    company_name: normalizeWhitespace(
+      (detailPersonNameEl?.value || "").trim() === "-"
+        ? ""
+        : detailPersonNameEl?.value || "",
+    ),
+    employee_number: normalizeWhitespace(
+      (detailEmployeeNumberEl?.value || "").trim() === "-"
+        ? ""
+        : detailEmployeeNumberEl?.value || "",
+    ),
+    sector: normalizeWhitespace(
+      (detailHeadlineEl?.value || "").trim() === "-"
+        ? ""
+        : detailHeadlineEl?.value || "",
+    ),
+    city: normalizeWhitespace(
+      (detailCityEl?.value || "").trim() === "-"
+        ? ""
+        : detailCityEl?.value || "",
+    ),
+    it_members: normalizeWhitespace(
+      (detailItMembersEl?.value || "").trim() === "-"
+        ? ""
+        : detailItMembersEl?.value || "",
+    ),
+  };
+  return payload;
+}
+
+async function linkSelectedExistingCompany() {
+  syncSelectedExistingCompanyFromInput();
+  const company_id = safeTrim(selectedExistingCompanyForLink?.company_id);
+  if (!company_id) {
+    updateExistingCompanyLinkUi("Select a company to link.");
+    return false;
+  }
+  const payload = {
+    ...buildCompanyProfileSavePayload(),
+    company_id,
+    company_name:
+      safeTrim(selectedExistingCompanyForLink?.company_name) ||
+      safeTrim(detailPersonNameEl?.value),
+  };
+  if (!payload.linkedin_id) {
+    setFooterStatus("Missing linkedin_id.");
+    return false;
+  }
+  setFooterUpdatingStatus();
+  const result = await sendRuntimeMessage("DB_UPDATE_COMPANY_BY_ID", {
+    payload,
+  });
+  const resp = result.data || {};
+  if (!result.ok || !resp?.ok) {
+    throw new Error(getErrorMessage(result.error || resp?.error));
+  }
+  console.log("[LEF][company link accepted]", {
+    company_id,
+    linkedin_id: payload.linkedin_id,
+  });
+  await refreshCompanyRowFromDb();
+  setFooterStatus("Linked.");
+  return true;
 }
 
 function hideCompanySuggestionUi() {
@@ -1889,7 +2172,11 @@ async function refreshCompanyRowFromDb() {
   const linkedin_id = normalizeCompanyLinkedinId();
   if (!linkedin_id) {
     dbCompanyRow = null;
+    companyPeopleRows = [];
+    selectedExistingCompanyForLink = null;
     renderDetailHeader();
+    renderCompanyPeopleList();
+    await prepareExistingCompanyLinkDropdown();
     setFooterReady();
     return;
   }
@@ -1899,6 +2186,8 @@ async function refreshCompanyRowFromDb() {
     });
     dbCompanyRow = result.ok ? result.data?.company || null : null;
     renderDetailHeader();
+    await prepareExistingCompanyLinkDropdown();
+    await refreshCompanyPeopleList();
   } finally {
     setFooterReady();
   }
@@ -2962,6 +3251,8 @@ function applyProfileExtractionFailureState(statusText) {
   lastProfileContextEnriched = null;
   dbInvitationRow = null;
   dbCompanyRow = null;
+  companyPeopleRows = [];
+  selectedExistingCompanyForLink = null;
   setCampaignSelectValue("");
   if (previewEl) previewEl.textContent = "";
   if (firstMessagePreviewEl) firstMessagePreviewEl.textContent = "";
@@ -3000,6 +3291,8 @@ async function refreshAll() {
     lastProfileContextEnriched = null;
     dbInvitationRow = null;
     dbCompanyRow = null;
+    companyPeopleRows = [];
+    selectedExistingCompanyForLink = null;
     setCampaignSelectValue("");
     clearFreePromptPreview();
     updateMessageTabControls();
@@ -3034,6 +3327,8 @@ async function refreshAll() {
     }
     currentProfileContext = profileContext;
     dbCompanyRow = null;
+    companyPeopleRows = [];
+    selectedExistingCompanyForLink = null;
     lastProfileContextSent = profileContext;
     lastProfileContextEnriched = null;
     if (isCompanyProfileMode(profileContext)) {
@@ -4263,38 +4558,25 @@ function bindProfileEditControls() {
 
     try {
       if (isCompanyProfileMode()) {
-        const payload = {
-          linkedin_id: normalizeCompanyLinkedinId(currentProfileContext),
-          company_name: normalizeWhitespace(
-            (detailPersonNameEl?.value || "").trim() === "-"
-              ? ""
-              : detailPersonNameEl?.value || "",
-          ),
-          employee_number: normalizeWhitespace(
-            (detailEmployeeNumberEl?.value || "").trim() === "-"
-              ? ""
-              : detailEmployeeNumberEl?.value || "",
-          ),
-          sector: normalizeWhitespace(
-            (detailHeadlineEl?.value || "").trim() === "-"
-              ? ""
-              : detailHeadlineEl?.value || "",
-          ),
-          city: normalizeWhitespace(
-            (detailCommentsEl?.value || "").trim() === "-"
-              ? ""
-              : detailCommentsEl?.value || "",
-          ),
-          it_members: safeTrim(currentProfileContext?.it_members || ""),
-        };
-        payload.it_members = normalizeWhitespace(
-          (detailItMembersEl?.value || "").trim() === "-"
-            ? ""
-            : detailItMembersEl?.value || "",
+        syncSelectedExistingCompanyFromInput();
+        const linkedExistingCompanyId = safeTrim(
+          selectedExistingCompanyForLink?.company_id,
         );
-        const result = await sendRuntimeMessage("DB_UPSERT_COMPANY_PROFILE", {
-          payload,
-        });
+        const linkedExistingCompanyName = safeTrim(
+          selectedExistingCompanyForLink?.company_name,
+        );
+        const payload = buildCompanyProfileSavePayload();
+        const result = linkedExistingCompanyId
+          ? await sendRuntimeMessage("DB_UPDATE_COMPANY_BY_ID", {
+              payload: {
+                ...payload,
+                company_id: linkedExistingCompanyId,
+                company_name: linkedExistingCompanyName || payload.company_name,
+              },
+            })
+          : await sendRuntimeMessage("DB_UPSERT_COMPANY_PROFILE", {
+              payload,
+            });
         const resp = result.data || {};
         if (!result.ok || !resp?.ok) {
           throw new Error(getErrorMessage(result.error || resp?.error));
@@ -5048,6 +5330,46 @@ companyLinkSearchInputEl?.addEventListener("input", () => {
 
 companyLinkSearchInputEl?.addEventListener("change", () => {
   syncSelectedCompanyFromDropdownInput();
+});
+
+companyExistingLinkInputEl?.addEventListener("input", () => {
+  selectedExistingCompanyForLink = null;
+  updateExistingCompanyLinkUi();
+  if (companyExistingLinkDebounceTimer) {
+    clearTimeout(companyExistingLinkDebounceTimer);
+  }
+  companyExistingLinkDebounceTimer = setTimeout(() => {
+    searchExistingCompaniesForCompanyPage(
+      companyExistingLinkInputEl.value || "",
+    ).catch(() => null);
+  }, 250);
+});
+
+companyExistingLinkInputEl?.addEventListener("change", () => {
+  syncSelectedExistingCompanyFromInput();
+});
+
+companyExistingLinkButtonEl?.addEventListener("click", async () => {
+  try {
+    if (companyExistingLinkButtonEl) companyExistingLinkButtonEl.disabled = true;
+    await linkSelectedExistingCompany();
+  } catch (e) {
+    setFooterStatus(`${UI_TEXT.dbErrorPrefix} ${getErrorMessage(e)}`);
+  } finally {
+    updateExistingCompanyLinkUi();
+    setFooterReady();
+  }
+});
+
+companyPeopleListEl?.addEventListener("click", async (event) => {
+  const target =
+    event.target instanceof Element
+      ? event.target.closest(".company-person-open")
+      : null;
+  if (!target) return;
+  const linkedinUrl = safeTrim(target.dataset.linkedinUrl || "");
+  if (!linkedinUrl) return;
+  await openLinkedIn(linkedinUrl);
 });
 
 markMessageSentBtnEl?.addEventListener("click", async () => {

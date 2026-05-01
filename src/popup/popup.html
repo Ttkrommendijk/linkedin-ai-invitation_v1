@@ -159,6 +159,17 @@
                             readonly
                             hidden
                         />
+                        <div id="detailItMembersLabel" class="company-display-label">
+                            IT members:
+                        </div>
+                        <input
+                            id="detailItMembers"
+                            class="detail-person-headline"
+                            type="text"
+                            value="-"
+                            readonly
+                            hidden
+                        />
                         <div id="detailHeadlineLabel" class="company-display-label">
                             Job title:
                         </div>
@@ -178,16 +189,63 @@
                             rows="3"
                             readonly
                         ></textarea>
-                        <div id="detailItMembersLabel" class="company-display-label">
-                            IT members:
+                        <div
+                            id="detailCityLabel"
+                            class="company-display-label"
+                            hidden
+                        >
+                            City:
                         </div>
                         <input
-                            id="detailItMembers"
+                            id="detailCity"
                             class="detail-person-headline"
                             type="text"
                             value="-"
                             readonly
+                            hidden
                         />
+                        <div
+                            id="companyExistingLinkSection"
+                            class="company-existing-link-section"
+                            hidden
+                        >
+                            <div class="company-display-label">
+                                Existing company:
+                            </div>
+                            <div
+                                id="companyExistingLinkStatus"
+                                class="company-existing-link-status"
+                            >
+                                Company URL not registered
+                            </div>
+                            <div class="company-existing-link-row">
+                                <input
+                                    id="companyExistingLinkInput"
+                                    class="company-existing-link-input"
+                                    list="companyExistingLinkOptions"
+                                    placeholder="Search existing company"
+                                />
+                                <button
+                                    id="companyExistingLinkButton"
+                                    type="button"
+                                    class="btn-small-secondary company-existing-link-button"
+                                    disabled
+                                >
+                                    Link
+                                </button>
+                            </div>
+                            <datalist id="companyExistingLinkOptions"></datalist>
+                        </div>
+                        <div
+                            id="companyPeopleSection"
+                            class="company-people-section"
+                            hidden
+                        >
+                            <div class="company-people-title">
+                                Registered people
+                            </div>
+                            <div id="companyPeopleList" class="company-people-list"></div>
+                        </div>
                     </div>
                     <div id="campaignDivider" class="section-divider"></div>
                     <div id="campaignGroup" class="form-group campaign-group">

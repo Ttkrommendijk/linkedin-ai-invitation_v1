@@ -192,6 +192,84 @@ button:disabled {
     color: var(--text);
     resize: none;
 }
+.company-people-section {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--line-soft);
+}
+.company-existing-link-section {
+    margin-top: 8px;
+}
+.company-existing-link-status {
+    margin-top: 3px;
+    font-size: 12px;
+    color: #b91c1c;
+}
+.company-existing-link-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px;
+    align-items: center;
+    margin-top: 3px;
+}
+.company-existing-link-input {
+    min-height: 26px;
+    padding: 4px 6px;
+    font-size: 12px;
+}
+.company-existing-link-button {
+    min-height: 26px;
+    margin: 0;
+    padding: 4px 8px;
+    font-size: 12px;
+}
+.company-people-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+}
+.company-people-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+}
+.company-person-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 6px;
+    align-items: start;
+}
+.company-person-open {
+    width: auto;
+    min-height: 22px;
+    margin: 0;
+    padding: 2px 7px;
+    font-size: 11px;
+}
+.company-person-text {
+    min-width: 0;
+}
+.company-person-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.company-person-function {
+    margin-top: 1px;
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.company-people-empty {
+    font-size: 12px;
+    color: var(--muted);
+}
 .detail-person-name[readonly],
 .detail-person-company[readonly],
 .detail-person-headline[readonly],

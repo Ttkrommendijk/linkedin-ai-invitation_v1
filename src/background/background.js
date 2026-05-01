@@ -1701,6 +1701,47 @@ async function supabaseSearchCompanies({ term, limit }) {
   return Array.isArray(rows) ? rows : [];
 }
 
+async function supabaseSearchUnlinkedCompanies({ term, limit }) {
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
+  const normalizedTerm = normalizeProfileField(term);
+  if (!normalizedTerm) return [];
+  const parsedLimit = Number(limit);
+  const safeLimit =
+    Number.isFinite(parsedLimit) && parsedLimit > 0
+      ? Math.min(50, Math.floor(parsedLimit))
+      : 10;
+  const params = new URLSearchParams();
+  params.set(
+    "select",
+    "company_id,linkedin_id,company_name,employee_number,it_members,sector,city",
+  );
+  params.set("company_name", `ilike.*${normalizedTerm}*`);
+  params.set("or", "(linkedin_id.is.null,linkedin_id.eq.)");
+  params.set("order", "company_name.asc");
+  params.set("limit", String(safeLimit));
+  const url = `${supabaseUrl}/rest/v1/company?${params.toString()}`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "GET",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    },
+    15000,
+    "Supabase request",
+  );
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+  const rows = await res.json();
+  return Array.isArray(rows) ? rows : [];
+}
+
 async function supabaseConfirmCompanyLink({
   linkedin_url,
   company_id,
@@ -1766,6 +1807,39 @@ async function supabaseGetCompanyByLinkedinId({ linkedin_id }) {
   return Array.isArray(rows) && rows.length ? rows[0] : null;
 }
 
+async function supabaseListInvitationsByCompany({ company_id }) {
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
+  const normalizedCompanyId = normalizeProfileField(company_id);
+  if (!normalizedCompanyId) return [];
+
+  const params = new URLSearchParams();
+  params.set("select", "linkedin_url,full_name,headline,company,company_id");
+  params.set("order", "full_name.asc.nullslast");
+  params.set("limit", "50");
+  params.set("company_id", `eq.${normalizedCompanyId}`);
+  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?${params.toString()}`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "GET",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    },
+    15000,
+    "Supabase request",
+  );
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+  const rows = await res.json();
+  return Array.isArray(rows) ? rows : [];
+}
+
 async function supabaseUpsertCompanyProfile(payload) {
   const { supabaseUrl, supabaseAnonKey, accessToken } =
     await getSupabaseRequestContext();
@@ -1791,6 +1865,47 @@ async function supabaseUpsertCompanyProfile(payload) {
         Prefer: "resolution=merge-duplicates,return=representation",
       },
       body: JSON.stringify([companyPatch]),
+    },
+    15000,
+    "Supabase request",
+  );
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+  const rows = await res.json().catch(() => []);
+  return Array.isArray(rows) && rows.length ? rows[0] : null;
+}
+
+async function supabaseUpdateCompanyById(payload) {
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
+  const company_id = normalizeProfileField(payload?.company_id);
+  if (!company_id) throw new Error("Missing company_id.");
+  const patch = {
+    linkedin_id: normalizeLinkedinCompanyUrl(payload?.linkedin_id),
+    company_name: normalizeProfileField(payload?.company_name),
+    employee_number: normalizeProfileField(payload?.employee_number),
+    it_members: normalizeProfileField(payload?.it_members),
+    sector: normalizeProfileField(payload?.sector),
+    city: normalizeProfileField(payload?.city),
+  };
+  for (const key of Object.keys(patch)) {
+    if (patch[key] === "") delete patch[key];
+  }
+  if (!Object.keys(patch).length) return null;
+  const url = `${supabaseUrl}/rest/v1/company?company_id=eq.${encodeURIComponent(company_id)}`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify(patch),
     },
     15000,
     "Supabase request",
@@ -2821,11 +2936,45 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
 
+  if (msg?.type === "DB_LIST_INVITATIONS_BY_COMPANY") {
+    (async () => {
+      emitUiStatus("Fetching\u2026");
+      try {
+        const rows = await supabaseListInvitationsByCompany(msg?.payload || {});
+        sendResponse({ ok: true, rows });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_GET_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
   if (msg?.type === "DB_SEARCH_COMPANIES") {
     (async () => {
       emitUiStatus("Fetching\u2026");
       try {
         const companies = await supabaseSearchCompanies(msg?.payload || {});
+        sendResponse({ ok: true, companies });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_GET_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "DB_SEARCH_UNLINKED_COMPANIES") {
+    (async () => {
+      emitUiStatus("Fetching\u2026");
+      try {
+        const companies = await supabaseSearchUnlinkedCompanies(
+          msg?.payload || {},
+        );
         sendResponse({ ok: true, companies });
       } catch (e) {
         sendResponse({
@@ -2863,6 +3012,27 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           existing ? "[LEF][company row updated]" : "[LEF][company row created]",
           { linkedin_id: normalizeLinkedinCompanyUrl(msg?.payload?.linkedin_id) },
         );
+        sendResponse({ ok: true, company });
+      } catch (e) {
+        console.log("[LEF][company save failed]", e);
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "DB_UPDATE_COMPANY_BY_ID") {
+    (async () => {
+      emitUiStatus("Updating\u2026");
+      try {
+        const company = await supabaseUpdateCompanyById(msg?.payload || {});
+        console.log("[LEF][company row updated]", {
+          company_id: normalizeProfileField(msg?.payload?.company_id),
+          linkedin_id: normalizeLinkedinCompanyUrl(msg?.payload?.linkedin_id),
+        });
         sendResponse({ ok: true, company });
       } catch (e) {
         console.log("[LEF][company save failed]", e);
