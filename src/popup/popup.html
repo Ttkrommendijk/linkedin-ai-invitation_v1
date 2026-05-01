@@ -109,33 +109,23 @@
                             readonly
                         />
                         <div
-                            id="companySuggestionRow"
+                            id="companyLinkedRow"
                             class="company-suggestion-row"
                             hidden
                         >
-                            <span class="company-suggestion-label"
-                                >Suggested company link:</span
+                            <span id="companyLinkedName" class="company-link-name"
+                                >-</span
                             >
-                            <span id="companySuggestionName">-</span>
                             <button
                                 id="acceptCompanySuggestionBtn"
                                 type="button"
                                 class="btn-icon company-suggestion-accept"
                                 title="Link company"
                                 aria-label="Link company"
+                                hidden
                             >
                                 &#10003;
                             </button>
-                        </div>
-                        <div
-                            id="companyLinkedRow"
-                            class="company-suggestion-row"
-                            hidden
-                        >
-                            <span class="company-suggestion-label"
-                                >Suggested company link:</span
-                            >
-                            <span id="companyLinkedName">-</span>
                         </div>
                         <div
                             id="companySuggestionWarning"

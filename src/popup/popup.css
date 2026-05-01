@@ -151,8 +151,11 @@ button:disabled {
     font-size: 12px;
     color: #374151;
 }
-.company-suggestion-label {
-    color: var(--muted);
+.company-link-name.is-unlinked {
+    color: #b91c1c;
+}
+.company-link-name.is-linked {
+    color: #166534;
 }
 .company-suggestion-accept {
     width: 18px;

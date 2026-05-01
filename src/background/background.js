@@ -1488,27 +1488,39 @@ async function supabaseFindCompanyByName({ company_name }) {
     await getSupabaseRequestContext();
   const normalizedName = normalizeProfileField(company_name);
   if (!normalizedName) return null;
-  const url = `${supabaseUrl}/rest/v1/company?select=company_id,company_name&company_name=eq.${encodeURIComponent(normalizedName)}&limit=1`;
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "GET",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
+  const headers = {
+    apikey: supabaseAnonKey,
+    Authorization: `Bearer ${accessToken}`,
+    "Content-Type": "application/json",
+  };
+
+  const queries = [
+    `company_name=eq.${encodeURIComponent(normalizedName)}`,
+    `company_name=ilike.${encodeURIComponent(normalizedName)}`,
+  ];
+
+  for (const query of queries) {
+    const url = `${supabaseUrl}/rest/v1/company?select=company_id,company_name&${query}&limit=1`;
+    const res = await fetchWithTimeout(
+      url,
+      {
+        method: "GET",
+        headers,
       },
-    },
-    15000,
-    "Supabase request",
-  );
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
+      15000,
+      "Supabase request",
+    );
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      throw createProviderHttpError("supabase", res.status, txt);
+    }
+    const rows = await res.json();
+    if (Array.isArray(rows) && rows.length > 0) {
+      return rows[0] || null;
+    }
   }
-  const rows = await res.json();
-  if (!Array.isArray(rows) || rows.length === 0) return null;
-  return rows[0] || null;
+
+  return null;
 }
 
 async function supabaseConfirmCompanyLink({

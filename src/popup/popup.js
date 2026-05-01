@@ -233,8 +233,6 @@ const detailCommentsEl = document.getElementById("detailComments");
 const enrichProfileBtnEl = document.getElementById("enrichProfileBtn");
 const editProfileBtnEl = document.getElementById("editProfileBtn");
 const saveProfileFieldsBtnEl = document.getElementById("saveProfileFieldsBtn");
-const companySuggestionRowEl = document.getElementById("companySuggestionRow");
-const companySuggestionNameEl = document.getElementById("companySuggestionName");
 const acceptCompanySuggestionBtnEl = document.getElementById(
   "acceptCompanySuggestionBtn",
 );
@@ -943,36 +941,46 @@ function renderDetailHeader({ force = false } = {}) {
 
 function hideCompanySuggestionUi() {
   companySuggestion = null;
-  if (companySuggestionRowEl) companySuggestionRowEl.hidden = true;
   if (companyLinkedRowEl) companyLinkedRowEl.hidden = true;
   if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = true;
-  if (companySuggestionNameEl) companySuggestionNameEl.textContent = "-";
-  if (companyLinkedNameEl) companyLinkedNameEl.textContent = "-";
-  if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.disabled = false;
+  if (companyLinkedNameEl) {
+    companyLinkedNameEl.textContent = "-";
+    companyLinkedNameEl.classList.remove("is-linked", "is-unlinked");
+  }
+  if (acceptCompanySuggestionBtnEl) {
+    acceptCompanySuggestionBtnEl.disabled = false;
+    acceptCompanySuggestionBtnEl.hidden = true;
+  }
 }
 
 function renderLinkedCompanyName(companyName) {
-  if (companyLinkedNameEl) companyLinkedNameEl.textContent = safeTrim(companyName) || "-";
+  if (companyLinkedNameEl) {
+    companyLinkedNameEl.textContent = safeTrim(companyName) || "-";
+    companyLinkedNameEl.classList.add("is-linked");
+    companyLinkedNameEl.classList.remove("is-unlinked");
+  }
   if (companyLinkedRowEl) companyLinkedRowEl.hidden = false;
-  if (companySuggestionRowEl) companySuggestionRowEl.hidden = true;
   if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = true;
+  if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.hidden = true;
 }
 
 function renderCompanySuggestionFound(companyRow) {
   companySuggestion = companyRow || null;
-  if (companySuggestionNameEl) {
-    companySuggestionNameEl.textContent = safeTrim(companyRow?.company_name) || "-";
+  if (companyLinkedNameEl) {
+    companyLinkedNameEl.textContent = safeTrim(companyRow?.company_name) || "-";
+    companyLinkedNameEl.classList.add("is-unlinked");
+    companyLinkedNameEl.classList.remove("is-linked");
   }
-  if (companySuggestionRowEl) companySuggestionRowEl.hidden = false;
-  if (companyLinkedRowEl) companyLinkedRowEl.hidden = true;
+  if (companyLinkedRowEl) companyLinkedRowEl.hidden = false;
   if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = true;
+  if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.hidden = false;
 }
 
 function renderCompanySuggestionNotFound() {
   companySuggestion = null;
-  if (companySuggestionRowEl) companySuggestionRowEl.hidden = true;
   if (companyLinkedRowEl) companyLinkedRowEl.hidden = true;
   if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = false;
+  if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.hidden = true;
 }
 
 async function refreshCompanySuggestionUiForCurrentInvitation() {
