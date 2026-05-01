@@ -42,39 +42,84 @@
                 <div id="tabMain" class="tab-panel active">
                     <div class="detail-person">
                         <div class="detail-person-top">
-                            <div
+                            <input
                                 id="detailPersonName"
                                 class="detail-person-name"
-                            >
-                                -
-                            </div>
-                            <button
-                                id="enrichProfileBtn"
-                                type="button"
-                                class="btn-enrich"
-                                title="Enrich data with AI"
-                                aria-label="Enrich data with AI"
-                            >
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    viewBox="0 0 16 16"
-                                    width="14"
-                                    height="14"
-                                    aria-hidden="true"
+                                type="text"
+                                value="-"
+                                readonly
+                            />
+                            <div class="detail-person-actions">
+                                <button
+                                    id="enrichProfileBtn"
+                                    type="button"
+                                    class="btn-enrich"
+                                    title="Enrich data with AI"
+                                    aria-label="Enrich data with AI"
                                 >
-                                    <path
-                                        d="M7.2 1.2 8.6 4.3l3.1 1.4-3.1 1.4-1.4 3.1-1.4-3.1L2.7 5.7l3.1-1.4L7.2 1.2Zm5.1 5.6.8 1.8 1.8.8-1.8.8-.8 1.8-.8-1.8-1.8-.8 1.8-.8.8-1.8Zm-8.1 4 .8 1.8 1.8.8-1.8.8-.8 1.8-.8-1.8-1.8-.8 1.8-.8.8-1.8Z"
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        viewBox="0 0 16 16"
+                                        width="14"
+                                        height="14"
+                                        aria-hidden="true"
+                                    >
+                                        <path
+                                            d="M7.2 1.2 8.6 4.3l3.1 1.4-3.1 1.4-1.4 3.1-1.4-3.1L2.7 5.7l3.1-1.4L7.2 1.2Zm5.1 5.6.8 1.8 1.8.8-1.8.8-.8 1.8-.8-1.8-1.8-.8 1.8-.8.8-1.8Zm-8.1 4 .8 1.8 1.8.8-1.8.8-.8 1.8-.8-1.8-1.8-.8 1.8-.8.8-1.8Z"
+                                            fill="currentColor"
+                                        />
+                                    </svg>
+                                </button>
+                                <button
+                                    id="editProfileBtn"
+                                    type="button"
+                                    class="btn-small-secondary detail-edit-btn"
+                                >
+                                    Edit
+                                </button>
+                                <button
+                                    id="saveProfileFieldsBtn"
+                                    type="button"
+                                    class="btn-icon invite-save-icon detail-save-icon"
+                                    hidden
+                                    title="Save"
+                                    aria-label="Save"
+                                >
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="14"
+                                        height="14"
+                                        viewBox="0 0 16 16"
                                         fill="currentColor"
-                                    />
-                                </svg>
-                            </button>
+                                        aria-hidden="true"
+                                    >
+                                        <path
+                                            d="M11 1H2a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V5L11 1Zm0 1.5L13.5 5H11V2.5ZM2 2h8v4h4v8H2V2Zm3 6a1 1 0 0 0-1 1v4h8V9a1 1 0 0 0-1-1H5Zm0 1h6v3H5V9Z"
+                                        />
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
-                        <div id="detailCompany" class="detail-person-company">
-                            -
-                        </div>
-                        <div id="detailHeadline" class="detail-person-headline">
-                            -
-                        </div>
+                        <input
+                            id="detailCompany"
+                            class="detail-person-company"
+                            type="text"
+                            value="-"
+                            readonly
+                        />
+                        <input
+                            id="detailHeadline"
+                            class="detail-person-headline"
+                            type="text"
+                            value="-"
+                            readonly
+                        />
+                        <textarea
+                            id="detailComments"
+                            class="detail-person-comments"
+                            rows="3"
+                            readonly
+                        ></textarea>
                     </div>
                     <div class="section-divider"></div>
                     <div class="form-group campaign-group">

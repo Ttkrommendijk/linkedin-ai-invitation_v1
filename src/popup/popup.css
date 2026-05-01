@@ -100,7 +100,7 @@ button:disabled {
     margin-top: 10px;
 }
 .detail-person {
-    margin-top: 6px;
+    margin-top: 14px;
 }
 .detail-person-top {
     display: flex;
@@ -108,7 +108,25 @@ button:disabled {
     justify-content: space-between;
     gap: 8px;
 }
+.detail-person-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+}
+.detail-person-name,
+.detail-person-company,
+.detail-person-headline,
+.detail-person-comments {
+    width: 100%;
+    padding: 0;
+    border: 1px solid transparent;
+    background: transparent;
+    box-shadow: none;
+}
 .detail-person-name {
+    flex: 1 1 auto;
+    min-width: 0;
     font-size: 18px;
     font-weight: 700;
     margin: 0;
@@ -124,6 +142,34 @@ button:disabled {
     font-size: 12px;
     margin-top: 4px;
     color: var(--text);
+}
+.detail-person-comments {
+    min-height: 46px;
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.35;
+    color: var(--text);
+    resize: none;
+}
+.detail-person-name[readonly],
+.detail-person-company[readonly],
+.detail-person-headline[readonly],
+.detail-person-comments[readonly] {
+    cursor: default;
+}
+.detail-person-name:not([readonly]),
+.detail-person-company:not([readonly]),
+.detail-person-headline:not([readonly]),
+.detail-person-comments:not([readonly]) {
+    padding: 4px 6px;
+    border-color: #93c5fd;
+    background: #eff6ff;
+}
+.detail-person-name:focus,
+.detail-person-company:focus,
+.detail-person-headline:focus,
+.detail-person-comments:focus {
+    outline: none;
 }
 .btn-enrich {
     width: 28px;
@@ -481,6 +527,13 @@ pre {
 }
 .invite-save-icon svg {
     display: block;
+}
+.detail-edit-btn {
+    min-width: 46px;
+}
+.detail-save-icon {
+    padding: 0 6px;
+    min-width: 28px;
 }
 
 .tabs {

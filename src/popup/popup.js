@@ -229,7 +229,10 @@ const openSidePanelBtnEl = document.getElementById("openSidePanel");
 const detailPersonNameEl = document.getElementById("detailPersonName");
 const detailCompanyEl = document.getElementById("detailCompany");
 const detailHeadlineEl = document.getElementById("detailHeadline");
+const detailCommentsEl = document.getElementById("detailComments");
 const enrichProfileBtnEl = document.getElementById("enrichProfileBtn");
+const editProfileBtnEl = document.getElementById("editProfileBtn");
+const saveProfileFieldsBtnEl = document.getElementById("saveProfileFieldsBtn");
 const statusStepperEl = document.getElementById("statusStepper");
 const stepRegisterEl = document.getElementById("step-register");
 const stepInvitedEl = document.getElementById("step-invited");
@@ -331,6 +334,8 @@ const navPacingEnabledEl = document.getElementById("navPacingEnabled");
 let lastProfileContextSent = {};
 let lastProfileContextEnriched = null;
 let currentProfileContext = null;
+let isProfileEditMode = false;
+let isProfileSaveInFlight = false;
 let firstMessage = "";
 let lastSavedFirstMessagePrompt = "";
 let isMessagePromptCollapsed = true;
@@ -853,7 +858,35 @@ function coalesceDbThenScraped(dbValue, scrapedValue) {
     : scrapedValue || "";
 }
 
-function renderDetailHeader() {
+function renderProfileEditControls() {
+  if (editProfileBtnEl) editProfileBtnEl.hidden = isProfileEditMode;
+  if (saveProfileFieldsBtnEl) {
+    saveProfileFieldsBtnEl.hidden = !isProfileEditMode;
+    saveProfileFieldsBtnEl.disabled = isProfileSaveInFlight;
+  }
+  for (const fieldEl of [
+    detailPersonNameEl,
+    detailCompanyEl,
+    detailHeadlineEl,
+    detailCommentsEl,
+  ]) {
+    if (!fieldEl) continue;
+    fieldEl.readOnly = !isProfileEditMode;
+  }
+}
+
+function setProfileEditMode(nextMode) {
+  isProfileEditMode = Boolean(nextMode);
+  renderProfileEditControls();
+  if (isProfileEditMode) {
+    detailPersonNameEl?.focus();
+    detailPersonNameEl?.select();
+    return;
+  }
+  renderDetailHeader({ force: true });
+}
+
+function renderDetailHeader({ force = false } = {}) {
   const scrapedName = (
     currentProfileContext?.name ||
     currentProfileContext?.full_name ||
@@ -861,6 +894,7 @@ function renderDetailHeader() {
   ).trim();
   const scrapedCompany = (currentProfileContext?.company || "").trim();
   const scrapedHeadline = (currentProfileContext?.headline || "").trim();
+  const scrapedComments = (currentProfileContext?.comments || "").trim();
 
   const dbName = (
     dbInvitationRow?.full_name ||
@@ -869,12 +903,15 @@ function renderDetailHeader() {
   ).trim();
   const dbCompany = (dbInvitationRow?.company || "").trim();
   const dbHeadline = (dbInvitationRow?.headline || "").trim();
+  const dbComments = (dbInvitationRow?.comments || "").trim();
 
   const name = coalesceDbThenScraped(dbName, scrapedName).trim() || "-";
   const company =
     coalesceDbThenScraped(dbCompany, scrapedCompany).trim() || "-";
   const headline =
     coalesceDbThenScraped(dbHeadline, scrapedHeadline).trim() || "-";
+  const comments =
+    coalesceDbThenScraped(dbComments, scrapedComments).trim() || "-";
 
   debug("detail header source", {
     nameSource: dbName ? "db" : "scraped",
@@ -882,9 +919,13 @@ function renderDetailHeader() {
     headlineSource: dbHeadline ? "db" : "scraped",
   });
 
-  if (detailPersonNameEl) detailPersonNameEl.textContent = name;
-  if (detailCompanyEl) detailCompanyEl.textContent = company;
-  if (detailHeadlineEl) detailHeadlineEl.textContent = headline;
+  if (isProfileEditMode && !force) return;
+
+  if (detailPersonNameEl) detailPersonNameEl.value = name;
+  if (detailCompanyEl) detailCompanyEl.value = company;
+  if (detailHeadlineEl) detailHeadlineEl.value = headline;
+  if (detailCommentsEl) detailCommentsEl.value = comments;
+  renderProfileEditControls();
 }
 
 function updateStepperInteractivity() {
@@ -2459,6 +2500,8 @@ function clearFreePromptPreview() {
 }
 
 function applyProfileExtractionFailureState(statusText) {
+  isProfileEditMode = false;
+  isProfileSaveInFlight = false;
   currentProfileContext = null;
   lastProfileContextSent = {};
   lastProfileContextEnriched = null;
@@ -2494,6 +2537,8 @@ async function refreshAll() {
       matchedRule,
       dom: getNoProfileDomDebugInfo(),
     });
+    isProfileEditMode = false;
+    isProfileSaveInFlight = false;
     currentProfileContext = null;
     lastProfileContextSent = {};
     lastProfileContextEnriched = null;
@@ -3593,11 +3638,11 @@ async function extractProfileDetailsFromLlm() {
 
   if (llmCompany) {
     currentProfileContext.company = llmCompany;
-    if (detailCompanyEl) detailCompanyEl.textContent = llmCompany;
+    if (detailCompanyEl) detailCompanyEl.value = llmCompany;
   }
   if (llmHeadline) {
     currentProfileContext.headline = llmHeadline;
-    if (detailHeadlineEl) detailHeadlineEl.textContent = llmHeadline;
+    if (detailHeadlineEl) detailHeadlineEl.value = llmHeadline;
   }
   const normalizedLlmLanguage = normalizeLanguageValue(llmLanguage);
   if (normalizedLlmLanguage) {
@@ -3607,7 +3652,7 @@ async function extractProfileDetailsFromLlm() {
   const nameFromProfile = (getFullNameFromContext(currentProfileContext) || "")
     .toString()
     .trim();
-  const nameFromUi = (detailPersonNameEl?.textContent || "").trim();
+  const nameFromUi = (detailPersonNameEl?.value || "").trim();
   const full_name =
     nameFromProfile || (nameFromUi && nameFromUi !== "-" ? nameFromUi : "");
 
@@ -3637,6 +3682,90 @@ if (!enrichProfileBtnEl) {
     }
   });
 }
+
+function bindProfileEditControls() {
+  editProfileBtnEl?.addEventListener("click", () => {
+    setProfileEditMode(true);
+  });
+
+  saveProfileFieldsBtnEl?.addEventListener("click", async () => {
+    if (isProfileSaveInFlight) return;
+
+    const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
+    if (!linkedin_url) {
+      setFooterStatus(UI_TEXT.missingLinkedinUrl);
+      return;
+    }
+
+    isProfileSaveInFlight = true;
+    renderProfileEditControls();
+    setFooterUpdatingStatus();
+
+    try {
+      const full_name = normalizeWhitespace(
+        (detailPersonNameEl?.value || "").trim() === "-"
+          ? ""
+          : detailPersonNameEl?.value || "",
+      );
+      const company = normalizeWhitespace(
+        (detailCompanyEl?.value || "").trim() === "-"
+          ? ""
+          : detailCompanyEl?.value || "",
+      );
+      const headline = sanitizeHeadlineJobTitle(
+        (detailHeadlineEl?.value || "").trim() === "-"
+          ? ""
+          : detailHeadlineEl?.value || "",
+      );
+      const comments = safeTrim(
+        (detailCommentsEl?.value || "").trim() === "-"
+          ? ""
+          : detailCommentsEl?.value || "",
+      );
+
+      const result = await sendRuntimeMessage("DB_UPDATE_PROFILE_FIELDS", {
+        payload: {
+          linkedin_url,
+          full_name,
+          company,
+          headline,
+          comments,
+        },
+      });
+      const resp = result.data || {};
+
+      if (!result.ok || !resp?.ok) {
+        throw new Error(getErrorMessage(result.error || resp?.error));
+      }
+
+      if (currentProfileContext) {
+        currentProfileContext.name = full_name;
+        currentProfileContext.full_name = full_name;
+        currentProfileContext.company = company;
+        currentProfileContext.headline = headline;
+        currentProfileContext.comments = comments;
+      }
+      if (dbInvitationRow) {
+        dbInvitationRow.full_name = full_name;
+        dbInvitationRow.company = company;
+        dbInvitationRow.headline = headline;
+        dbInvitationRow.comments = comments;
+      }
+
+      isProfileEditMode = false;
+      renderProfileEditControls();
+      await refreshInvitationRowFromDb({ preserveTabs: true });
+      setFooterStatus("Saved.");
+    } catch (e) {
+      setFooterStatus(`${UI_TEXT.dbErrorPrefix} ${getErrorMessage(e)}`);
+    } finally {
+      isProfileSaveInFlight = false;
+      renderProfileEditControls();
+    }
+  });
+}
+
+bindProfileEditControls();
 
 async function upsertCurrentProfileWithStatus(statusValue) {
   if (!currentProfileContext) return { ok: false, error: "missing_profile" };
