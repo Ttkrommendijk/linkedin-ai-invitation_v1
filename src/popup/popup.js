@@ -278,6 +278,9 @@ const companyLinkSearchOptionsEl = document.getElementById(
 const companySuggestionWarningEl = document.getElementById(
   "companySuggestionWarning",
 );
+const personNotRegisteredStateEl = document.getElementById(
+  "personNotRegisteredState",
+);
 const campaignGroupEl = document.getElementById("campaignGroup");
 const campaignDividerEl = document.getElementById("campaignDivider");
 const statusDividerEl = document.getElementById("statusDivider");
@@ -983,16 +986,23 @@ function renderProfileEditControls() {
 function applyProfileModeUi() {
   const isCompany = isCompanyProfileMode();
   const shouldShowExistingCompanyDropdown = isCompany && !dbCompanyRow;
+  const shouldShowPersonNotRegistered =
+    !isCompany && !isProfileEditMode && !dbInvitationRow;
   document.documentElement.classList.toggle("company-profile-mode", isCompany);
   document.body?.classList.toggle("company-profile-mode", isCompany);
   tabMain?.classList.toggle("company-profile-mode", isCompany);
   if (detailCompanyLabelEl) {
     detailCompanyLabelEl.textContent = "Company:";
-    detailCompanyLabelEl.hidden = isCompany || (!isProfileEditMode && !isCompany);
+    detailCompanyLabelEl.hidden =
+      isCompany ||
+      shouldShowPersonNotRegistered ||
+      (!isProfileEditMode && !isCompany);
   }
   if (detailCompanyEl) {
     detailCompanyEl.hidden =
-      isCompany || (!isProfileEditMode && Boolean(safeTrim(dbInvitationRow?.company_id)));
+      isCompany ||
+      shouldShowPersonNotRegistered ||
+      (!isProfileEditMode && Boolean(safeTrim(dbInvitationRow?.company_id)));
   }
   if (detailEmployeeNumberLabelEl) {
     detailEmployeeNumberLabelEl.hidden = !isCompany;
@@ -1002,14 +1012,15 @@ function applyProfileModeUi() {
   }
   if (detailHeadlineLabelEl) {
     detailHeadlineLabelEl.textContent = isCompany ? "Sector:" : "Job title:";
-    detailHeadlineLabelEl.hidden = !isCompany && !isProfileEditMode;
+    detailHeadlineLabelEl.hidden =
+      shouldShowPersonNotRegistered || (!isCompany && !isProfileEditMode);
   }
   if (detailCommentsLabelEl) {
     detailCommentsLabelEl.textContent = "Comments:";
-    detailCommentsLabelEl.hidden = isCompany;
+    detailCommentsLabelEl.hidden = isCompany || shouldShowPersonNotRegistered;
   }
   if (detailCommentsEl) {
-    detailCommentsEl.hidden = isCompany;
+    detailCommentsEl.hidden = isCompany || shouldShowPersonNotRegistered;
   }
   if (detailCityLabelEl) {
     detailCityLabelEl.hidden = !isCompany;
@@ -1034,6 +1045,9 @@ function applyProfileModeUi() {
   if (detailItMembersEl) detailItMembersEl.placeholder = isCompany ? "IT members" : "";
   if (companyPeopleSectionEl) {
     companyPeopleSectionEl.hidden = !isCompany;
+  }
+  if (personNotRegisteredStateEl) {
+    personNotRegisteredStateEl.hidden = !shouldShowPersonNotRegistered;
   }
   if (companyExistingLinkSectionEl) {
     companyExistingLinkSectionEl.hidden = !shouldShowExistingCompanyDropdown;
@@ -1062,7 +1076,10 @@ function applyProfileModeUi() {
     el.hidden = hideInvitationUi;
     el.style.display = hideInvitationUi ? "none" : "";
   }
-  if (companyLinkedRowEl) companyLinkedRowEl.hidden = isCompany || companyLinkedRowEl.hidden;
+  if (companyLinkedRowEl) {
+    companyLinkedRowEl.hidden =
+      isCompany || shouldShowPersonNotRegistered || companyLinkedRowEl.hidden;
+  }
   if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = true;
   if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.hidden = true;
   if (isCompany) {
