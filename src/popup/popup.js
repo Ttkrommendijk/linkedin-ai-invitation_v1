@@ -228,8 +228,17 @@ const saveInviteBtnEl = document.getElementById("saveInviteBtn");
 const openSidePanelBtnEl = document.getElementById("openSidePanel");
 const detailPersonNameEl = document.getElementById("detailPersonName");
 const detailCompanyEl = document.getElementById("detailCompany");
+const detailEmployeeNumberEl = document.getElementById("detailEmployeeNumber");
 const detailHeadlineEl = document.getElementById("detailHeadline");
 const detailCommentsEl = document.getElementById("detailComments");
+const detailItMembersEl = document.getElementById("detailItMembers");
+const detailCompanyLabelEl = document.getElementById("detailCompanyLabel");
+const detailEmployeeNumberLabelEl = document.getElementById(
+  "detailEmployeeNumberLabel",
+);
+const detailHeadlineLabelEl = document.getElementById("detailHeadlineLabel");
+const detailCommentsLabelEl = document.getElementById("detailCommentsLabel");
+const detailItMembersLabelEl = document.getElementById("detailItMembersLabel");
 const enrichProfileBtnEl = document.getElementById("enrichProfileBtn");
 const editProfileBtnEl = document.getElementById("editProfileBtn");
 const saveProfileFieldsBtnEl = document.getElementById("saveProfileFieldsBtn");
@@ -247,6 +256,11 @@ const companyLinkSearchOptionsEl = document.getElementById(
 const companySuggestionWarningEl = document.getElementById(
   "companySuggestionWarning",
 );
+const campaignGroupEl = document.getElementById("campaignGroup");
+const campaignDividerEl = document.getElementById("campaignDivider");
+const statusDividerEl = document.getElementById("statusDivider");
+const detailTabsDividerEl = document.getElementById("detailTabsDivider");
+const detailTabsRowEl = document.getElementById("detailTabsRow");
 const statusStepperEl = document.getElementById("statusStepper");
 const stepRegisterEl = document.getElementById("step-register");
 const stepInvitedEl = document.getElementById("step-invited");
@@ -254,6 +268,7 @@ const stepAcceptedEl = document.getElementById("step-accepted");
 const stepFirstMessageSentEl = document.getElementById(
   "step-first-message-sent",
 );
+const stepperUnderlayEl = document.getElementById("stepperUnderlay");
 const messageCountBadgeEl = document.getElementById("messageCountBadge");
 const messageCountControlsEl = document.getElementById("messageCountControls");
 const messageCountDecrementEl = document.getElementById(
@@ -360,6 +375,7 @@ let firstMessage = "";
 let lastSavedFirstMessagePrompt = "";
 let isMessagePromptCollapsed = true;
 let dbInvitationRow = null;
+let dbCompanyRow = null;
 let extractedChatMessages = [];
 let outreachMessageStatus = "accepted";
 let overviewPage = 1;
@@ -879,7 +895,17 @@ function coalesceDbThenScraped(dbValue, scrapedValue) {
 }
 
 function renderProfileEditControls() {
-  if (editProfileBtnEl) editProfileBtnEl.hidden = isProfileEditMode;
+  const isCompany = isCompanyProfileMode();
+  if (editProfileBtnEl) {
+    editProfileBtnEl.hidden = isProfileEditMode;
+    editProfileBtnEl.textContent = isCompany && !dbCompanyRow ? "Create" : "Edit";
+    editProfileBtnEl.title =
+      isCompany && !dbCompanyRow ? "Create company" : "Edit";
+    editProfileBtnEl.setAttribute(
+      "aria-label",
+      isCompany && !dbCompanyRow ? "Create company" : "Edit",
+    );
+  }
   if (saveProfileFieldsBtnEl) {
     saveProfileFieldsBtnEl.hidden = !isProfileEditMode;
     saveProfileFieldsBtnEl.disabled = isProfileSaveInFlight;
@@ -887,8 +913,10 @@ function renderProfileEditControls() {
   for (const fieldEl of [
     detailPersonNameEl,
     detailCompanyEl,
+    detailEmployeeNumberEl,
     detailHeadlineEl,
     detailCommentsEl,
+    detailItMembersEl,
   ]) {
     if (!fieldEl) continue;
     fieldEl.readOnly = !isProfileEditMode;
@@ -902,13 +930,95 @@ function renderProfileEditControls() {
   if (acceptCompanySuggestionBtnEl && isProfileEditMode) {
     acceptCompanySuggestionBtnEl.hidden = true;
   }
+  if (isCompany) {
+    if (companyLinkedRowEl) companyLinkedRowEl.hidden = true;
+    if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = true;
+    if (companyLinkedNameEl) companyLinkedNameEl.hidden = true;
+    if (companyLinkSearchInputEl) companyLinkSearchInputEl.hidden = true;
+    if (companyLinkSearchOptionsEl) companyLinkSearchOptionsEl.innerHTML = "";
+    if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.hidden = true;
+  }
+}
+
+function applyProfileModeUi() {
+  const isCompany = isCompanyProfileMode();
+  document.documentElement.classList.toggle("company-profile-mode", isCompany);
+  document.body?.classList.toggle("company-profile-mode", isCompany);
+  tabMain?.classList.toggle("company-profile-mode", isCompany);
+  if (detailCompanyLabelEl) {
+    detailCompanyLabelEl.textContent = "Company:";
+    detailCompanyLabelEl.hidden = isCompany;
+  }
+  if (detailCompanyEl) {
+    detailCompanyEl.hidden = isCompany;
+  }
+  if (detailEmployeeNumberLabelEl) {
+    detailEmployeeNumberLabelEl.hidden = !isCompany;
+  }
+  if (detailEmployeeNumberEl) {
+    detailEmployeeNumberEl.hidden = !isCompany;
+  }
+  if (detailHeadlineLabelEl) {
+    detailHeadlineLabelEl.textContent = isCompany ? "Sector:" : "Job title:";
+  }
+  if (detailCommentsLabelEl) {
+    detailCommentsLabelEl.textContent = isCompany ? "City:" : "Comments:";
+  }
+  if (detailItMembersLabelEl) {
+    detailItMembersLabelEl.hidden = !isCompany;
+  }
+  if (detailItMembersEl) {
+    detailItMembersEl.hidden = !isCompany;
+  }
+  if (detailPersonNameEl) detailPersonNameEl.placeholder = isCompany ? "Company name" : "";
+  if (detailCompanyEl) detailCompanyEl.placeholder = "";
+  if (detailEmployeeNumberEl) {
+    detailEmployeeNumberEl.placeholder = isCompany ? "Employee number" : "";
+  }
+  if (detailHeadlineEl) detailHeadlineEl.placeholder = isCompany ? "Sector" : "";
+  if (detailCommentsEl) detailCommentsEl.placeholder = isCompany ? "City" : "";
+  if (detailItMembersEl) detailItMembersEl.placeholder = isCompany ? "IT members" : "";
+
+  const hideInvitationUi = isCompany;
+  for (const el of [
+    campaignGroupEl,
+    campaignDividerEl,
+    statusStepperEl,
+    stepperUnderlayEl,
+    statusDividerEl,
+    detailTabsDividerEl,
+    detailTabsRowEl,
+    detailInviteSectionEl,
+    detailMessageMountEl,
+    tabMessage,
+    tabFreePromptEl,
+    acceptedModeEl,
+    firstMessageSentModeEl,
+  ]) {
+    if (!el) continue;
+    el.hidden = hideInvitationUi;
+    el.style.display = hideInvitationUi ? "none" : "";
+  }
+  if (companyLinkedRowEl) companyLinkedRowEl.hidden = isCompany || companyLinkedRowEl.hidden;
+  if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = true;
+  if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.hidden = true;
+  if (isCompany) {
+    if (companyLinkedNameEl) companyLinkedNameEl.hidden = true;
+    if (companyLinkSearchInputEl) companyLinkSearchInputEl.hidden = true;
+    if (companyLinkSearchOptionsEl) companyLinkSearchOptionsEl.innerHTML = "";
+  }
 }
 
 function setProfileEditMode(nextMode) {
   isProfileEditMode = Boolean(nextMode);
   renderProfileEditControls();
-  if (isProfileEditMode) {
+  if (isProfileEditMode && !isCompanyProfileMode()) {
     prepareCompanyDropdownForEdit().catch(() => null);
+    detailPersonNameEl?.focus();
+    detailPersonNameEl?.select();
+    return;
+  }
+  if (isProfileEditMode) {
     detailPersonNameEl?.focus();
     detailPersonNameEl?.select();
     return;
@@ -918,6 +1028,38 @@ function setProfileEditMode(nextMode) {
 }
 
 function renderDetailHeader({ force = false } = {}) {
+  if (isCompanyProfileMode()) {
+    const scraped = currentProfileContext || {};
+    const row = dbCompanyRow || {};
+    const companyName = coalesceDbThenScraped(
+      row.company_name,
+      scraped.company_name || scraped.name || scraped.full_name || "",
+    );
+    const employeeNumber = coalesceDbThenScraped(
+      row.employee_number,
+      scraped.employee_number || "",
+    );
+    const sector = coalesceDbThenScraped(row.sector, scraped.sector || "");
+    const city = coalesceDbThenScraped(row.city, scraped.city || "");
+    const itMembers = coalesceDbThenScraped(
+      row.it_members,
+      scraped.it_members || "",
+    );
+    if (!(isProfileEditMode && !force)) {
+      if (detailPersonNameEl) detailPersonNameEl.value = companyName.trim() || "-";
+      if (detailEmployeeNumberEl) {
+        detailEmployeeNumberEl.value = employeeNumber.trim() || "-";
+      }
+      if (detailHeadlineEl) detailHeadlineEl.value = sector.trim() || "-";
+      if (detailCommentsEl) detailCommentsEl.value = city.trim() || "-";
+      if (detailItMembersEl) detailItMembersEl.value = itMembers.trim() || "-";
+    }
+    if (currentProfileContext) currentProfileContext.it_members = itMembers.trim();
+    applyProfileModeUi();
+    renderProfileEditControls();
+    return;
+  }
+
   const scrapedName = (
     currentProfileContext?.name ||
     currentProfileContext?.full_name ||
@@ -954,8 +1096,11 @@ function renderDetailHeader({ force = false } = {}) {
 
   if (detailPersonNameEl) detailPersonNameEl.value = name;
   if (detailCompanyEl) detailCompanyEl.value = company;
+  if (detailEmployeeNumberEl) detailEmployeeNumberEl.value = "-";
   if (detailHeadlineEl) detailHeadlineEl.value = headline;
   if (detailCommentsEl) detailCommentsEl.value = comments;
+  if (detailItMembersEl) detailItMembersEl.value = "-";
+  applyProfileModeUi();
   renderProfileEditControls();
 }
 
@@ -1310,6 +1455,11 @@ function updatePhaseButtons() {
 }
 
 function setDetailInnerTab(tab) {
+  if (isCompanyProfileMode()) {
+    detailInnerTab = tab;
+    applyProfileModeUi();
+    return;
+  }
   detailInnerTab = tab;
   if (detailTabInviteBtnEl)
     detailTabInviteBtnEl.classList.toggle("active", tab === "invite");
@@ -1669,6 +1819,10 @@ function deriveLifecycleState(row) {
 }
 
 async function refreshInvitationRowFromDb({ preserveTabs = false } = {}) {
+  if (isCompanyProfileMode()) {
+    await refreshCompanyRowFromDb();
+    return;
+  }
   setFooterFetchingStatus();
   const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
   if (!linkedin_url) {
@@ -1725,6 +1879,26 @@ async function refreshInvitationRowFromDb({ preserveTabs = false } = {}) {
     renderDetailHeader();
     await refreshCompanySuggestionUiForCurrentInvitation();
     updatePhaseButtons();
+  } finally {
+    setFooterReady();
+  }
+}
+
+async function refreshCompanyRowFromDb() {
+  setFooterFetchingStatus();
+  const linkedin_id = normalizeCompanyLinkedinId();
+  if (!linkedin_id) {
+    dbCompanyRow = null;
+    renderDetailHeader();
+    setFooterReady();
+    return;
+  }
+  try {
+    const result = await sendRuntimeMessage("DB_GET_COMPANY_BY_LINKEDIN_ID", {
+      payload: { linkedin_id },
+    });
+    dbCompanyRow = result.ok ? result.data?.company || null : null;
+    renderDetailHeader();
   } finally {
     setFooterReady();
   }
@@ -2525,6 +2699,14 @@ function getProfileForGeneration(profile) {
     "location",
     "about",
     "recent_experience",
+    "is_company_profile",
+    "company_name",
+    "employee_number",
+    "sector",
+    "city",
+    "it_members",
+    "linkedin_id",
+    "company_page_excerpt",
   ];
 
   for (const key of copyKeys) {
@@ -2538,6 +2720,27 @@ function getProfileForGeneration(profile) {
   }
 
   return out;
+}
+
+function isCompanyProfileMode(profileContext = currentProfileContext) {
+  const url = String(getLinkedinUrlFromContext(profileContext) || "");
+  return /linkedin\.com\/company\//i.test(url);
+}
+
+function normalizeCompanyLinkedinId(profileContext = currentProfileContext) {
+  const raw =
+    profileContext?.linkedin_id || getLinkedinUrlFromContext(profileContext) || "";
+  const input = String(raw || "").trim();
+  if (!input) return "";
+  try {
+    const parsed = new URL(input);
+    const pathname = (parsed.pathname || "").replace(/\/+$/, "");
+    return `https://www.linkedin.com${pathname}`;
+  } catch (_e) {
+    const noHash = input.split("#")[0];
+    const noQuery = noHash.split("?")[0];
+    return noQuery.replace(/\/+$/, "");
+  }
 }
 
 function getLinkedinUrlFromContext(profileContext) {
@@ -2709,11 +2912,12 @@ function getFullNameFromContext(profileContext) {
   return profileContext?.name || profileContext?.full_name || null;
 }
 
-async function extractProfileContextFromActiveTab() {
+async function extractProfileContextFromActiveTab({ source = "" } = {}) {
   const activeTab = await getActiveTabForProfileCheck().catch(() => null);
   if (!Number.isInteger(activeTab?.id)) {
     throw new Error("No active tab found.");
   }
+  const activeTabUrl = canonicalizeLinkedInUrl(activeTab?.url || "");
 
   let resp = null;
   try {
@@ -2731,7 +2935,18 @@ async function extractProfileContextFromActiveTab() {
       getErrorMessage(resp?.error) || UI_TEXT.couldNotExtractProfileContext,
     );
   }
-  return getProfileForGeneration(resp.profile);
+  const profile = getProfileForGeneration(resp.profile);
+  const scrapedUrl = canonicalizeLinkedInUrl(getLinkedinUrlFromContext(profile) || "");
+  if (activeTabUrl && scrapedUrl && activeTabUrl !== scrapedUrl) {
+    throw new Error("Scraped page URL does not match active tab URL.");
+  }
+  console.log("[LEF][active page scrape]", {
+    source,
+    active_tab_url: activeTabUrl,
+    scraped_url: scrapedUrl,
+    is_company_profile: isCompanyProfileMode(profile),
+  });
+  return profile;
 }
 
 function clearFreePromptPreview() {
@@ -2746,6 +2961,7 @@ function applyProfileExtractionFailureState(statusText) {
   lastProfileContextSent = {};
   lastProfileContextEnriched = null;
   dbInvitationRow = null;
+  dbCompanyRow = null;
   setCampaignSelectValue("");
   if (previewEl) previewEl.textContent = "";
   if (firstMessagePreviewEl) firstMessagePreviewEl.textContent = "";
@@ -2783,6 +2999,7 @@ async function refreshAll() {
     lastProfileContextSent = {};
     lastProfileContextEnriched = null;
     dbInvitationRow = null;
+    dbCompanyRow = null;
     setCampaignSelectValue("");
     clearFreePromptPreview();
     updateMessageTabControls();
@@ -2816,8 +3033,14 @@ async function refreshAll() {
       clearFreePromptPreview();
     }
     currentProfileContext = profileContext;
+    dbCompanyRow = null;
     lastProfileContextSent = profileContext;
     lastProfileContextEnriched = null;
+    if (isCompanyProfileMode(profileContext)) {
+      console.log("[LEF][company profile detected]", {
+        linkedin_id: normalizeCompanyLinkedinId(profileContext),
+      });
+    }
     updateMessageTabControls();
     await refreshInvitationRowFromDb();
     renderDetailHeader();
@@ -3284,9 +3507,13 @@ function setActiveTab(which, { userInitiated = false } = {}) {
     tabSupabaseAuth.classList.toggle("active", supabaseAuthActive);
   if (tabMessage)
     tabMessage.hidden =
+      isCompanyProfileMode() ||
       !detailActive ||
       detailInnerTab === "invite" ||
       detailInnerTab === "free_prompt";
+  if (isCompanyProfileMode()) {
+    applyProfileModeUi();
+  }
 
   if (freePromptActive) {
     setDetailInnerTab("free_prompt");
@@ -3804,7 +4031,28 @@ function bindGenerateFirstMessageClickHandler() {
 bindGenerateFirstMessageClickHandler();
 
 async function extractAndPersistProfileDetails() {
-  const extracted = await extractProfileDetailsFromLlm();
+  const profileContext = await extractProfileContextFromActiveTab({
+    source: "llm_click",
+  });
+  currentProfileContext = profileContext;
+  lastProfileContextSent = profileContext;
+  lastProfileContextEnriched = null;
+  renderDetailHeader();
+
+  if (isCompanyProfileMode(profileContext)) {
+    const extracted = await extractCompanyDetailsFromLlm(profileContext);
+    const saveResult = await sendRuntimeMessage("DB_UPSERT_COMPANY_PROFILE", {
+      payload: extracted,
+    });
+    const saveResp = saveResult.data || {};
+    if (!saveResult.ok || !saveResp?.ok) {
+      throw new Error(
+        `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(saveResult.error || saveResp?.error)}`,
+      );
+    }
+    return;
+  }
+  const extracted = await extractProfileDetailsFromLlm(profileContext);
 
   setFooterUpdatingStatus();
   const saveResult = await sendRuntimeMessage(
@@ -3827,8 +4075,80 @@ async function extractAndPersistProfileDetails() {
   }
 }
 
-async function extractProfileDetailsFromLlm() {
-  const profileContext = await extractProfileContextFromActiveTab();
+async function extractCompanyDetailsFromLlm(scrapedProfileContext = null) {
+  const profileContext =
+    scrapedProfileContext ||
+    (await extractProfileContextFromActiveTab({ source: "company_llm" }));
+  currentProfileContext = profileContext;
+  lastProfileContextSent = profileContext;
+  const linkedin_id = normalizeCompanyLinkedinId(profileContext);
+  if (!linkedin_id) throw new Error("Missing linkedin_id.");
+  if (!isCompanyProfileMode(profileContext)) {
+    throw new Error("Active LinkedIn page is not a company profile.");
+  }
+  console.log("[LEF][company profile detected]", { linkedin_id });
+  console.log("[LEF][company scrape result]", {
+    company_name: profileContext.company_name || "",
+    employee_number: profileContext.employee_number || "",
+    sector: profileContext.sector || "",
+    city: profileContext.city || "",
+    it_members: profileContext.it_members || "",
+  });
+
+  const [{ apiKey: apiKeyLocal }, { model }] = await Promise.all([
+    chrome.storage.local.get(["apiKey"]),
+    chrome.storage.sync.get(["model"]),
+  ]);
+  let apiKey = (apiKeyLocal || "").trim();
+  if (!apiKey) {
+    const typed = (apiKeyEl.value || "").trim();
+    if (typed) {
+      apiKey = typed;
+      await chrome.storage.local.set({ apiKey });
+    }
+  }
+  if (!apiKey) {
+    setActiveTab("config");
+    throw new Error(UI_TEXT.setApiKeyInConfig);
+  }
+
+  console.log("[LEF][company LLM payload]", {
+    linkedin_id,
+    company_name: profileContext.company_name || "",
+    employee_number: profileContext.employee_number || "",
+    sector: profileContext.sector || "",
+    city: profileContext.city || "",
+    it_members: profileContext.it_members || "",
+    excerpt_chars: String(profileContext.company_page_excerpt || "").length,
+  });
+  const enrichResult = await sendRuntimeMessage("ENRICH_COMPANY_PROFILE", {
+    payload: {
+      apiKey,
+      model: (model || "gpt-4.1").trim(),
+      profile: { ...profileContext, linkedin_id },
+    },
+  });
+  const enrichResp = enrichResult.data || {};
+  if (!enrichResult.ok || !enrichResp?.ok) {
+    throw new Error(getErrorMessage(enrichResult.error || enrichResp?.error));
+  }
+  console.log("[LEF][company AI extraction result]", enrichResp);
+  return {
+    linkedin_id,
+    company_name: safeTrim(enrichResp.company_name || profileContext.company_name),
+    employee_number: safeTrim(
+      enrichResp.employee_number || profileContext.employee_number,
+    ),
+    sector: safeTrim(enrichResp.sector || profileContext.sector),
+    city: safeTrim(enrichResp.city || profileContext.city),
+    it_members: safeTrim(enrichResp.it_members || profileContext.it_members),
+  };
+}
+
+async function extractProfileDetailsFromLlm(scrapedProfileContext = null) {
+  const profileContext =
+    scrapedProfileContext ||
+    (await extractProfileContextFromActiveTab({ source: "person_llm" }));
   currentProfileContext = profileContext;
   lastProfileContextSent = profileContext;
   lastProfileContextEnriched = null;
@@ -3931,9 +4251,9 @@ function bindProfileEditControls() {
   saveProfileFieldsBtnEl?.addEventListener("click", async () => {
     if (isProfileSaveInFlight) return;
 
-    const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
-    if (!linkedin_url) {
-      setFooterStatus(UI_TEXT.missingLinkedinUrl);
+    const targetUrl = getLinkedinUrlFromContext(currentProfileContext);
+    if (!targetUrl) {
+      setFooterStatus(isCompanyProfileMode() ? "Missing linkedin_id." : UI_TEXT.missingLinkedinUrl);
       return;
     }
 
@@ -3942,6 +4262,57 @@ function bindProfileEditControls() {
     setFooterUpdatingStatus();
 
     try {
+      if (isCompanyProfileMode()) {
+        const payload = {
+          linkedin_id: normalizeCompanyLinkedinId(currentProfileContext),
+          company_name: normalizeWhitespace(
+            (detailPersonNameEl?.value || "").trim() === "-"
+              ? ""
+              : detailPersonNameEl?.value || "",
+          ),
+          employee_number: normalizeWhitespace(
+            (detailEmployeeNumberEl?.value || "").trim() === "-"
+              ? ""
+              : detailEmployeeNumberEl?.value || "",
+          ),
+          sector: normalizeWhitespace(
+            (detailHeadlineEl?.value || "").trim() === "-"
+              ? ""
+              : detailHeadlineEl?.value || "",
+          ),
+          city: normalizeWhitespace(
+            (detailCommentsEl?.value || "").trim() === "-"
+              ? ""
+              : detailCommentsEl?.value || "",
+          ),
+          it_members: safeTrim(currentProfileContext?.it_members || ""),
+        };
+        payload.it_members = normalizeWhitespace(
+          (detailItMembersEl?.value || "").trim() === "-"
+            ? ""
+            : detailItMembersEl?.value || "",
+        );
+        const result = await sendRuntimeMessage("DB_UPSERT_COMPANY_PROFILE", {
+          payload,
+        });
+        const resp = result.data || {};
+        if (!result.ok || !resp?.ok) {
+          throw new Error(getErrorMessage(result.error || resp?.error));
+        }
+        if (currentProfileContext) {
+          currentProfileContext.company_name = payload.company_name;
+          currentProfileContext.employee_number = payload.employee_number;
+          currentProfileContext.sector = payload.sector;
+          currentProfileContext.city = payload.city;
+          currentProfileContext.it_members = payload.it_members;
+        }
+        isProfileEditMode = false;
+        renderProfileEditControls();
+        await refreshCompanyRowFromDb();
+        setFooterStatus("Saved.");
+        return;
+      }
+
       const full_name = normalizeWhitespace(
         (detailPersonNameEl?.value || "").trim() === "-"
           ? ""
@@ -3969,7 +4340,7 @@ function bindProfileEditControls() {
 
       const result = await sendRuntimeMessage("DB_UPDATE_PROFILE_FIELDS", {
         payload: {
-          linkedin_url,
+          linkedin_url: targetUrl,
           full_name,
           company: companyToSave,
           company_id: selectedCompanyId || undefined,

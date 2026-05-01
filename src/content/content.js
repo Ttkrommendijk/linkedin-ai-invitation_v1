@@ -73,6 +73,7 @@ function firstNonEmptyText(selectors) {
 
 function extractProfile() {
   const url = window.location.href;
+  const isCompanyProfile = /linkedin\.com\/company\//i.test(url);
 
   let name =
     cleanText(document.querySelector("h1")?.innerText) ||
@@ -128,6 +129,60 @@ function extractProfile() {
     about,
     recent_experience,
   };
+
+  if (isCompanyProfile) {
+    const companyName =
+      firstNonEmptyText([
+        "main h1",
+        ".org-top-card-summary__title",
+        ".org-top-card-primary-content__title",
+      ]) || nameFromTitle();
+    const topCardText = firstNonEmptyText([
+      ".org-top-card-summary__tagline",
+      ".org-top-card-summary-info-list",
+      ".org-about-company-module__company-size-definition-text",
+      "main",
+    ]);
+    const employeeNumber = cleanText(
+      (
+        topCardText.match(
+          /(\d[\d.,\s-]{0,40}(employees|funcion[aá]rios|colaboradores))/i,
+        ) || [""]
+      )[0],
+    );
+    const sector = firstNonEmptyText([
+      '[data-test-id="about-us__industry"] dd',
+      ".org-page-details__definition-text",
+    ]);
+    const city = firstNonEmptyText([
+      '[data-test-id="about-us__headquarters"] dd',
+      ".org-location-card .t-14",
+      ".org-top-card-summary-info-list__info-item",
+    ]);
+    const itMembers = cleanText(
+      (
+        truncatedMain.match(
+          /(\d[\d.,\s-]{0,30}(IT|information technology|engenharia|technology)\s+(members|funcion[aá]rios|people|pessoas))/i,
+        ) || [""]
+      )[0],
+    );
+    profile.is_company_profile = true;
+    profile.company_name = companyName || "";
+    profile.employee_number = employeeNumber || "";
+    profile.sector = sector || "";
+    profile.city = city || "";
+    profile.it_members = itMembers || "";
+    profile.linkedin_id = url;
+    profile.company_page_excerpt = sanitizeExcerpt(truncatedMain, 2200);
+    console.log("[LEF][company scrape result]", {
+      company_name: profile.company_name || "",
+      employee_number: profile.employee_number || "",
+      sector: profile.sector || "",
+      city: profile.city || "",
+      it_members: profile.it_members || "",
+      linkedin_id: profile.linkedin_id || "",
+    });
+  }
 
   if (excerptFallback) {
     profile.excerpt_fallback = excerptFallback;

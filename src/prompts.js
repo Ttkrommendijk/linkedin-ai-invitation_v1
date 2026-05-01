@@ -78,6 +78,33 @@ Rules:
   }
 
   /**
+--------------------------------EXTRACT COMPANY ------------------------------------------
+  * Purpose: Build an extraction-only system prompt for company profile enrichment.
+   * Used when: Clicking Enrich data on a LinkedIn company page.
+   * Inputs: none
+   * Output: string (system prompt text)
+   */
+  function buildCompanyExtractionPrompt() {
+    return `Extract company fields from a LinkedIn company page context.
+
+Return strict JSON only (no markdown, no prose) with exactly:
+{
+  "company_name": string,
+  "employee_number": string,
+  "sector": string,
+  "city": string,
+}
+
+Rules:
+- "company_name" must be only the company/organization name.
+- "employee_number" means total employee count or company size if available. lok for employee of funcionários
+- "sector" means industry/sector use the exact name as in the page information.
+- "city" means headquarters or primary location city.
+- Never invent facts; use only the provided company page context.
+- If a value cannot be confidently extracted, return an empty string for that field.`;
+  }
+
+  /**
  --------------------------------CREATE INVITATION ------------------------------------------
   * Purpose: Build an invitation-writing-only system prompt.
    * Used when: Clicking Generate invite.
@@ -314,6 +341,7 @@ ${profileContextBlock(profileContext || {})}
 
   global.LEFPrompts = {
     buildProfileExtractionPrompt,
+    buildCompanyExtractionPrompt,
     buildInviteTextPrompt,
     buildFirstMessageTextPrompt,
     buildFollowupPrompt,

@@ -100,7 +100,9 @@
                                 </button>
                             </div>
                         </div>
-                        <div class="company-display-label">Company:</div>
+                        <div id="detailCompanyLabel" class="company-display-label">
+                            Company:
+                        </div>
                         <input
                             id="detailCompany"
                             class="detail-person-company"
@@ -142,6 +144,24 @@
                         >
                             No linked company found
                         </div>
+                        <div
+                            id="detailEmployeeNumberLabel"
+                            class="company-display-label"
+                            hidden
+                        >
+                            Employee number:
+                        </div>
+                        <input
+                            id="detailEmployeeNumber"
+                            class="detail-person-company"
+                            type="text"
+                            value="-"
+                            readonly
+                            hidden
+                        />
+                        <div id="detailHeadlineLabel" class="company-display-label">
+                            Job title:
+                        </div>
                         <input
                             id="detailHeadline"
                             class="detail-person-headline"
@@ -149,15 +169,28 @@
                             value="-"
                             readonly
                         />
+                        <div id="detailCommentsLabel" class="company-display-label">
+                            Comments:
+                        </div>
                         <textarea
                             id="detailComments"
                             class="detail-person-comments"
                             rows="3"
                             readonly
                         ></textarea>
+                        <div id="detailItMembersLabel" class="company-display-label">
+                            IT members:
+                        </div>
+                        <input
+                            id="detailItMembers"
+                            class="detail-person-headline"
+                            type="text"
+                            value="-"
+                            readonly
+                        />
                     </div>
-                    <div class="section-divider"></div>
-                    <div class="form-group campaign-group">
+                    <div id="campaignDivider" class="section-divider"></div>
+                    <div id="campaignGroup" class="form-group campaign-group">
                         <label><small>Campaign</small></label>
                         <div class="campaign-main-row filter-field">
                             <select id="campaignSelect" class="campaign-select">
@@ -200,7 +233,7 @@
                             Used to group invites. One campaign per person.
                         </div>
                     </div>
-                    <div class="section-divider"></div>
+                    <div id="statusDivider" class="section-divider"></div>
 
                     <div id="statusStepper" class="status-stepper">
                         <div
@@ -275,9 +308,9 @@
                             </button>
                         </div>
                     </div>
-                    <div class="section-divider"></div>
+                    <div id="detailTabsDivider" class="section-divider"></div>
 
-                    <div class="row inline detail-tabs">
+                    <div id="detailTabsRow" class="row inline detail-tabs">
                         <button
                             id="detailTabInviteBtn"
                             class="detail-tab-btn active"

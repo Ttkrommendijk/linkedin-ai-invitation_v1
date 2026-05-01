@@ -260,6 +260,43 @@ function parseProfileExtractionJson(rawText) {
   };
 }
 
+function parseCompanyExtractionJson(rawText) {
+  let parsed;
+  try {
+    parsed = JSON.parse(rawText);
+  } catch (_e) {
+    const err = new Error("Model returned invalid JSON.");
+    err.details = { reason: "invalid_json" };
+    throw err;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    const err = new Error("Model returned invalid JSON object.");
+    err.details = { reason: "invalid_json" };
+    throw err;
+  }
+  const allowedKeys = new Set([
+    "company_name",
+    "employee_number",
+    "sector",
+    "city",
+    "it_members",
+  ]);
+  const keys = Object.keys(parsed);
+  const hasInvalidKeys = keys.some((k) => !allowedKeys.has(k));
+  if (hasInvalidKeys) {
+    const err = new Error("Model returned unexpected JSON schema.");
+    err.details = { reason: "invalid_json" };
+    throw err;
+  }
+  return {
+    company_name: normalizeProfileField(parsed.company_name),
+    employee_number: normalizeProfileField(parsed.employee_number),
+    sector: normalizeProfileField(parsed.sector),
+    city: normalizeProfileField(parsed.city),
+    it_members: normalizeProfileField(parsed.it_members),
+  };
+}
+
 function extractRawModelText(data) {
   const direct = normalizeProfileField(data?.output_text || "");
   if (direct) return direct;
@@ -610,6 +647,84 @@ async function callOpenAIProfileExtraction({ apiKey, model, profile }) {
   const data = await res.json();
   const result = parseProfileExtractionFromResponseData(data);
   return result.parsed;
+}
+
+async function callOpenAICompanyExtraction({ apiKey, model, profile }) {
+  const res = await fetchOpenAIWithRetry("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      max_output_tokens: 180,
+      text: {
+        format: {
+          type: "json_schema",
+          name: "company_extraction",
+          strict: true,
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              company_name: { type: "string" },
+              employee_number: { type: "string" },
+              sector: { type: "string" },
+              city: { type: "string" },
+              it_members: { type: "string" },
+            },
+            required: [
+              "company_name",
+              "employee_number",
+              "sector",
+              "city",
+              "it_members",
+            ],
+          },
+        },
+      },
+      input: [
+        {
+          role: "system",
+          content: [
+            {
+              type: "input_text",
+              text: LEF_PROMPTS.buildCompanyExtractionPrompt(),
+            },
+          ],
+        },
+        {
+          role: "user",
+          content: [{ type: "input_text", text: JSON.stringify(profile || {}) }],
+        },
+      ],
+    }),
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("openai", res.status, txt || res.statusText);
+  }
+  const data = await res.json();
+  if (data?.output_parsed && typeof data.output_parsed === "object") {
+    return parseCompanyExtractionJson(JSON.stringify(data.output_parsed));
+  }
+  const rawText = extractRawModelText(data);
+  return parseCompanyExtractionJson(rawText || "{}");
+}
+
+function normalizeLinkedinCompanyUrl(value) {
+  const raw = normalizeProfileField(value);
+  if (!raw) return "";
+  try {
+    const parsed = new URL(raw);
+    const path = (parsed.pathname || "").replace(/\/+$/, "");
+    return `https://www.linkedin.com${path}`;
+  } catch (_e) {
+    const noHash = raw.split("#")[0];
+    const noQuery = noHash.split("?")[0];
+    return noQuery.replace(/\/+$/, "");
+  }
 }
 
 async function callOpenAIFirstMessage({
@@ -1624,6 +1739,70 @@ async function supabaseConfirmCompanyLink({
   }
 }
 
+async function supabaseGetCompanyByLinkedinId({ linkedin_id }) {
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
+  const normalizedLinkedinId = normalizeLinkedinCompanyUrl(linkedin_id);
+  if (!normalizedLinkedinId) return null;
+  const url = `${supabaseUrl}/rest/v1/company?select=company_id,linkedin_id,company_name,employee_number,it_members,sector,city&linkedin_id=eq.${encodeURIComponent(normalizedLinkedinId)}&limit=1`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "GET",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    },
+    15000,
+    "Supabase request",
+  );
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+  const rows = await res.json();
+  return Array.isArray(rows) && rows.length ? rows[0] : null;
+}
+
+async function supabaseUpsertCompanyProfile(payload) {
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
+  const linkedin_id = normalizeLinkedinCompanyUrl(payload?.linkedin_id);
+  if (!linkedin_id) throw new Error("Missing linkedin_id.");
+  const companyPatch = {
+    linkedin_id,
+    company_name: normalizeProfileField(payload?.company_name),
+    employee_number: normalizeProfileField(payload?.employee_number),
+    it_members: normalizeProfileField(payload?.it_members),
+    sector: normalizeProfileField(payload?.sector),
+    city: normalizeProfileField(payload?.city),
+  };
+  const url = `${supabaseUrl}/rest/v1/company?on_conflict=linkedin_id`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "POST",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        Prefer: "resolution=merge-duplicates,return=representation",
+      },
+      body: JSON.stringify([companyPatch]),
+    },
+    15000,
+    "Supabase request",
+  );
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+  const rows = await res.json().catch(() => []);
+  return Array.isArray(rows) && rows.length ? rows[0] : null;
+}
+
 async function supabaseIncrementMessageCount({ linkedin_url, delta }) {
   const { supabaseUrl, supabaseAnonKey, accessToken } =
     await getSupabaseRequestContext();
@@ -2243,6 +2422,24 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
 
+  if (msg?.type === "ENRICH_COMPANY_PROFILE") {
+    (async () => {
+      emitUiStatus("Sending to LLM\u2026");
+      try {
+        const extraction = await callOpenAICompanyExtraction(msg.payload || {});
+        console.log("[LEF][company AI extraction result]", extraction);
+        sendResponse({ ok: true, ...extraction });
+      } catch (e) {
+        console.log("[LEF][company save failed]", e);
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "GENERATION_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
   if (msg?.type === "GENERATE_FIRST_MESSAGE") {
     (async () => {
       emitUiStatus("Sending to LLM\u2026");
@@ -2608,6 +2805,22 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
 
+  if (msg?.type === "DB_GET_COMPANY_BY_LINKEDIN_ID") {
+    (async () => {
+      emitUiStatus("Fetching\u2026");
+      try {
+        const company = await supabaseGetCompanyByLinkedinId(msg?.payload || {});
+        sendResponse({ ok: true, company });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_GET_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
   if (msg?.type === "DB_SEARCH_COMPANIES") {
     (async () => {
       emitUiStatus("Fetching\u2026");
@@ -2631,6 +2844,28 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         await supabaseConfirmCompanyLink(msg?.payload || {});
         sendResponse({ ok: true });
       } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "DB_UPSERT_COMPANY_PROFILE") {
+    (async () => {
+      emitUiStatus("Updating\u2026");
+      try {
+        const existing = await supabaseGetCompanyByLinkedinId(msg?.payload || {});
+        const company = await supabaseUpsertCompanyProfile(msg?.payload || {});
+        console.log(
+          existing ? "[LEF][company row updated]" : "[LEF][company row created]",
+          { linkedin_id: normalizeLinkedinCompanyUrl(msg?.payload?.linkedin_id) },
+        );
+        sendResponse({ ok: true, company });
+      } catch (e) {
+        console.log("[LEF][company save failed]", e);
         sendResponse({
           ok: false,
           error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),

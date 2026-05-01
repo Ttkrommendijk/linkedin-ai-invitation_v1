@@ -238,6 +238,20 @@ button:disabled {
     margin-top: 10px;
     overflow: visible;
 }
+
+.company-profile-mode #campaignDivider,
+.company-profile-mode #campaignGroup,
+.company-profile-mode #statusDivider,
+.company-profile-mode #statusStepper,
+.company-profile-mode #stepperUnderlay,
+.company-profile-mode #detailTabsDivider,
+.company-profile-mode #detailTabsRow,
+.company-profile-mode #detailInviteSection,
+.company-profile-mode #detailMessageMount,
+.company-profile-mode #tabMessage,
+.company-profile-mode #tabFreePrompt {
+    display: none !important;
+}
 .status-step {
     position: relative;
     display: flex;
