@@ -2262,6 +2262,7 @@ const SIDEPANEL_REFRESH_DEBOUNCE_MS = 500;
 const sidePanelRefreshTimers = new Map();
 const lastSidePanelUrlByTab = new Map();
 let lastActivatedLinkedInTabId = null;
+const lastForcedCompanyReloadByTab = new Map();
 
 function timingLog(eventName, details = {}) {
   console.log("[LEF][timing]", eventName, {
@@ -2276,6 +2277,37 @@ function isLinkedInProfileLikeUrl(url) {
   }
   if (!url || typeof url !== "string") return false;
   return /^https:\/\/www\.linkedin\.com\/(in|company|school)\/[^/?#]+/i.test(url);
+}
+
+function canonicalizeLinkedInUrl(rawUrl) {
+  const input = String(rawUrl || "").trim();
+  if (!input) return "";
+  try {
+    const parsed = new URL(input);
+    const pathname = (parsed.pathname || "").replace(/\/+$/, "") || "/";
+    return `https://www.linkedin.com${pathname}`;
+  } catch (_e) {
+    const noHash = input.split("#")[0];
+    const noQuery = noHash.split("?")[0];
+    return noQuery.replace(/\/+$/, "") || "";
+  }
+}
+
+function isLinkedInCompanyLikeUrl(url) {
+  return /^https:\/\/www\.linkedin\.com\/(company|school)\/[^/?#]+/i.test(
+    String(url || ""),
+  );
+}
+
+function maybeForceReloadForCompanySpaNavigation(tabId, url, source) {
+  if (!Number.isInteger(tabId) || !isLinkedInCompanyLikeUrl(url)) return false;
+  const canonicalUrl = canonicalizeLinkedInUrl(url);
+  if (!canonicalUrl) return false;
+  if (lastForcedCompanyReloadByTab.get(tabId) === canonicalUrl) return false;
+  lastForcedCompanyReloadByTab.set(tabId, canonicalUrl);
+  timingLog("company_spa_reload_forced", { source, tabId, url: canonicalUrl });
+  chrome.tabs.reload(tabId).catch(() => null);
+  return true;
 }
 
 async function notifySidePanelRefresh({ tabId, url, reason }) {
@@ -2365,6 +2397,15 @@ chrome.webNavigation.onHistoryStateUpdated.addListener((details) => {
     tabId: details.tabId,
     url: details.url,
   });
+  if (
+    maybeForceReloadForCompanySpaNavigation(
+      details.tabId,
+      details.url,
+      "webNavigation.onHistoryStateUpdated",
+    )
+  ) {
+    return;
+  }
   scheduleSidePanelRefresh(
     details.tabId,
     details.url,
@@ -2377,6 +2418,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   if (timer) clearTimeout(timer);
   sidePanelRefreshTimers.delete(tabId);
   lastSidePanelUrlByTab.delete(tabId);
+  lastForcedCompanyReloadByTab.delete(tabId);
 });
 
 function emitUiStatus(text) {
