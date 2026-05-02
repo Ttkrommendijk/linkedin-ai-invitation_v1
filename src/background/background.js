@@ -2117,7 +2117,7 @@ async function supabaseUpsertCampaignMinimal({
 async function supabaseGetPrompts() {
   const { supabaseUrl, supabaseAnonKey, accessToken } =
     await getSupabaseRequestContext();
-  const url = `${supabaseUrl}/rest/v1/prompt?select=id,name,prompt&order=name.asc.nullslast`;
+  const url = `${supabaseUrl}/rest/v1/prompt?select=prompt_id,prompt_name,prompt_text&order=prompt_name.asc.nullslast`;
   const res = await fetchWithTimeout(
     url,
     {
@@ -2159,8 +2159,8 @@ async function supabaseCreatePrompt({ name, prompt }) {
       },
       body: JSON.stringify([
         {
-          name: normalizedName,
-          prompt: normalizeProfileField(prompt),
+          prompt_name: normalizedName,
+          prompt_text: normalizeProfileField(prompt),
         },
       ]),
     },
@@ -2182,7 +2182,7 @@ async function supabaseUpdatePrompt({ id, prompt }) {
   if (!targetId) {
     throw new Error("Prompt id is required.");
   }
-  const url = `${supabaseUrl}/rest/v1/prompt?id=eq.${encodeURIComponent(targetId)}`;
+  const url = `${supabaseUrl}/rest/v1/prompt?prompt_id=eq.${encodeURIComponent(targetId)}`;
   const res = await fetchWithTimeout(
     url,
     {
@@ -2194,7 +2194,7 @@ async function supabaseUpdatePrompt({ id, prompt }) {
         Prefer: "return=representation",
       },
       body: JSON.stringify({
-        prompt: normalizeProfileField(prompt),
+        prompt_text: normalizeProfileField(prompt),
       }),
     },
     15000,

@@ -107,6 +107,15 @@ function normalizePromptName(value) {
   return String(value || "").trim();
 }
 
+function toPromptRow(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  return {
+    id: String(raw.prompt_id ?? raw.id ?? ""),
+    name: normalizePromptName(raw.prompt_name ?? raw.name ?? ""),
+    prompt: normalizePromptText(raw.prompt_text ?? raw.prompt ?? ""),
+  };
+}
+
 function setNewPromptRowVisible(visible) {
   if (!newPromptRowEl) return;
   newPromptRowEl.hidden = !visible;
@@ -177,16 +186,14 @@ function rebuildPromptSelectOptions() {
 
 async function loadPromptOptions() {
   if (!promptSelectEl || !deps.sendRuntimeMessage) return;
+  console.log("[LEF][prompt] loading prompt options");
   const result = await deps.sendRuntimeMessage("GET_PROMPTS");
   if (!result.ok) {
     throw new Error(result.error || "Could not load prompts.");
   }
   const rows = Array.isArray(result?.data?.prompts) ? result.data.prompts : [];
-  promptRowsCache = rows.map((row) => ({
-    id: row?.id,
-    name: normalizePromptName(row?.name),
-    prompt: normalizePromptText(row?.prompt),
-  }));
+  console.log("[LEF][prompt] prompt options loaded", { count: rows.length });
+  promptRowsCache = rows.map(toPromptRow).filter(Boolean);
   rebuildPromptSelectOptions();
 }
 
@@ -226,18 +233,19 @@ async function createPromptFromInline() {
     throw new Error(result.error || "Could not create prompt.");
   }
   const created = result?.data?.prompt || null;
-  if (!created?.id) {
+  const createdRow = toPromptRow(created);
+  if (!createdRow?.id) {
     throw new Error("Could not create prompt.");
   }
   promptRowsCache.push({
-    id: created.id,
-    name: normalizePromptName(created.name || name),
-    prompt: normalizePromptText(created.prompt || promptText),
+    id: createdRow.id,
+    name: createdRow.name || name,
+    prompt: createdRow.prompt || promptText,
   });
   promptRowsCache.sort((a, b) => a.name.localeCompare(b.name));
-  setPromptSelectValue(String(created.id));
+  setPromptSelectValue(String(createdRow.id));
   rebuildPromptSelectOptions();
-  applyPromptSelectionById(String(created.id));
+  applyPromptSelectionById(String(createdRow.id));
   setNewPromptRowVisible(false);
 }
 

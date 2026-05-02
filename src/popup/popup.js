@@ -3722,7 +3722,7 @@ function runPopupInit() {
 
   bindConfigEvents();
   loadSettings().catch((_e) => {});
-  refreshSupabaseAuthUi().catch(() => null);
+  const supabaseAuthUiPromise = refreshSupabaseAuthUi().catch(() => null);
   setAuthInnerTab("signup");
   if (IS_SIDE_PANEL_CONTEXT) {
     document.body.classList.add("is-sidepanel");
@@ -3801,7 +3801,12 @@ function runPopupInit() {
   loadFirstMessagePrompt().catch((_e) => {
     syncFirstMessagePromptSavedState();
   });
-  loadPromptOptions().catch((_e) => {});
+  supabaseAuthUiPromise.finally(() => {
+    loadPromptOptions().catch((e) => {
+      console.warn("[LEF][prompt] failed to load prompt options", e);
+      setFooterStatus(`Prompt load error: ${getErrorMessage(e)}`);
+    });
+  });
   loadMessageLanguage().catch((_e) => {});
   loadFreePromptLanguage().catch((_e) => {});
   loadCampaignOptions({ keepSelected: true })
