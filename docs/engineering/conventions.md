@@ -1,56 +1,61 @@
 ﻿# Conventions
 
-This document defines coding conventions and structural guidelines for the current codebase.
+This document defines coding conventions and structural guidelines for the codebase.
 
-The goal is to reflect the CURRENT implementation accurately while defining optional future targets without forcing refactors.
+The goal is to:
+- Reflect the CURRENT implementation accurately
+- Support the planned refactoring (UI + modular JS split)
+- Avoid unnecessary or premature refactors
+- Keep behavior stable while improving structure
 
 ---
 
-## Naming (D – Maintain Current Convention)
+## Naming (Current Standard)
 
-We maintain the current naming patterns and do NOT refactor at this time.
+We maintain existing naming patterns. No refactor required.
 
-Functions  
+### Functions
 - camelCase
 
-Constants  
+### Constants
 - UPPER_SNAKE_CASE
 
-Message types  
-- UPPER_SNAKE_CASE strings
+### Message Types
+- UPPER_SNAKE_CASE (string values)
 
-Profile fields (CURRENT accepted contract)
+---
 
-- A small set of single-word keys is intentionally kept in simple lower form:
-  - url
-  - name
-  - headline
-  - company
-  - location
-  - about
+## Profile Field Contract (Current)
 
-- Multi-word fields use snake_case:
-  - first_name
-  - recent_experience
-  - excerpt_fallback
-  - profile_url
-  - linkedin_url
-  - full_name
+The profile object intentionally uses a mixed naming style.
 
-This mixed style is the CURRENT accepted contract and does not require refactoring.
+### Single-word fields (simple lowercase)
+- url
+- name
+- headline
+- company
+- location
+- about
 
-Notes:
+### Multi-word fields (snake_case)
+- first_name
+- recent_experience
+- excerpt_fallback
+- profile_url
+- linkedin_url
+- full_name
 
-- `url` represents the extracted URL from the page.
-- `profile_url` / `linkedin_url` may be used in normalized or downstream contexts.
-- Duplication of URL-style fields is acceptable under the current contract.
+This is the accepted current contract. No normalization required.
 
-Target (optional future upgrade, not required now):
+### Notes
 
-- Full normalization to all-snake_case profile keys.
-- Eliminate overlapping URL fields after schema consolidation.
+- url represents the raw extracted URL from the page
+- profile_url and linkedin_url are used for normalized or downstream contexts
+- Duplicate URL fields are intentionally allowed
 
-Compliant CURRENT example:
+---
+
+## Example (Current Compliant)
 
 {
   "url": "https://www.linkedin.com/in/example-person/",
@@ -69,68 +74,164 @@ Compliant CURRENT example:
 
 ---
 
-## Folder Structure (Current)
+## UI Structure (Refactored Model)
 
-Flat structure:
+The popup is organized by domain, not by feature mixing.
 
-- manifest.json
-- background.js
-- content.js
-- popup.js
-- popup.html
-- popup.css
+### Top-Level Tabs
 
-This structure is intentional for current scope.
-
-Future modularization may occur if complexity increases.
-
-No structural refactor required at this stage.
+- Person
+- Company
+- Prompts
+- Configuration
 
 ---
 
-## State Management (F)
+## Responsibilities
+
+### Person
+- Profile context
+- Invitation generation
+- Invitation lifecycle
+- First message trigger
+- Follow-up trigger
+
+### Company
+- Company context extraction
+- Company-level data
+- Future enrichment logic
+
+### Prompts
+- Invitation strategy
+- First message prompt
+- Follow-up prompt
+
+### Configuration
+- OpenAI settings
+- Supabase settings
+
+---
+
+## Folder Structure
+
+### Current (Flat)
+
+manifest.json  
+background.js  
+content.js  
+popup.js  
+popup.html  
+popup.css  
+
+---
+
+### Target (Modular, Incremental)
+
+popup.html  
+popup.css  
+popup.js  
+
+js/  
+  popup-tabs.js  
+  popup-person.js  
+  popup-messages.js  
+  popup-prompts.js  
+  popup-config.js  
+
+css/  
+  popup-layout.css  
+  popup-tabs.css  
+  popup-forms.css  
+
+---
+
+### Rules
+
+- Do not move everything at once
+- Extract by responsibility
+- Keep popup.js as orchestrator initially
+- Preserve all existing ids and message types
+
+---
+
+## State Management
 
 ### Current
-
-Popup implementation uses:
-
 - Local variables
-- Direct DOM updates
-- No centralized state module
+- Direct DOM manipulation
+- No centralized state
 
-This is acceptable due to small scope and limited UI complexity.
-
-### Recommendation (Future)
-
-If popup logic grows significantly:
-
-- Introduce a single state object
-- Introduce setState() + render() pattern
-- Avoid scattered DOM mutations
-
-No change required now.
+This is acceptable for current scope.
 
 ---
 
-## Theming and Styles (G – Implemented)
+### Target (When Needed)
 
-All styling must be centralized in popup.css.
+Introduce:
+- Central state object
+- setState()
+- render()
 
-Rules:
+Goal:
+- Reduce scattered DOM updates
+- Make UI predictable
 
-- No inline <style> blocks
+Not required yet.
+
+---
+
+## Module Boundaries
+
+Each module must have a clear responsibility.
+
+### popup-tabs.js
+- Tab switching only
+
+### popup-person.js
+- Profile extraction
+- Invitation generation
+- Lifecycle UI
+
+### popup-messages.js
+- First message
+- Follow-up
+- Chat history
+
+### popup-prompts.js
+- Prompt editing
+- Prompt storage
+
+### popup-config.js
+- API key
+- Model
+- Supabase config
+
+---
+
+### Rules
+
+- No cross-module side effects
+- Share only minimal globals
+- Do not duplicate logic
+
+---
+
+## Styling Rules
+
+All styling must be centralized.
+
+### Rules
+- Use popup.css (or split CSS later)
+- No inline style blocks
 - No inline style attributes
-- popup.html must link popup.css
-
-This improves maintainability without changing UI behavior.
 
 ---
 
-## User-Facing Text Centralization (G – Implemented)
+## User-Facing Text
 
-All user-visible strings controlled by JavaScript must be stored in a single object inside popup.js.
+All dynamic UI text must be centralized.
 
-Example:
+### Pattern
 
 const UI_TEXT = {
   configSaved: "Config saved.",
@@ -138,23 +239,63 @@ const UI_TEXT = {
   generating: "Calling OpenAI..."
 };
 
-Rules:
+---
 
-- Do not scatter user-facing string literals across logic.
-- Use UI_TEXT keys when setting statusEl.textContent or messageStatusEl.textContent.
-- HTML static labels are not affected by this rule.
+### Rules
 
-No separate text.js module is required at this stage.
+- Do not scatter string literals
+- Always use UI_TEXT for:
+  - statusEl.textContent
+  - messageStatusEl.textContent
+
+Static HTML labels are allowed.
+
+---
+
+## Refactoring Strategy
+
+Refactoring must be incremental.
+
+### Rules
+
+- Never change behavior and structure at the same time
+- Extract one concern at a time:
+  1. Tabs
+  2. Config
+  3. Prompts
+  4. Person logic
+  5. Message logic
+
+- After each step:
+  - UI must still work
+  - No console errors
+  - No API behavior changes
 
 ---
 
 ## Complexity Threshold Rule
 
-Modularization should only occur when:
+Only refactor structure when justified.
 
-- A file exceeds ~800 lines
-- Logic becomes reused across modules
-- Testing surface grows significantly
-- Concurrency or architectural complexity increases
+### Trigger conditions
 
-Until then, the flat and simple structure is preferred.
+- File exceeds ~800 lines
+- Logic becomes reused
+- UI becomes harder to reason about
+- Bugs increase due to coupling
+
+---
+
+### Otherwise
+
+- Prefer simple structure
+- Avoid premature abstraction
+- Optimize for speed of iteration
+
+---
+
+## Guiding Principle
+
+Keep logic stable.  
+Improve structure gradually.  
+Optimize for clarity and iteration speed, not theoretical purity.

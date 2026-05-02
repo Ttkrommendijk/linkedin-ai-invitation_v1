@@ -1,76 +1,118 @@
 # Architecture
 
+This document defines the runtime architecture, boundaries, and responsibilities of the system.
+
+The goal is to:
+- Keep responsibilities strictly separated
+- Support the modular popup refactor
+- Maintain current behavior while enabling future scalability
+
+---
+
 ## High-Level Flow
 
-LinkedIn Page (content.js)
-    ↓
-Popup (popup.js)
-    ↓
-Background (background.js)
-    ↓
-External APIs:
-    - OpenAI Responses API
-    - Supabase REST
+LinkedIn Page (content.js)  
+↓  
+Popup UI (popup.js + modules)  
+↓  
+Background (background.js)  
+↓  
+External APIs  
+- OpenAI Responses API  
+- Supabase REST  
 
 ---
 
-# Strict Runtime Boundaries
+## Runtime Boundaries (Strict)
 
-## content.js
+### content.js
 - Reads DOM only
 - No network calls
+- No storage access
 - Returns structured profile object
 
-## popup.js
+---
+
+### popup (UI Layer)
+
+Current:
+- popup.js (monolithic)
+
+Refactored:
+- popup.js (orchestrator)
+- popup-tabs.js
+- popup-person.js
+- popup-messages.js
+- popup-prompts.js
+- popup-config.js
+
+Responsibilities:
 - Handles user interaction
-- Calls background via chrome.runtime.sendMessage
-- Clipboard operations only occur inside explicit user gesture handlers
-- Direct DOM updates (see Current State section)
+- Renders UI
+- Sends messages to background.js
+- Manages local UI state
 
-## background.js
+Rules:
+- No direct HTTP calls
+- No business logic duplication from background
+- Clipboard only inside user-triggered actions
+
+---
+
+### background.js
 - Owns all external HTTP calls
-- Implements:
-  - OpenAI calls
-  - Supabase writes
-  - Timeout policy
-  - Retry policy (OpenAI only)
-  - JSON schema validation
-- Normalizes errors before returning to popup
+- Acts as backend layer
+
+Responsibilities:
+- OpenAI API calls
+- Supabase API calls
+- Retry logic (OpenAI only)
+- Timeout handling
+- JSON validation
+- Error normalization
+
+Rules:
+- No DOM access
+- No UI logic
+- Always return normalized response shape
 
 ---
 
-# Clipboard Policy
+## Module Responsibilities (Popup)
 
-- Clipboard must only execute inside direct user gesture
-- UI must never show "Copied" unless copy promise resolves
+### popup-tabs.js
+- Tab switching only
+- No business logic
+
+### popup-person.js
+- Profile context rendering
+- Invitation generation
+- Lifecycle state handling
+- DB sync for invitations
+
+### popup-messages.js
+- First message generation
+- Follow-up generation
+- Chat history extraction
+- Message lifecycle state
+
+### popup-prompts.js
+- Prompt editing
+- Prompt persistence
+- Prompt UI state
+
+### popup-config.js
+- API key management
+- Model selection
+- Supabase configuration
+- Load and save settings
 
 ---
 
-# Data Minimization
+## Communication Model
 
-- Only structured fields + sanitized excerpt are sent to OpenAI
-- Emails and phone numbers redacted in excerpt_fallback
-- Only required DB fields persisted
+All communication flows through background.js.
 
----
+### Pattern
 
-# CURRENT STATE vs TARGET STATE  (A)
-
-## CURRENT IMPLEMENTATION
-
-- Selectors are defined inline in content.js
-- Extraction logic is monolithic but contained
-- Popup uses direct DOM updates and local variables for state
-- Message envelope is minimal (no request_id)
-
-This is intentional for simplicity and small scope.
-
-## TARGET (Future Refactor)
-
-If complexity increases:
-- Centralize selectors into a selector module
-- Split extraction into pure extractors
-- Introduce request_id-based message envelope
-- Introduce lightweight state module in popup
-
-Current implementation is compliant by design.
+popup → background:
