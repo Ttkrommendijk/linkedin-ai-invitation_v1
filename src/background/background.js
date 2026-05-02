@@ -875,14 +875,24 @@ async function callOpenAIFreePrompt({
   strategyCore,
   includeProfile,
   includeStrategy,
+  include_profile,
+  include_strategy,
 }) {
   const userInstruction = normalizeProfileField(prompt);
   if (!userInstruction) {
     throw new Error("Prompt is required.");
   }
   const requestedLanguage = normalizeProfileField(language) || "Portuguese";
-  const includeProfileContext = Boolean(includeProfile && profile);
-  const includeStrategyContext = Boolean(includeStrategy);
+  const includeProfileFlag =
+    typeof include_profile === "boolean"
+      ? include_profile
+      : Boolean(includeProfile);
+  const includeStrategyFlag =
+    typeof include_strategy === "boolean"
+      ? include_strategy
+      : Boolean(includeStrategy);
+  const includeProfileContext = Boolean(includeProfileFlag && profile);
+  const includeStrategyContext = Boolean(includeStrategyFlag);
   const strategyText = normalizeProfileField(strategyCore) || "(none)";
 
   const contextBlocks = [];
@@ -2104,6 +2114,100 @@ async function supabaseUpsertCampaignMinimal({
   await supabaseUpsertInvitation(row);
 }
 
+async function supabaseGetPrompts() {
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
+  const url = `${supabaseUrl}/rest/v1/prompt?select=id,name,prompt&order=name.asc.nullslast`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "GET",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    },
+    15000,
+    "Supabase request",
+  );
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+  const rows = await res.json();
+  return Array.isArray(rows) ? rows : [];
+}
+
+async function supabaseCreatePrompt({ name, prompt }) {
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
+  const normalizedName = normalizeProfileField(name);
+  if (!normalizedName) {
+    throw new Error("Prompt name is required.");
+  }
+  const url = `${supabaseUrl}/rest/v1/prompt`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "POST",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify([
+        {
+          name: normalizedName,
+          prompt: normalizeProfileField(prompt),
+        },
+      ]),
+    },
+    15000,
+    "Supabase request",
+  );
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+  const rows = await res.json();
+  return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+}
+
+async function supabaseUpdatePrompt({ id, prompt }) {
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
+  const targetId = normalizeProfileField(id);
+  if (!targetId) {
+    throw new Error("Prompt id is required.");
+  }
+  const url = `${supabaseUrl}/rest/v1/prompt?id=eq.${encodeURIComponent(targetId)}`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify({
+        prompt: normalizeProfileField(prompt),
+      }),
+    },
+    15000,
+    "Supabase request",
+  );
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+  const rows = await res.json();
+  return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+}
+
 function toOverviewInt(value, fallback) {
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
@@ -3150,6 +3254,54 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse({ ok: true, company });
       } catch (e) {
         console.log("[LEF][company save failed]", e);
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "GET_PROMPTS") {
+    (async () => {
+      emitUiStatus("Fetching\u2026");
+      try {
+        const prompts = await supabaseGetPrompts();
+        sendResponse({ ok: true, prompts });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_GET_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "CREATE_PROMPT") {
+    (async () => {
+      emitUiStatus("Updating\u2026");
+      try {
+        const prompt = await supabaseCreatePrompt(msg?.payload || {});
+        sendResponse({ ok: true, prompt });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_UPSERT_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "UPDATE_PROMPT") {
+    (async () => {
+      emitUiStatus("Updating\u2026");
+      try {
+        const prompt = await supabaseUpdatePrompt(msg?.payload || {});
+        sendResponse({ ok: true, prompt });
+      } catch (e) {
         sendResponse({
           ok: false,
           error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),

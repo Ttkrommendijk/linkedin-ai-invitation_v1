@@ -454,6 +454,7 @@ function initPopupModules() {
   });
   const promptsApi = initPromptsModule({
     state,
+    sendRuntimeMessage,
     setFooterUpdatingStatus,
     setFooterStatus,
     setFooterReady,
@@ -3764,6 +3765,7 @@ function runPopupInit() {
   updateInviteCopyIconVisibility();
   updateFollowupCopyIconVisibility();
   bindPromptEvents();
+  bindPromptManagementEvents();
   bindPersonWorkflowEvents();
   bindMessagesWorkflowEvents();
   setMessagePromptCollapsed(true);
@@ -3799,6 +3801,7 @@ function runPopupInit() {
   loadFirstMessagePrompt().catch((_e) => {
     syncFirstMessagePromptSavedState();
   });
+  loadPromptOptions().catch((_e) => {});
   loadMessageLanguage().catch((_e) => {});
   loadFreePromptLanguage().catch((_e) => {});
   loadCampaignOptions({ keepSelected: true })
@@ -4523,6 +4526,8 @@ async function handleGenerateFreePromptClick() {
       prompt,
       includeProfile,
       includeStrategy,
+      include_profile: includeProfile,
+      include_strategy: includeStrategy,
     };
     if (includeProfile && profileForGeneration) {
       payload.profile = { ...profileForGeneration };

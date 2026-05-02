@@ -846,6 +846,11 @@ pre {
     visibility: hidden;
     pointer-events: none;
 }
+#newPromptRow[hidden] {
+    display: flex;
+    visibility: hidden;
+    pointer-events: none;
+}
 .campaign-new-row input {
     flex: 1 1 auto;
     min-width: 0;
