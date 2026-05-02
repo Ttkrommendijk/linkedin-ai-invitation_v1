@@ -127,12 +127,15 @@ function canonicalizeLinkedinUrl(rawUrl) {
   if (!input) return "";
   try {
     const parsed = new URL(input);
-    const pathname = (parsed.pathname || "").replace(/\/+$/, "");
-    return `https://www.linkedin.com${pathname}`;
+    const pathname = (parsed.pathname || "").replace(/\/+$/, "") || "/";
+    if (pathname === "/") return "https://www.linkedin.com/";
+    return `https://www.linkedin.com${pathname}/`;
   } catch (_e) {
     const noHash = input.split("#")[0];
     const noQuery = noHash.split("?")[0];
-    return noQuery.replace(/\/+$/, "");
+    const noTrailing = noQuery.replace(/\/+$/, "");
+    if (!noTrailing) return "";
+    return noTrailing.endsWith("/") ? noTrailing : `${noTrailing}/`;
   }
 }
 
@@ -332,7 +335,13 @@ function isPersonPageReadyForExtraction() {
   if (detectLinkedInPageType().page_type !== "person") return false;
   if (!hasMainCompanyContainer()) return false;
   if (hasCompanyDomMarkers()) return false;
-  return Boolean(cleanText(document.querySelector("main h1")?.innerText || ""));
+  return Boolean(
+    cleanText(document.querySelector("main h1")?.innerText || "") ||
+      cleanText(
+        document.querySelector('[data-anonymize="person-name"]')?.innerText || "",
+      ) ||
+      nameFromTitle(),
+  );
 }
 
 function isStableCompanyProfileDom(companyName = getCompanyCandidateName()) {
@@ -978,14 +987,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         }
         await waitForPersonProfileDom();
         if (!isPersonPageReadyForExtraction()) {
-          sendResponse({
-            ok: false,
-            error: {
-              code: "STALE_DOM",
-              message: "Person page DOM is not ready.",
-            },
+          timingLog("person_context_fallback_extract", {
+            ready_state: document.readyState,
+            has_main: hasMainCompanyContainer(),
+            title_name: nameFromTitle(),
           });
-          return;
         }
         timingLog("extraction_running", {
           is_company_profile: isCompanyProfileUrl(),

@@ -84,12 +84,14 @@
     try {
       const parsed = new URL(input);
       const pathname = (parsed.pathname || "").replace(/\/+$/, "") || "/";
-      return `https://www.linkedin.com${pathname}`;
+      if (pathname === "/") return "https://www.linkedin.com/";
+      return `https://www.linkedin.com${pathname}/`;
     } catch (_e) {
       const noHash = input.split("#")[0];
       const noQuery = noHash.split("?")[0];
       const noTrailing = noQuery.replace(/\/+$/, "");
-      return noTrailing || "";
+      if (!noTrailing) return "";
+      return noTrailing.endsWith("/") ? noTrailing : `${noTrailing}/`;
     }
   }
 

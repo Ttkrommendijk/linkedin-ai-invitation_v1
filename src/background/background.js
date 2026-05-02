@@ -719,17 +719,11 @@ async function callOpenAICompanyExtraction({ apiKey, model, profile }) {
 }
 
 function normalizeLinkedinCompanyUrl(value) {
-  const raw = normalizeProfileField(value);
-  if (!raw) return "";
-  try {
-    const parsed = new URL(raw);
-    const path = (parsed.pathname || "").replace(/\/+$/, "");
-    return `https://www.linkedin.com${path}`;
-  } catch (_e) {
-    const noHash = raw.split("#")[0];
-    const noQuery = noHash.split("?")[0];
-    return noQuery.replace(/\/+$/, "");
-  }
+  return canonicalizeLinkedInUrl(normalizeProfileField(value));
+}
+
+function normalizeLinkedinInvitationUrl(value) {
+  return canonicalizeLinkedInUrl(normalizeProfileField(value));
 }
 
 async function callOpenAIFirstMessage({
@@ -1271,6 +1265,7 @@ async function supabaseUpsertInvitation(row) {
   const url = `${supabaseUrl}/rest/v1/linkedin_invitations?on_conflict=linkedin_url`;
   const payload = {
     ...row,
+    linkedin_url: normalizeLinkedinInvitationUrl(row?.linkedin_url),
     uuid: normalizeProfileField(row?.uuid) || userId || null,
   };
 
@@ -1303,7 +1298,8 @@ async function supabaseUpdateFirstMessage({
 }) {
   const { supabaseUrl, supabaseAnonKey, accessToken } =
     await getSupabaseRequestContext();
-  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}`;
+  const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
+  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
   const patch = {
     first_message,
     first_message_generated_at,
@@ -1334,6 +1330,7 @@ async function supabaseUpdateFirstMessage({
 async function supabaseMarkStatus({ linkedin_url, status }) {
   const { supabaseUrl, supabaseAnonKey, accessToken } =
     await getSupabaseRequestContext();
+  const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
 
   const patch = { status };
   const nowIso = new Date().toISOString();
@@ -1341,7 +1338,7 @@ async function supabaseMarkStatus({ linkedin_url, status }) {
   if (status === "accepted") patch.accepted_at = nowIso;
   if (status === "first message sent") patch.first_message_sent_at = nowIso;
 
-  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}`;
+  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
 
   const res = await fetchWithTimeout(
     url,
@@ -1368,7 +1365,7 @@ async function supabaseMarkStatus({ linkedin_url, status }) {
 async function supabaseMarkFirstMessageSent({ linkedin_url }) {
   const { supabaseUrl, supabaseAnonKey, accessToken } =
     await getSupabaseRequestContext();
-  const targetUrl = normalizeProfileField(linkedin_url);
+  const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
   if (!targetUrl) {
     throw new Error("Missing linkedin_url.");
   }
@@ -1403,7 +1400,11 @@ async function supabaseSetStatusOnly({ linkedin_url, status }) {
   const { supabaseUrl, supabaseAnonKey, accessToken, userId } =
     await getSupabaseRequestContext();
   const url = `${supabaseUrl}/rest/v1/linkedin_invitations?on_conflict=linkedin_url`;
-  const row = { linkedin_url, status, uuid: userId || null };
+  const row = {
+    linkedin_url: normalizeLinkedinInvitationUrl(linkedin_url),
+    status,
+    uuid: userId || null,
+  };
 
   const res = await fetchWithTimeout(
     url,
@@ -1430,7 +1431,8 @@ async function supabaseSetStatusOnly({ linkedin_url, status }) {
 async function supabaseSetAcceptedAtNow({ linkedin_url }) {
   const { supabaseUrl, supabaseAnonKey, accessToken } =
     await getSupabaseRequestContext();
-  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}`;
+  const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
+  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
   const patch = {
     accepted: true,
     accepted_at: new Date().toISOString(),
@@ -1462,7 +1464,8 @@ async function supabaseSetAcceptedAtNow({ linkedin_url }) {
 async function supabaseClearAcceptedAt({ linkedin_url }) {
   const { supabaseUrl, supabaseAnonKey, accessToken } =
     await getSupabaseRequestContext();
-  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}`;
+  const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
+  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
   const patch = {
     accepted: false,
     accepted_at: null,
@@ -1499,7 +1502,8 @@ async function supabaseUpdateProfileDetailsOnly({
 }) {
   const { supabaseUrl, supabaseAnonKey, accessToken } =
     await getSupabaseRequestContext();
-  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}`;
+  const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
+  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
   const patch = {};
   const safeCompany = normalizeProfileField(company);
   const safeHeadline = sanitizeHeadlineJobTitle(headline);
@@ -1539,7 +1543,7 @@ async function supabaseUpdateProfileFields({
   headline,
   comments,
 }) {
-  const targetUrl = normalizeProfileField(linkedin_url);
+  const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
   if (!targetUrl) {
     throw new Error("Missing linkedin_url.");
   }
@@ -1581,7 +1585,7 @@ async function supabaseUpdateProfileFields({
 async function supabaseGetInvitationByLinkedinUrl(linkedin_url) {
   const { supabaseUrl, supabaseAnonKey, accessToken } =
     await getSupabaseRequestContext();
-  const targetUrl = canonicalizeLinkedInUrl(linkedin_url);
+  const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
   if (!targetUrl) return null;
   const targetUrlWithSlash = targetUrl.endsWith("/") ? targetUrl : `${targetUrl}/`;
   const urlFilter =
@@ -1763,7 +1767,7 @@ async function supabaseConfirmCompanyLink({
 }) {
   const { supabaseUrl, supabaseAnonKey, accessToken } =
     await getSupabaseRequestContext();
-  const targetUrl = normalizeProfileField(linkedin_url);
+  const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
   if (!targetUrl) throw new Error("Missing linkedin_url.");
   const normalizedCompanyId = normalizeProfileField(company_id);
   const normalizedCompanyName = normalizeProfileField(company_name);
@@ -1938,7 +1942,7 @@ async function supabaseUpdateCompanyById(payload) {
 async function supabaseIncrementMessageCount({ linkedin_url, delta }) {
   const { supabaseUrl, supabaseAnonKey, accessToken } =
     await getSupabaseRequestContext();
-  const targetUrl = normalizeProfileField(linkedin_url);
+  const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
   if (!targetUrl) {
     throw new Error("Missing linkedin_url.");
   }
@@ -1993,7 +1997,7 @@ async function supabaseIncrementMessageCount({ linkedin_url, delta }) {
 async function supabaseSetMessageCount({ linkedin_url, message_count }) {
   const { supabaseUrl, supabaseAnonKey, accessToken } =
     await getSupabaseRequestContext();
-  const targetUrl = normalizeProfileField(linkedin_url);
+  const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
   if (!targetUrl) {
     throw new Error("Missing linkedin_url.");
   }
@@ -2061,7 +2065,8 @@ async function supabaseListCampaigns() {
 async function supabaseUpdateCampaign({ linkedin_url, campaign }) {
   const { supabaseUrl, supabaseAnonKey, accessToken } =
     await getSupabaseRequestContext();
-  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}`;
+  const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
+  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
   const res = await fetchWithTimeout(
     url,
     {
@@ -2092,7 +2097,7 @@ async function supabaseUpsertCampaignMinimal({
   campaign,
 }) {
   const row = {
-    linkedin_url: normalizeProfileField(linkedin_url),
+    linkedin_url: normalizeLinkedinInvitationUrl(linkedin_url),
     full_name: normalizeProfileField(full_name) || null,
     campaign: normalizeProfileField(campaign) || null,
   };
@@ -2210,7 +2215,8 @@ async function supabaseListInvitationsOverview({
 async function supabaseArchiveInvitation({ url }) {
   const { supabaseUrl, supabaseAnonKey, accessToken } =
     await getSupabaseRequestContext();
-  const endpoint = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(url)}`;
+  const targetUrl = normalizeLinkedinInvitationUrl(url);
+  const endpoint = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
 
   const res = await fetchWithTimeout(
     endpoint,
@@ -2237,7 +2243,7 @@ async function supabaseArchiveInvitation({ url }) {
 async function supabaseSetArchived({ linkedin_url, archived }) {
   const { supabaseUrl, supabaseAnonKey, accessToken } =
     await getSupabaseRequestContext();
-  const targetUrl = normalizeProfileField(linkedin_url);
+  const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
   if (!targetUrl) {
     throw new Error("Missing linkedin_url.");
   }
@@ -2291,11 +2297,14 @@ function canonicalizeLinkedInUrl(rawUrl) {
   try {
     const parsed = new URL(input);
     const pathname = (parsed.pathname || "").replace(/\/+$/, "") || "/";
-    return `https://www.linkedin.com${pathname}`;
+    if (pathname === "/") return "https://www.linkedin.com/";
+    return `https://www.linkedin.com${pathname}/`;
   } catch (_e) {
     const noHash = input.split("#")[0];
     const noQuery = noHash.split("?")[0];
-    return noQuery.replace(/\/+$/, "") || "";
+    const noTrailing = noQuery.replace(/\/+$/, "");
+    if (!noTrailing) return "";
+    return noTrailing.endsWith("/") ? noTrailing : `${noTrailing}/`;
   }
 }
 
