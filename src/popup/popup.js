@@ -1,6 +1,3 @@
-const apiKeyEl = document.getElementById("apiKey");
-const modelEl = document.getElementById("model");
-const strategyEl = document.getElementById("strategy");
 const focusEl = document.getElementById("focus");
 const messageLanguageEl = document.getElementById("messageLanguage");
 const inviteLanguageEl = document.getElementById("inviteLanguage");
@@ -104,7 +101,6 @@ const STORAGE_KEY_FREE_PROMPT_LANGUAGE = "free_prompt_language";
 const STORAGE_KEY_LAST_ACTIVE_CAMPAIGN = "last_active_campaign";
 const STORAGE_KEY_LIST_FILTERS = "lef_list_filters_v1";
 const STORAGE_KEY_LIST_COLUMN_WIDTHS = "lef_list_column_widths_v1";
-const STORAGE_KEY_SUPABASE_URL = "supabase_url";
 const STORAGE_KEY_NAV_PACING = "lef_nav_pacing_v1";
 const DEFAULT_SUPABASE_URL = "https://nkhujuqjnbzsfqyqfndc.supabase.co";
 const DEFAULT_NAV_PACING_CONFIG = Object.freeze({
@@ -383,10 +379,6 @@ const overviewPrevBtnEl = document.getElementById("overviewPrevBtn");
 const overviewNextBtnEl = document.getElementById("overviewNextBtn");
 const overviewCountLabelEl = document.getElementById("overviewCountLabel");
 const overviewTableEl = document.querySelector("#tabOverview .overview-table");
-
-const webhookBaseUrlEl = document.getElementById("webhookBaseUrl");
-const webhookSecretEl = document.getElementById("webhookSecret");
-const navPacingEnabledEl = document.getElementById("navPacingEnabled");
 
 let lastProfileContextSent = {};
 let lastProfileContextEnriched = null;
@@ -1824,6 +1816,16 @@ function setDetailInnerTab(tab) {
     if (firstMessageSentModeEl) firstMessageSentModeEl.hidden = true;
   }
 }
+
+Object.assign(globalThis, {
+  IS_SIDE_PANEL_CONTEXT,
+  OVERVIEW_ENABLED,
+  getDetailInnerTab: () => detailInnerTab,
+  isCompanyProfileMode,
+  applyProfileModeUi,
+  setDetailInnerTab,
+  fetchOverviewPage,
+});
 
 function updateGenerateFirstMessageButtonLabel() {
   generateFirstMessageBtnEl.textContent = isPostSendMode()
@@ -3944,16 +3946,6 @@ function renderSupabaseAuthUiState() {
   if (authLoginPanelEl) authLoginPanelEl.hidden = signupActive;
 }
 
-function setConfigInnerTab(which) {
-  const supabaseActive = which === "supabase";
-  configGeneralTabBtnEl?.classList.toggle("active", !supabaseActive);
-  configSupabaseTabBtnEl?.classList.toggle("active", supabaseActive);
-  configGeneralPanelEl?.classList.toggle("active", !supabaseActive);
-  if (configGeneralPanelEl) configGeneralPanelEl.hidden = supabaseActive;
-  tabSupabaseAuth?.classList.toggle("active", supabaseActive);
-  if (tabSupabaseAuth) tabSupabaseAuth.hidden = !supabaseActive;
-}
-
 function normalizeSupabaseAuthError(errorLike) {
   const raw = getErrorMessage(errorLike);
   const text = String(raw || "").toLowerCase();
@@ -4066,78 +4058,6 @@ async function handleSupabaseLogout() {
   setFooterStatus("Logged out.");
 }
 
-function setActiveTab(which, { userInitiated = false } = {}) {
-  if (IS_SIDE_PANEL_CONTEXT && !userInitiated) {
-    return;
-  }
-  if (!tabMainBtn || !tabConfigBtn || !tabMain || !tabConfig) {
-    return;
-  }
-  const freePromptActive = which === "free_prompt";
-  const detailActive =
-    which === "detail" || which === "invitation" || freePromptActive;
-  const overviewActive = OVERVIEW_ENABLED && which === "overview";
-  const configActive = which === "config" || which === "supabase_login";
-  const supabaseAuthActive = which === "supabase_login";
-
-  tabMainBtn.classList.toggle("active", detailActive);
-  if (tabOverviewBtn) tabOverviewBtn.classList.toggle("active", overviewActive);
-  tabConfigBtn.classList.toggle("active", configActive);
-  if (tabSupabaseAuthBtn)
-    tabSupabaseAuthBtn.classList.toggle("active", supabaseAuthActive);
-
-  tabMain.classList.toggle("active", detailActive);
-  if (tabOverview) tabOverview.classList.toggle("active", overviewActive);
-  tabConfig.classList.toggle("active", configActive);
-  setConfigInnerTab(supabaseAuthActive ? "supabase" : "general");
-  if (tabMessage)
-    tabMessage.hidden =
-      isCompanyProfileMode() ||
-      !detailActive ||
-      detailInnerTab === "invite" ||
-      detailInnerTab === "free_prompt";
-  if (isCompanyProfileMode()) {
-    applyProfileModeUi();
-  }
-
-  if (freePromptActive) {
-    setDetailInnerTab("free_prompt");
-  }
-
-  if (overviewActive) {
-    fetchOverviewPage();
-  }
-}
-
-async function loadSettings() {
-  const [
-    { apiKey, webhookSecret, [STORAGE_KEY_SUPABASE_URL]: supabaseUrlLocal },
-    { model, strategyCore, webhookBaseUrl },
-  ] = await Promise.all([
-    chrome.storage.local.get([
-      "apiKey",
-      "webhookSecret",
-      STORAGE_KEY_SUPABASE_URL,
-    ]),
-    chrome.storage.sync.get(["model", "strategyCore", "webhookBaseUrl"]),
-  ]);
-
-  if (apiKeyEl && apiKey) apiKeyEl.value = apiKey;
-  if (webhookSecretEl && webhookSecret) webhookSecretEl.value = webhookSecret;
-
-  if (modelEl) modelEl.value = model || "gpt-4.1";
-  if (strategyEl && strategyCore) strategyEl.value = strategyCore;
-  if (webhookBaseUrlEl) {
-    webhookBaseUrlEl.value = getEffectiveSupabaseUrl(
-      supabaseUrlLocal,
-      webhookBaseUrl,
-    );
-  }
-  const navPacingConfig = await loadNavPacingConfigForUi();
-  if (navPacingEnabledEl) {
-    navPacingEnabledEl.checked = Boolean(navPacingConfig.enabled);
-  }
-}
 let popupInitErrorLogged = false;
 function logPopupInitError(error) {
   if (popupInitErrorLogged) return;
@@ -4182,6 +4102,7 @@ function runPopupInit() {
     setConfigInnerTab("supabase"),
   );
 
+  bindConfigEvents();
   loadSettings().catch((_e) => {});
   refreshSupabaseAuthUi().catch(() => null);
   setAuthInnerTab("signup");
@@ -4331,12 +4252,6 @@ function runPopupInit() {
   freePromptLanguageEl?.addEventListener("change", async () => {
     await setFreePromptLanguage(freePromptLanguageEl.value);
   });
-  webhookBaseUrlEl?.addEventListener("change", async () => {
-    await saveSupabaseUrlOverride(webhookBaseUrlEl.value || "");
-  });
-  navPacingEnabledEl?.addEventListener("change", async () => {
-    await saveNavPacingEnabled(Boolean(navPacingEnabledEl.checked));
-  });
   messageCountIncrementEl?.addEventListener("click", async (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -4435,38 +4350,6 @@ resetMessagePromptBtnEl?.addEventListener("click", () => {
   updateSavePromptButtonState();
   setFooterStatus(UI_TEXT.promptReset);
 });
-
-async function saveConfig() {
-  const apiKey = (apiKeyEl.value || "").trim();
-  const model = (modelEl.value || "gpt-4.1").trim();
-  const strategyCore = (strategyEl.value || "").trim();
-
-  const webhookBaseUrl = await saveSupabaseUrlOverride(
-    webhookBaseUrlEl?.value || "",
-    { showStatus: false },
-  );
-  const localConfigPayload = { apiKey };
-  if (webhookSecretEl) {
-    localConfigPayload.webhookSecret = (webhookSecretEl.value || "").trim();
-  }
-
-  await chrome.storage.local.set(localConfigPayload);
-  await chrome.storage.sync.set({ model, strategyCore, webhookBaseUrl });
-
-  setFooterStatus(UI_TEXT.configSaved);
-}
-
-const saveConfigBtnEl = document.getElementById("saveConfig");
-if (saveConfigBtnEl) {
-  saveConfigBtnEl.addEventListener("click", async () => {
-    setFooterUpdatingStatus();
-    try {
-      await saveConfig();
-    } finally {
-      setFooterReady();
-    }
-  });
-}
 
 async function handleGenerateFirstMessageClick() {
   const activeTabsBeforeGeneration = captureActiveTabState();
