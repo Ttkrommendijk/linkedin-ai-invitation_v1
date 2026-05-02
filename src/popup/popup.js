@@ -341,6 +341,9 @@ const tabMessage = document.getElementById("tabMessage");
 const tabOverview = document.getElementById("tabOverview");
 const tabConfig = document.getElementById("tabConfig");
 const tabSupabaseAuth = document.getElementById("tabSupabaseAuth");
+const configGeneralTabBtnEl = document.getElementById("configGeneralTabBtn");
+const configSupabaseTabBtnEl = document.getElementById("configSupabaseTabBtn");
+const configGeneralPanelEl = document.getElementById("configGeneralPanel");
 
 const authInnerSignupBtnEl = document.getElementById("authInnerSignupBtn");
 const authInnerLoginBtnEl = document.getElementById("authInnerLoginBtn");
@@ -3941,6 +3944,16 @@ function renderSupabaseAuthUiState() {
   if (authLoginPanelEl) authLoginPanelEl.hidden = signupActive;
 }
 
+function setConfigInnerTab(which) {
+  const supabaseActive = which === "supabase";
+  configGeneralTabBtnEl?.classList.toggle("active", !supabaseActive);
+  configSupabaseTabBtnEl?.classList.toggle("active", supabaseActive);
+  configGeneralPanelEl?.classList.toggle("active", !supabaseActive);
+  if (configGeneralPanelEl) configGeneralPanelEl.hidden = supabaseActive;
+  tabSupabaseAuth?.classList.toggle("active", supabaseActive);
+  if (tabSupabaseAuth) tabSupabaseAuth.hidden = !supabaseActive;
+}
+
 function normalizeSupabaseAuthError(errorLike) {
   const raw = getErrorMessage(errorLike);
   const text = String(raw || "").toLowerCase();
@@ -4064,7 +4077,7 @@ function setActiveTab(which, { userInitiated = false } = {}) {
   const detailActive =
     which === "detail" || which === "invitation" || freePromptActive;
   const overviewActive = OVERVIEW_ENABLED && which === "overview";
-  const configActive = which === "config";
+  const configActive = which === "config" || which === "supabase_login";
   const supabaseAuthActive = which === "supabase_login";
 
   tabMainBtn.classList.toggle("active", detailActive);
@@ -4076,8 +4089,7 @@ function setActiveTab(which, { userInitiated = false } = {}) {
   tabMain.classList.toggle("active", detailActive);
   if (tabOverview) tabOverview.classList.toggle("active", overviewActive);
   tabConfig.classList.toggle("active", configActive);
-  if (tabSupabaseAuth)
-    tabSupabaseAuth.classList.toggle("active", supabaseAuthActive);
+  setConfigInnerTab(supabaseAuthActive ? "supabase" : "general");
   if (tabMessage)
     tabMessage.hidden =
       isCompanyProfileMode() ||
@@ -4164,6 +4176,10 @@ function runPopupInit() {
   );
   tabSupabaseAuthBtn?.addEventListener("click", () =>
     setActiveTab("supabase_login", { userInitiated: true }),
+  );
+  configGeneralTabBtnEl?.addEventListener("click", () => setConfigInnerTab("general"));
+  configSupabaseTabBtnEl?.addEventListener("click", () =>
+    setConfigInnerTab("supabase"),
   );
 
   loadSettings().catch((_e) => {});

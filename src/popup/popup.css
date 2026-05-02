@@ -1135,6 +1135,16 @@ pre {
 .auth-inner-tabs {
     gap: 8px;
 }
+.config-inner-tabs {
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.config-sub-panel {
+    display: none;
+}
+.config-sub-panel.active {
+    display: block;
+}
 .auth-action-row {
     gap: 8px;
 }
