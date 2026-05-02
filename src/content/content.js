@@ -51,6 +51,13 @@ function hasPersonLikeContent(text) {
 
 function buildCompanyPageExcerpt(companyName, rawMainText, rawBodyText = "") {
   const cleanedCompany = cleanText(companyName);
+  const combinedText = `${rawMainText || ""}\n${rawBodyText || ""}`;
+  if (
+    !hasCompanyLandingContent(combinedText, cleanedCompany) ||
+    hasPersonProfileSectionMarkers(rawMainText)
+  ) {
+    return "";
+  }
   const lines = String(rawMainText || "")
     .split(/\r?\n+/)
     .map((line) => cleanText(line))
@@ -85,7 +92,19 @@ function buildCompanyPageExcerpt(companyName, rawMainText, rawBodyText = "") {
   if (filtered.length) {
     excerptSource = filtered.slice(0, 28).join(" ");
   } else {
-    const safeFallback = lines.filter((line) => !hasPersonLikeContent(line));
+    const companyIndex = lines.findIndex((line) => {
+      const lower = line.toLowerCase();
+      return (
+        cleanedCompany &&
+        lower.includes(cleanedCompany.toLowerCase()) &&
+        !hasPersonLikeContent(line)
+      );
+    });
+    const sourceLines =
+      companyIndex >= 0 ? lines.slice(companyIndex, companyIndex + 36) : lines;
+    const safeFallback = sourceLines.filter(
+      (line) => !hasPersonLikeContent(line),
+    );
     excerptSource = safeFallback.slice(0, 22).join(" ");
   }
   if (!excerptSource) {
@@ -169,12 +188,85 @@ function isCompanyProfileUrl(url = window.location.href) {
   return COMPANY_PROFILE_URL_RE.test(String(url || ""));
 }
 
+function detectLinkedInPageType(rawUrl = window.location.href) {
+  const linkedin_id = canonicalizeLinkedinUrl(rawUrl || "");
+  const result = { page_type: "unsupported", linkedin_id };
+  if (!/^https:\/\/www\.linkedin\.com\//i.test(linkedin_id)) return result;
+  if (/^https:\/\/www\.linkedin\.com\/in\/[^/?#]+/i.test(linkedin_id)) {
+    result.page_type = "person";
+    return result;
+  }
+  if (/^https:\/\/www\.linkedin\.com\/(company|school)\/[^/?#]+/i.test(linkedin_id)) {
+    result.page_type = "company";
+    return result;
+  }
+  return result;
+}
+
 function getCompanyTopCardName() {
   return firstNonEmptyText([
     ".org-top-card-summary__title",
     ".org-top-card-primary-content__title",
     "main h1",
   ]);
+}
+
+function getCompanyCandidateName() {
+  return normalizeCompanyTitleName(getCompanyTopCardName() || nameFromTitle());
+}
+
+function hasCompanyPageMarkers(text) {
+  const t = cleanText(text);
+  if (!t) return false;
+  return /\b(overview|about|posts|jobs|employees|followers|industry|headquarters|inÃ­cio|sobre|publicaÃ§Ãµes|vagas|funcionÃ¡rios|seguidores|setor|sede|ex-alunos)\b/i.test(
+    t,
+  );
+}
+
+function hasPersonProfileSectionMarkers(text) {
+  const t = cleanText(text).toLowerCase();
+  if (!t) return false;
+  return (
+    t.includes("formaÃ§Ã£o acadÃªmica") ||
+    t.includes("formação acadêmica") ||
+    t.includes("licenÃ§as e certificados") ||
+    t.includes("licenças e certificados") ||
+    t.includes("competÃªncias") ||
+    t.includes("competências") ||
+    t.includes("recomendaÃ§Ãµes") ||
+    t.includes("recomendações") ||
+    t.includes("exibir credencial")
+  );
+}
+
+function hasCompanyLandingContent(text, companyName = "") {
+  const t = cleanText(text).toLowerCase();
+  const normalizedName = normalizeCompanyTitleName(companyName).toLowerCase();
+  if (!t || !normalizedName || !t.includes(normalizedName)) return false;
+  const markers = [
+    "seguidores",
+    "followers",
+    "funcionÃ¡rios",
+    "funcionários",
+    "employees",
+    "publicaÃ§Ãµes",
+    "publicações",
+    "posts",
+    "vagas",
+    "jobs",
+    "visÃ£o geral",
+    "visão geral",
+    "overview",
+    "sobre",
+    "about",
+    "ex-alunos",
+    "alumni",
+  ];
+  const markerCount = markers.reduce(
+    (count, marker) => count + (t.includes(marker) ? 1 : 0),
+    0,
+  );
+  return markerCount >= 2;
 }
 
 function normalizeCompanyTitleName(value) {
@@ -222,17 +314,72 @@ function hasMainCompanyContainer() {
   return Boolean(document.querySelector("main"));
 }
 
-function isCompanyPageReadyForExtraction() {
-  return document.readyState === "complete" && hasMainCompanyContainer();
+function hasCompanyDomMarkers() {
+  return Boolean(
+    document.querySelector(
+      ".org-top-card, .org-top-card-summary, .org-top-card-primary-content, .org-page-navigation, .org-about-module, .org-about-company-module, [data-test-id='about-us']",
+    ),
+  );
 }
 
-async function waitForCompanyProfileDom({ timeoutMs = 100 } = {}) {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < timeoutMs) {
-    if (!isCompanyProfileUrl()) return;
-    if (hasCompanyProfileDom()) return;
-    await delay(150);
-  }
+function getCompanyPageText() {
+  const mainText = document.querySelector("main")?.innerText || "";
+  const bodyText = document.body?.innerText || "";
+  return cleanText(mainText || bodyText);
+}
+
+function isPersonPageReadyForExtraction() {
+  if (detectLinkedInPageType().page_type !== "person") return false;
+  if (!hasMainCompanyContainer()) return false;
+  if (hasCompanyDomMarkers()) return false;
+  return Boolean(cleanText(document.querySelector("main h1")?.innerText || ""));
+}
+
+function isStableCompanyProfileDom(companyName = getCompanyCandidateName()) {
+  const text = getCompanyPageText();
+  if (!text || hasPersonProfileSectionMarkers(text)) return false;
+  return hasCompanyLandingContent(text, companyName);
+}
+
+function isCompanyPageReadyForExtraction() {
+  const companyName = getCompanyCandidateName();
+  return (
+    detectLinkedInPageType().page_type === "company" &&
+    hasMainCompanyContainer() &&
+    Boolean(companyName) &&
+    isStableCompanyProfileDom(companyName)
+  );
+}
+
+async function waitForDomReady(matcher, { timeoutMs = 2500 } = {}) {
+  if (matcher()) return;
+  await new Promise((resolve) => {
+    let settled = false;
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      observer.disconnect();
+      clearTimeout(timeoutId);
+      resolve();
+    };
+    const observer = new MutationObserver(() => {
+      if (matcher()) done();
+    });
+    const timeoutId = setTimeout(done, timeoutMs);
+    observer.observe(document.documentElement || document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+  });
+}
+
+async function waitForPersonProfileDom({ timeoutMs = 2500 } = {}) {
+  await waitForDomReady(isPersonPageReadyForExtraction, { timeoutMs });
+}
+
+async function waitForCompanyProfileDom({ timeoutMs = 2500 } = {}) {
+  await waitForDomReady(isCompanyPageReadyForExtraction, { timeoutMs });
 }
 
 function extractProfile() {
@@ -404,6 +551,12 @@ function extractCompanyContext() {
   if (hasPersonLikeContent(companyExcerpt)) {
     companyExcerpt = "";
   }
+  if (!companyExcerpt && isStableCompanyProfileDom(companyName)) {
+    companyExcerpt = sanitizeExcerpt(
+      [companyName, topCardText, sector, city].filter(Boolean).join(" "),
+      2200,
+    );
+  }
   return {
     url,
     is_company_profile: true,
@@ -421,32 +574,37 @@ function isStaleCompanyContext(company) {
   const companyName = normalizeCompanyTitleName(company?.company_name || "");
   if (!companyName) return true;
   const excerpt = cleanText(company?.company_page_excerpt || "");
+  if (!isStableCompanyProfileDom(companyName)) return true;
+  if (!excerpt) return true;
   if (hasPersonLikeContent(excerpt)) return true;
+  if (hasPersonProfileSectionMarkers(excerpt)) return true;
+  if (!hasCompanyLandingContent(excerpt, companyName)) return true;
   return false;
 }
 
-async function extractFreshCompanyContext({ timeoutMs = 1500 } = {}) {
+async function extractFreshCompanyContext({ timeoutMs = 3000 } = {}) {
   const startedAt = Date.now();
   let lastCompany = null;
   while (Date.now() - startedAt < timeoutMs) {
-    await waitForCompanyProfileDom({ timeoutMs: 250 });
+    await waitForCompanyProfileDom({
+      timeoutMs: Math.max(100, timeoutMs - (Date.now() - startedAt)),
+    });
     if (!isCompanyPageReadyForExtraction()) {
-      await delay(80);
       continue;
     }
     lastCompany = extractCompanyContext();
     if (!isStaleCompanyContext(lastCompany)) {
       return lastCompany;
     }
-    // Fast path: if we at least have a normalized company name, don't block for long.
-    if (normalizeCompanyTitleName(lastCompany?.company_name || "")) {
-      return lastCompany;
-    }
     timingLog("company_context_stale_retry", {
       company_name: lastCompany?.company_name || "",
+      excerpt_length: String(lastCompany?.company_page_excerpt || "").length,
       ready_state: document.readyState,
       has_main: hasMainCompanyContainer(),
       has_company_dom: hasCompanyProfileDom(),
+      has_stable_company_dom: isStableCompanyProfileDom(
+        lastCompany?.company_name || "",
+      ),
     });
     await delay(100);
   }
@@ -456,11 +614,14 @@ async function extractFreshCompanyContext({ timeoutMs = 1500 } = {}) {
       ready_state: document.readyState,
       has_main: hasMainCompanyContainer(),
       has_company_dom: hasCompanyProfileDom(),
+      has_stable_company_dom: isStableCompanyProfileDom(
+        lastCompany.company_name || "",
+      ),
     });
     return lastCompany;
   }
   throw new Error(
-    `Company page not ready for extraction. Last company_name: ${lastCompany?.company_name || ""}`,
+    `Company page not ready for extraction. Last company_name: ${lastCompany?.company_name || getCompanyCandidateName() || ""}`,
   );
 }
 
@@ -800,16 +961,28 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       try {
         timingLog("extraction_requested", {
+          page_type: detectLinkedInPageType().page_type,
           is_company_profile: isCompanyProfileUrl(),
           ready_state: document.readyState,
           has_main: hasMainCompanyContainer(),
         });
-        if (isCompanyProfileUrl()) {
+        if (detectLinkedInPageType().page_type !== "person") {
           sendResponse({
             ok: false,
             error: {
               code: "WRONG_EXTRACTOR",
               message: "Use EXTRACT_COMPANY_CONTEXT for company pages.",
+            },
+          });
+          return;
+        }
+        await waitForPersonProfileDom();
+        if (!isPersonPageReadyForExtraction()) {
+          sendResponse({
+            ok: false,
+            error: {
+              code: "STALE_DOM",
+              message: "Person page DOM is not ready.",
             },
           });
           return;
@@ -836,9 +1009,20 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       try {
         timingLog("company_context_extraction_requested", {
+          page_type: detectLinkedInPageType().page_type,
           ready_state: document.readyState,
           has_main: hasMainCompanyContainer(),
         });
+        if (detectLinkedInPageType().page_type !== "company") {
+          sendResponse({
+            ok: false,
+            error: {
+              code: "WRONG_EXTRACTOR",
+              message: "Use EXTRACT_PROFILE_CONTEXT for person pages.",
+            },
+          });
+          return;
+        }
         const company = await extractFreshCompanyContext();
         console.log("[LEF][company ai] scraped company context", company);
         sendResponse({ ok: true, company });

@@ -127,6 +127,21 @@ function canonicalizeLinkedInUrl(rawUrl) {
   }
 }
 
+function detectLinkedInPageType(rawUrl) {
+  const linkedin_id = canonicalizeLinkedInUrl(rawUrl || "");
+  const result = { page_type: "unsupported", linkedin_id };
+  if (!/^https:\/\/www\.linkedin\.com\//i.test(linkedin_id)) return result;
+  if (/^https:\/\/www\.linkedin\.com\/in\/[^/?#]+/i.test(linkedin_id)) {
+    result.page_type = "person";
+    return result;
+  }
+  if (/^https:\/\/www\.linkedin\.com\/(company|school)\/[^/?#]+/i.test(linkedin_id)) {
+    result.page_type = "company";
+    return result;
+  }
+  return result;
+}
+
 function setRefreshStatus(text) {
   if (refreshStatusEl) refreshStatusEl.textContent = text;
 }
@@ -556,28 +571,27 @@ async function refreshFromIframe(reason = "manual") {
     }
 
     resetIframeUiState(frameDocument, frameWindow);
-    const isCompanyUrl =
-      /^https:\/\/www\.linkedin\.com\/(company|school)\/[^/?#]+/i.test(
-        tabUrl || "",
+    const pageInfo = detectLinkedInPageType(tabUrl || "");
+    console.log("[LEF][page] detected", pageInfo);
+    const isCompanyUrl = pageInfo.page_type === "company";
+    let extractResp = { ok: false };
+    if (!isCompanyUrl) {
+      extractResp = await extractProfileWithInjectionFallback(
+        tabId,
+        "EXTRACT_PROFILE_CONTEXT",
       );
-    const extractType = isCompanyUrl
-      ? "EXTRACT_COMPANY_CONTEXT"
-      : "EXTRACT_PROFILE_CONTEXT";
-    const extractResp = await extractProfileWithInjectionFallback(
-      tabId,
-      extractType,
-    );
-    if (!extractResp.ok) {
-      console.warn("[LEF][refresh] pre-extract failed, continuing", {
-        reason,
-        extractType,
-        error: extractResp.error || "unknown",
-      });
+      if (!extractResp.ok) {
+        console.warn("[LEF][refresh] pre-extract failed, continuing", {
+          reason,
+          extractType: "EXTRACT_PROFILE_CONTEXT",
+          error: extractResp.error || "unknown",
+        });
+      }
     }
 
     await frameWindow.loadProfileContextOnOpen();
     const profileForPreview =
-      extractResp.ok && (isCompanyUrl ? extractResp.company : extractResp.profile);
+      !isCompanyUrl && extractResp.ok && extractResp.profile;
     if (profileForPreview) {
       await clearPreviewIfNotInDb(frameDocument, profileForPreview);
     }

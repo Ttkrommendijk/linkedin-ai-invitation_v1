@@ -388,6 +388,8 @@ const navPacingEnabledEl = document.getElementById("navPacingEnabled");
 let lastProfileContextSent = {};
 let lastProfileContextEnriched = null;
 let currentProfileContext = null;
+let latestPersonScrape = null;
+let latestCompanyScrape = null;
 let isProfileEditMode = false;
 let isProfileSaveInFlight = false;
 let companySuggestion = null;
@@ -3056,14 +3058,6 @@ function getProfileForGeneration(profile) {
     "location",
     "about",
     "recent_experience",
-    "is_company_profile",
-    "company_name",
-    "employee_number",
-    "sector",
-    "city",
-    "it_members",
-    "linkedin_id",
-    "company_page_excerpt",
   ];
 
   for (const key of copyKeys) {
@@ -3133,6 +3127,27 @@ function canonicalizeLinkedInUrl(rawUrl) {
     const noTrailing = noQuery.replace(/\/+$/, "");
     return noTrailing || "";
   }
+}
+
+function detectLinkedInPageType(rawUrl) {
+  const linkedin_id = canonicalizeLinkedInUrl(rawUrl || "");
+  const result = { page_type: "unsupported", linkedin_id };
+  if (!/^https:\/\/www\.linkedin\.com\//i.test(linkedin_id)) return result;
+  if (/^https:\/\/www\.linkedin\.com\/in\/[^/?#]+/i.test(linkedin_id)) {
+    result.page_type = "person";
+    return result;
+  }
+  if (/^https:\/\/www\.linkedin\.com\/(company|school)\/[^/?#]+/i.test(linkedin_id)) {
+    result.page_type = "company";
+    return result;
+  }
+  return result;
+}
+
+function getScrapeUrl(scrape) {
+  return canonicalizeLinkedInUrl(
+    scrape?.linkedin_id || getLinkedinUrlFromContext(scrape) || "",
+  );
 }
 
 function sanitizeCompanySearchTerm(value) {
@@ -3283,6 +3298,9 @@ async function extractProfileContextFromActiveTab({ source = "" } = {}) {
     throw new Error("No active tab found.");
   }
   const activeTabUrl = canonicalizeLinkedInUrl(activeTab?.url || "");
+  if (detectLinkedInPageType(activeTabUrl).page_type !== "person") {
+    throw new Error("Active page is not a LinkedIn person profile.");
+  }
 
   let resp = null;
   try {
@@ -3310,6 +3328,10 @@ async function extractProfileContextFromActiveTab({ source = "" } = {}) {
     active_tab_url: activeTabUrl,
     scraped_url: scrapedUrl,
     is_company_profile: isCompanyProfileMode(profile),
+  });
+  latestPersonScrape = profile;
+  console.log("[LEF][scrape] person saved", {
+    linkedin_url: scrapedUrl || activeTabUrl,
   });
   return profile;
 }
@@ -3372,7 +3394,62 @@ async function extractCompanyContextFromActiveTab({ source = "" } = {}) {
   };
   if (!linkedin_id) throw new Error("Missing linkedin_id.");
   console.log("[LEF][company ai] scraped company context", companyContext);
+  latestCompanyScrape = companyContext;
+  console.log("[LEF][scrape] company saved", { linkedin_id });
   return companyContext;
+}
+
+async function getFreshScrapeForPage(pageInfo, { source = "", force = false } = {}) {
+  if (pageInfo?.page_type === "person") {
+    if (!force && getScrapeUrl(latestPersonScrape) === pageInfo.linkedin_id) {
+      console.log("[LEF][llm] using fresh person scrape", {
+        linkedin_url: pageInfo.linkedin_id,
+      });
+      return latestPersonScrape;
+    }
+    console.log("[LEF][scrape] person started", {
+      source,
+      linkedin_url: pageInfo.linkedin_id,
+    });
+    try {
+      return await extractProfileContextFromActiveTab({ source });
+    } catch (e) {
+      latestPersonScrape = null;
+      console.log("[LEF][scrape] stale DOM detected", {
+        page_type: "person",
+        linkedin_url: pageInfo.linkedin_id,
+        error: getErrorMessage(e),
+      });
+      throw e;
+    }
+  }
+  if (pageInfo?.page_type === "company") {
+    if (!force && getScrapeUrl(latestCompanyScrape) === pageInfo.linkedin_id) {
+      console.log("[LEF][llm] using fresh company scrape", {
+        linkedin_id: pageInfo.linkedin_id,
+      });
+      return latestCompanyScrape;
+    }
+    console.log("[LEF][scrape] company started", {
+      source,
+      linkedin_id: pageInfo.linkedin_id,
+    });
+    try {
+      return await extractCompanyContextFromActiveTab({ source });
+    } catch (e) {
+      latestCompanyScrape = null;
+      console.log("[LEF][scrape] stale DOM detected", {
+        page_type: "company",
+        linkedin_id: pageInfo.linkedin_id,
+        error: getErrorMessage(e),
+      });
+      throw e;
+    }
+  }
+  console.log("[LEF][llm] blocked because scrape missing", {
+    page_type: pageInfo?.page_type || "unsupported",
+  });
+  throw new Error("Unsupported LinkedIn page.");
 }
 
 function clearFreePromptPreview() {
@@ -3410,6 +3487,8 @@ async function refreshAll() {
   const activeTab = await getActiveTabForProfileCheck().catch(() => null);
   const tabUrl = activeTab?.url || "";
   const canonicalTabUrl = canonicalizeLinkedInUrl(tabUrl);
+  const pageInfo = detectLinkedInPageType(tabUrl);
+  console.log("[LEF][page] detected", pageInfo);
   timingLog("UI refresh requested", {
     source: IS_SIDE_PANEL_CONTEXT ? "sidepanel/popup" : "popup",
     tab_url: tabUrl,
@@ -3431,6 +3510,8 @@ async function refreshAll() {
     currentProfileContext = null;
     lastProfileContextSent = {};
     lastProfileContextEnriched = null;
+    latestPersonScrape = null;
+    latestCompanyScrape = null;
     dbInvitationRow = null;
     dbCompanyRow = null;
     companyPeopleRows = [];
@@ -3457,18 +3538,15 @@ async function refreshAll() {
       matchedRule,
       dom: getNoProfileDomDebugInfo(),
     });
-    const onCompanyPage =
-      /^https:\/\/www\.linkedin\.com\/(company|school)\/[^/?#]+/i.test(
-        canonicalTabUrl,
-      );
-    if (onCompanyPage) {
-      console.log("[LEF][flow] company load DB check by linkedin_id", {
+    if (pageInfo.page_type === "company") {
+      console.log("[LEF][db] load requested", {
+        page_type: "company",
         ts: Date.now(),
-        linkedin_id: canonicalTabUrl,
+        linkedin_id: pageInfo.linkedin_id,
       });
       currentProfileContext = {
-        url: canonicalTabUrl,
-        linkedin_id: canonicalTabUrl,
+        url: pageInfo.linkedin_id,
+        linkedin_id: pageInfo.linkedin_id,
         is_company_profile: true,
       };
       lastProfileContextSent = currentProfileContext;
@@ -3478,61 +3556,64 @@ async function refreshAll() {
       selectedExistingCompanyForLink = null;
       updateMessageTabControls();
       await refreshCompanyRowFromDb({
-        linkedin_id: canonicalTabUrl,
+        linkedin_id: pageInfo.linkedin_id,
         allowNameSearch: false,
+      });
+      console.log(dbCompanyRow ? "[LEF][db] load found" : "[LEF][db] load not found", {
+        page_type: "company",
+        linkedin_id: pageInfo.linkedin_id,
       });
       renderDetailHeader();
       updatePhaseButtons();
-      if (dbCompanyRow) {
-        console.log("[LEF][flow] company exists in DB, skip scrape", {
-          ts: Date.now(),
-          linkedin_id: canonicalTabUrl,
-        });
-      } else {
-        console.log("[LEF][flow] company not found, no scrape until AI click", {
-          ts: Date.now(),
-          linkedin_id: canonicalTabUrl,
-        });
-      }
+      getFreshScrapeForPage(pageInfo, { source: "refresh", force: true }).catch(
+        () => null,
+      );
       if (IS_SIDE_PANEL_CONTEXT) {
         setActiveTab("detail", { userInitiated: true });
       }
       return true;
     }
 
-    const onPersonPage =
-      /^https:\/\/www\.linkedin\.com\/in\/[^/?#]+/i.test(canonicalTabUrl);
-    if (!onPersonPage) {
+    if (pageInfo.page_type !== "person") {
       throw new Error(UI_TEXT.couldNotExtractProfileContext);
     }
 
-    const profileContext = await extractProfileContextFromActiveTab();
-    timingLog("extraction completed", {
-      scraped_url: getLinkedinUrlFromContext(profileContext) || "",
-      is_company_profile: isCompanyProfileMode(profileContext),
+    console.log("[LEF][db] load requested", {
+      page_type: "person",
+      linkedin_url: pageInfo.linkedin_id,
     });
     const previousProfileUrl = canonicalizeLinkedInUrl(
       getLinkedinUrlFromContext(currentProfileContext) || "",
     );
-    const nextProfileUrl = canonicalizeLinkedInUrl(
-      getLinkedinUrlFromContext(profileContext) || "",
-    );
-    if (previousProfileUrl !== nextProfileUrl) {
+    if (previousProfileUrl !== pageInfo.linkedin_id) {
       clearFreePromptPreview();
     }
-    currentProfileContext = profileContext;
+    currentProfileContext = { url: pageInfo.linkedin_id };
+    lastProfileContextSent = currentProfileContext;
     dbCompanyRow = null;
     companyPeopleRows = [];
     selectedExistingCompanyForLink = null;
-    lastProfileContextSent = profileContext;
     lastProfileContextEnriched = null;
-    if (isCompanyProfileMode(profileContext)) {
-      console.log("[LEF][company profile detected]", {
-        linkedin_id: normalizeCompanyLinkedinId(profileContext),
-      });
-    }
     updateMessageTabControls();
     await refreshInvitationRowFromDb();
+    console.log(dbInvitationRow ? "[LEF][db] load found" : "[LEF][db] load not found", {
+      page_type: "person",
+      linkedin_url: pageInfo.linkedin_id,
+    });
+    getFreshScrapeForPage(pageInfo, {
+      source: "refresh",
+      force: true,
+    })
+      .then((profileContext) => {
+        timingLog("extraction completed", {
+          scraped_url: getLinkedinUrlFromContext(profileContext) || "",
+          is_company_profile: isCompanyProfileMode(profileContext),
+        });
+        currentProfileContext = profileContext;
+        lastProfileContextSent = profileContext;
+        renderDetailHeader();
+      })
+      .catch(() => null);
     renderDetailHeader();
     updatePhaseButtons();
     if (IS_SIDE_PANEL_CONTEXT) {
@@ -4405,7 +4486,14 @@ async function handleGenerateFirstMessageClick() {
 
     let profileContextForGeneration = null;
     try {
-      profileContextForGeneration = await extractProfileContextFromActiveTab();
+      const activeTab = await getActiveTabForProfileCheck().catch(() => null);
+      const pageInfo = detectLinkedInPageType(activeTab?.url || "");
+      if (pageInfo.page_type !== "person") {
+        throw new Error("Active page is not a LinkedIn person profile.");
+      }
+      profileContextForGeneration = await getFreshScrapeForPage(pageInfo, {
+        source: "first_message",
+      });
     } catch (e) {
       const msg = UI_TEXT.couldNotExtractProfileContext;
       console.error("[first-message] scrape failed", e);
@@ -4494,12 +4582,15 @@ bindGenerateFirstMessageClickHandler();
 async function extractAndPersistProfileDetails() {
   const activeTab = await getActiveTabForProfileCheck().catch(() => null);
   const activeTabUrl = canonicalizeLinkedInUrl(activeTab?.url || "");
+  const pageInfo = detectLinkedInPageType(activeTabUrl);
   console.log("[LEF][ai] active URL", { ts: Date.now(), url: activeTabUrl });
-  if (/^https:\/\/www\.linkedin\.com\/(company|school)\/[^/?#]+/i.test(activeTabUrl)) {
-    const companyContext = await extractCompanyContextFromActiveTab({
+  if (pageInfo.page_type === "company") {
+    const companyContext = await getFreshScrapeForPage(pageInfo, {
       source: "llm_click",
     });
-    console.log("[LEF][ai] fresh company scrape", companyContext);
+    console.log("[LEF][llm] using fresh company scrape", {
+      linkedin_id: pageInfo.linkedin_id,
+    });
     currentProfileContext = companyContext;
     lastProfileContextSent = companyContext;
     lastProfileContextEnriched = null;
@@ -4517,13 +4608,15 @@ async function extractAndPersistProfileDetails() {
     return;
   }
 
-  if (!/^https:\/\/www\.linkedin\.com\/in\/[^/?#]+/i.test(activeTabUrl)) {
+  if (pageInfo.page_type !== "person") {
     throw new Error("Active page is not a LinkedIn person profile.");
   }
-  const profileContext = await extractProfileContextFromActiveTab({
+  const profileContext = await getFreshScrapeForPage(pageInfo, {
     source: "llm_click",
   });
-  console.log("[LEF][ai] fresh person scrape", profileContext);
+  console.log("[LEF][llm] using fresh person scrape", {
+    linkedin_url: pageInfo.linkedin_id,
+  });
   currentProfileContext = profileContext;
   lastProfileContextSent = profileContext;
   lastProfileContextEnriched = null;
@@ -4553,9 +4646,13 @@ async function extractAndPersistProfileDetails() {
 }
 
 async function extractCompanyDetailsFromLlm(scrapedProfileContext = null) {
-  const profileContext =
-    scrapedProfileContext ||
-    (await extractProfileContextFromActiveTab({ source: "company_llm" }));
+  const profileContext = scrapedProfileContext;
+  if (!profileContext) {
+    console.log("[LEF][llm] blocked because scrape missing", {
+      page_type: "company",
+    });
+    throw new Error("Missing company scrape.");
+  }
   currentProfileContext = profileContext;
   lastProfileContextSent = profileContext;
   const linkedin_id = normalizeCompanyLinkedinId(profileContext);
@@ -4649,9 +4746,13 @@ async function extractCompanyDetailsFromLlm(scrapedProfileContext = null) {
 }
 
 async function extractProfileDetailsFromLlm(scrapedProfileContext = null) {
-  const profileContext =
-    scrapedProfileContext ||
-    (await extractProfileContextFromActiveTab({ source: "person_llm" }));
+  const profileContext = scrapedProfileContext;
+  if (!profileContext) {
+    console.log("[LEF][llm] blocked because scrape missing", {
+      page_type: "person",
+    });
+    throw new Error("Missing person scrape.");
+  }
   currentProfileContext = profileContext;
   lastProfileContextSent = profileContext;
   lastProfileContextEnriched = null;
@@ -4908,7 +5009,15 @@ async function onStepRegisterClick() {
   let footerHandled = false;
   setFooterLlmStatus();
   try {
-    const extracted = await extractProfileDetailsFromLlm();
+    const activeTab = await getActiveTabForProfileCheck().catch(() => null);
+    const pageInfo = detectLinkedInPageType(activeTab?.url || "");
+    if (pageInfo.page_type !== "person") {
+      throw new Error("Active page is not a LinkedIn person profile.");
+    }
+    const profileContext = await getFreshScrapeForPage(pageInfo, {
+      source: "register_click",
+    });
+    const extracted = await extractProfileDetailsFromLlm(profileContext);
     setFooterDbStatus();
     const result = await sendRuntimeMessage("DB_UPSERT_GENERATED", {
       payload: {
@@ -5439,7 +5548,14 @@ async function handleGenerateInviteClick() {
       return;
     }
 
-    const profileContext = await extractProfileContextFromActiveTab();
+    const activeTab = await getActiveTabForProfileCheck().catch(() => null);
+    const pageInfo = detectLinkedInPageType(activeTab?.url || "");
+    if (pageInfo.page_type !== "person") {
+      throw new Error("Active page is not a LinkedIn person profile.");
+    }
+    const profileContext = await getFreshScrapeForPage(pageInfo, {
+      source: "invite",
+    });
     currentProfileContext = profileContext;
     lastProfileContextSent = profileContext;
     lastProfileContextEnriched = null;
@@ -5667,7 +5783,11 @@ async function handleGenerateFreePromptClick() {
 
     let profileForGeneration = null;
     if (includeProfile) {
-      profileForGeneration = currentProfileContext;
+      const activeTab = await getActiveTabForProfileCheck().catch(() => null);
+      const pageInfo = detectLinkedInPageType(activeTab?.url || "");
+      profileForGeneration = await getFreshScrapeForPage(pageInfo, {
+        source: "free_prompt",
+      });
       const linkedinUrl = getLinkedinUrlFromContext(profileForGeneration);
       if (!profileForGeneration || !linkedinUrl) {
         setFooterStatus(
@@ -5777,12 +5897,17 @@ async function handleGenerateFollowupClick() {
     }
     followupObjectiveEl?.classList.remove("is-invalid");
 
-    if (!hasMessageProfileUrl()) {
+    const activeTab = await getActiveTabForProfileCheck().catch(() => null);
+    const pageInfo = detectLinkedInPageType(activeTab?.url || "");
+    if (pageInfo.page_type !== "person") {
       setFooterStatus(UI_TEXT.openLinkedInProfileFirst);
       return;
     }
 
-    if (!currentProfileContext) {
+    const profileContextForFollowup = await getFreshScrapeForPage(pageInfo, {
+      source: "followup",
+    });
+    if (!profileContextForFollowup) {
       setFooterStatus(UI_TEXT.couldNotExtractProfileContext);
       return;
     }
@@ -5836,8 +5961,8 @@ async function handleGenerateFollowupClick() {
         includeStrategy,
         chat_history: chatHistory,
         contextLast10,
-        profile_context: { ...currentProfileContext },
-        profileContext: { ...currentProfileContext },
+        profile_context: { ...profileContextForFollowup },
+        profileContext: { ...profileContextForFollowup },
         language,
       },
     };

@@ -1581,7 +1581,14 @@ async function supabaseUpdateProfileFields({
 async function supabaseGetInvitationByLinkedinUrl(linkedin_url) {
   const { supabaseUrl, supabaseAnonKey, accessToken } =
     await getSupabaseRequestContext();
-  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(linkedin_url)}&select=linkedin_url,status,message,generated_at,invited_at,accepted,accepted_at,first_message,first_message_generated_at,first_message_sent_at,message_count,company,company_id,headline,comments,language,full_name,campaign`;
+  const targetUrl = canonicalizeLinkedInUrl(linkedin_url);
+  if (!targetUrl) return null;
+  const targetUrlWithSlash = targetUrl.endsWith("/") ? targetUrl : `${targetUrl}/`;
+  const urlFilter =
+    targetUrl === targetUrlWithSlash
+      ? `linkedin_url.eq.${encodeURIComponent(targetUrl)}`
+      : `linkedin_url.eq.${encodeURIComponent(targetUrl)},linkedin_url.eq.${encodeURIComponent(targetUrlWithSlash)}`;
+  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?or=(${urlFilter})&select=linkedin_url,status,message,generated_at,invited_at,accepted,accepted_at,first_message,first_message_generated_at,first_message_sent_at,message_count,company,company_id,headline,comments,language,full_name,campaign&limit=1`;
 
   const res = await fetchWithTimeout(
     url,
@@ -2262,7 +2269,6 @@ const SIDEPANEL_REFRESH_DEBOUNCE_MS = 500;
 const sidePanelRefreshTimers = new Map();
 const lastSidePanelUrlByTab = new Map();
 let lastActivatedLinkedInTabId = null;
-const lastForcedCompanyReloadByTab = new Map();
 
 function timingLog(eventName, details = {}) {
   console.log("[LEF][timing]", eventName, {
@@ -2293,21 +2299,19 @@ function canonicalizeLinkedInUrl(rawUrl) {
   }
 }
 
-function isLinkedInCompanyLikeUrl(url) {
-  return /^https:\/\/www\.linkedin\.com\/(company|school)\/[^/?#]+/i.test(
-    String(url || ""),
-  );
-}
-
-function maybeForceReloadForCompanySpaNavigation(tabId, url, source) {
-  if (!Number.isInteger(tabId) || !isLinkedInCompanyLikeUrl(url)) return false;
-  const canonicalUrl = canonicalizeLinkedInUrl(url);
-  if (!canonicalUrl) return false;
-  if (lastForcedCompanyReloadByTab.get(tabId) === canonicalUrl) return false;
-  lastForcedCompanyReloadByTab.set(tabId, canonicalUrl);
-  timingLog("company_spa_reload_forced", { source, tabId, url: canonicalUrl });
-  chrome.tabs.reload(tabId).catch(() => null);
-  return true;
+function detectLinkedInPageType(rawUrl) {
+  const linkedin_id = canonicalizeLinkedInUrl(rawUrl || "");
+  const result = { page_type: "unsupported", linkedin_id };
+  if (!/^https:\/\/www\.linkedin\.com\//i.test(linkedin_id)) return result;
+  if (/^https:\/\/www\.linkedin\.com\/in\/[^/?#]+/i.test(linkedin_id)) {
+    result.page_type = "person";
+    return result;
+  }
+  if (/^https:\/\/www\.linkedin\.com\/(company|school)\/[^/?#]+/i.test(linkedin_id)) {
+    result.page_type = "company";
+    return result;
+  }
+  return result;
 }
 
 async function notifySidePanelRefresh({ tabId, url, reason }) {
@@ -2345,6 +2349,7 @@ chrome.tabs.onActivated.addListener(async ({ tabId }) => {
       source: "tabs.onActivated",
       tabId,
       url: tab?.url || "",
+      page: detectLinkedInPageType(tab?.url || ""),
     });
     const shouldForceRefresh = lastActivatedLinkedInTabId !== tabId;
     lastActivatedLinkedInTabId = tabId;
@@ -2362,6 +2367,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
       source: "tabs.onUpdated.url",
       tabId,
       url: changeInfo.url,
+      page: detectLinkedInPageType(changeInfo.url),
     });
     scheduleSidePanelRefresh(tabId, changeInfo.url, "tabs.onUpdated.url");
     return;
@@ -2371,6 +2377,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
       source: "tabs.onUpdated.complete",
       tabId,
       url: tab?.url || "",
+      page: detectLinkedInPageType(tab?.url || ""),
     });
     scheduleSidePanelRefresh(tabId, tab?.url || "", "tabs.onUpdated.complete");
   }
@@ -2382,6 +2389,7 @@ chrome.webNavigation.onCommitted.addListener((details) => {
     source: "webNavigation.onCommitted",
     tabId: details.tabId,
     url: details.url,
+    page: detectLinkedInPageType(details.url),
   });
   scheduleSidePanelRefresh(
     details.tabId,
@@ -2396,16 +2404,8 @@ chrome.webNavigation.onHistoryStateUpdated.addListener((details) => {
     source: "webNavigation.onHistoryStateUpdated",
     tabId: details.tabId,
     url: details.url,
+    page: detectLinkedInPageType(details.url),
   });
-  if (
-    maybeForceReloadForCompanySpaNavigation(
-      details.tabId,
-      details.url,
-      "webNavigation.onHistoryStateUpdated",
-    )
-  ) {
-    return;
-  }
   scheduleSidePanelRefresh(
     details.tabId,
     details.url,
@@ -2418,7 +2418,6 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   if (timer) clearTimeout(timer);
   sidePanelRefreshTimers.delete(tabId);
   lastSidePanelUrlByTab.delete(tabId);
-  lastForcedCompanyReloadByTab.delete(tabId);
 });
 
 function emitUiStatus(text) {
