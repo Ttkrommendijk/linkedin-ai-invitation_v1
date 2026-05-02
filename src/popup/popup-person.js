@@ -708,12 +708,7 @@ function bindInviteCopyClickHandler() {
 }
 
 function bindPersonWorkflowEvents() {
-  if (!document.getElementById("generate")) {
-    console.error("[invite] missing #generate button");
-  }
-  bindInviteCopyClickHandler();
-  bindSaveInviteClickHandler();
-  bindGenerateInviteClickHandler();
+  return;
 }
 
   return {

@@ -290,28 +290,10 @@ const messageCountIncrementEl = document.getElementById(
 const stepMessageRespondedEl = document.getElementById(
   "step-message-responded",
 );
-const detailTabInviteBtnEl = document.getElementById("detailTabInviteBtn");
-const detailTabFirstMessageBtnEl = document.getElementById(
-  "detailTabFirstMessageBtn",
-);
-const detailTabFreePromptBtnEl = document.getElementById("tabFreePromptBtn");
-const detailTabFollowBtnEl = document.getElementById("detailTabFollowBtn");
 const detailInviteSectionEl = document.getElementById("detailInviteSection");
 const detailMessageMountEl = document.getElementById("detailMessageMount");
 const tabFreePromptEl = document.getElementById("tabFreePrompt");
 
-if (!generateFirstMessageBtnEl) {
-  console.error("[first-message] missing #generateFirstMessage");
-}
-if (!firstMessagePreviewEl) {
-  console.error("[first-message] missing #firstMessagePreview");
-}
-if (!saveInviteBtnEl) {
-  console.error("[save] missing #saveInviteBtn");
-}
-if (!saveFirstMessageIconEl) {
-  console.error("[save] missing #saveFirstMessageIcon");
-}
 if (!openSidePanelBtnEl) {
   console.error("[sidepanel] missing #openSidePanel");
 }
@@ -1806,38 +1788,16 @@ function setDetailInnerTab(tab) {
     applyProfileModeUi();
     return;
   }
-  detailInnerTab = tab;
-  if (detailTabInviteBtnEl)
-    detailTabInviteBtnEl.classList.toggle("active", tab === "invite");
-  if (detailTabFirstMessageBtnEl)
-    detailTabFirstMessageBtnEl.classList.toggle("active", tab === "first");
-  if (detailTabFreePromptBtnEl)
-    detailTabFreePromptBtnEl.classList.toggle("active", tab === "free_prompt");
-  if (detailTabFollowBtnEl)
-    detailTabFollowBtnEl.classList.toggle("active", tab === "follow");
-
-  if (detailInviteSectionEl) detailInviteSectionEl.hidden = tab !== "invite";
-  if (tabMessage) tabMessage.hidden = tab === "invite" || tab === "free_prompt";
+  detailInnerTab = "free_prompt";
+  if (detailInviteSectionEl) detailInviteSectionEl.hidden = true;
+  if (tabMessage) tabMessage.hidden = true;
   if (tabFreePromptEl) {
-    tabFreePromptEl.classList.toggle("active", tab === "free_prompt");
-  }
-
-  if (tab === "first") {
-    if (acceptedModeEl) acceptedModeEl.hidden = false;
-    if (firstMessageSentModeEl) firstMessageSentModeEl.hidden = true;
-  } else if (tab === "follow") {
-    if (acceptedModeEl) acceptedModeEl.hidden = true;
-    if (firstMessageSentModeEl) firstMessageSentModeEl.hidden = false;
-  } else {
-    if (acceptedModeEl) acceptedModeEl.hidden = true;
-    if (firstMessageSentModeEl) firstMessageSentModeEl.hidden = true;
+    tabFreePromptEl.classList.add("active");
   }
 }
 
 function updateGenerateFirstMessageButtonLabel() {
-  generateFirstMessageBtnEl.textContent = isPostSendMode()
-    ? "Create new message"
-    : "Generate first message";
+  return;
 }
 
 function getErrorMessage(error) {
@@ -3774,45 +3734,6 @@ function runPopupInit() {
     tabOverview?.classList.remove("active");
     tabOverview?.classList.add("is-hidden");
   }
-  if (detailMessageMountEl && tabMessage) {
-    tabMessage.classList.remove("tab-panel");
-    tabMessage.classList.add("detail-inner-panel");
-    detailMessageMountEl.appendChild(tabMessage);
-  }
-  if (markMessageSentBtnEl) {
-    markMessageSentBtnEl.hidden = true;
-  }
-  detailTabInviteBtnEl?.addEventListener("click", async () => {
-    setFooterFetchingStatus();
-    try {
-      setDetailInnerTab("invite");
-      await onInvitationTabOpenedByUser();
-      setDetailInnerTab("invite");
-    } finally {
-      setFooterReady();
-    }
-  });
-  detailTabFirstMessageBtnEl?.addEventListener("click", async () => {
-    setFooterFetchingStatus();
-    try {
-      await onMessagesTabOpenedByUser();
-      setDetailInnerTab("first");
-    } finally {
-      setFooterReady();
-    }
-  });
-  detailTabFreePromptBtnEl?.addEventListener("click", () => {
-    setActiveTab("free_prompt", { userInitiated: true });
-  });
-  detailTabFollowBtnEl?.addEventListener("click", async () => {
-    setFooterFetchingStatus();
-    try {
-      await onMessagesTabOpenedByUser();
-      setDetailInnerTab("follow");
-    } finally {
-      setFooterReady();
-    }
-  });
   authInnerSignupBtnEl?.addEventListener("click", () =>
     setAuthInnerTab("signup"),
   );
@@ -3871,7 +3792,7 @@ function runPopupInit() {
   setCommunicationStatus("Ready");
   applyLifecycleUiState(dbInvitationRow);
   renderMessageTab(outreachMessageStatus);
-  setDetailInnerTab("invite");
+  setDetailInnerTab("free_prompt");
   renderDetailHeader();
   updatePhaseButtons();
   loadProfileContextOnOpen().catch((_e) => {});

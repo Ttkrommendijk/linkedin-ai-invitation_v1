@@ -382,139 +382,8 @@
                             </button>
                         </div>
                     </div>
-                    <div id="detailTabsDivider" class="section-divider"></div>
-
-                    <div id="detailTabsRow" class="row inline detail-tabs">
-                        <button
-                            id="detailTabInviteBtn"
-                            class="detail-tab-btn active"
-                            type="button"
-                        >
-                            Invitation
-                        </button>
-                        <button
-                            id="detailTabFirstMessageBtn"
-                            class="detail-tab-btn"
-                            type="button"
-                        >
-                            First Message
-                        </button>
-                        <button
-                            id="detailTabFollowBtn"
-                            class="detail-tab-btn"
-                            type="button"
-                        >
-                            Follow
-                        </button>
-                        <button
-                            id="tabFreePromptBtn"
-                            class="detail-tab-btn tab-btn"
-                            type="button"
-                        >
-                            Free prompt
-                        </button>
-                    </div>
-
-                    <div id="detailInviteSection">
-                        <div class="row">
-                            <label><small>Language</small></label>
-                            <select id="inviteLanguage">
-                                <option value="Portuguese" selected>
-                                    Portuguese
-                                </option>
-                                <option value="English">English</option>
-                                <option value="Dutch">Dutch</option>
-                                <option value="Spanish">Spanish</option>
-                            </select>
-                        </div>
-
-                        <div class="row">
-                            <div class="label-row">
-                                <label
-                                    ><small
-                                        >Additional prompt (optional)</small
-                                    ></label
-                                >
-                                <span class="info-tooltip info-tooltip-right"
-                                    >i
-                                    <span class="info-tooltip-content"
-                                        >Use this to guide the invite context
-                                        for this person. This text will be
-                                        appended to the standard prompt. Tip:
-                                        Invites have the highest success when
-                                        there are no extra notes. Only add a
-                                        note when you genuinely know the person
-                                        from somewhere, then reference that
-                                        specific occurrence.</span
-                                    ></span
-                                >
-                            </div>
-                            <textarea
-                                id="focus"
-                                rows="3"
-                                placeholder="Add your own prompt"
-                            ></textarea>
-                        </div>
-
-                        <div class="inline invite-actions">
-                            <button
-                                id="generate"
-                                class="btn btn-primary"
-                                type="button"
-                            >
-                                Generate invite
-                            </button>
-                            <button
-                                id="saveInviteBtn"
-                                type="button"
-                                class="btn-icon invite-save-icon"
-                                hidden
-                                title="Save"
-                                aria-label="Save"
-                            >
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    width="14"
-                                    height="14"
-                                    viewBox="0 0 16 16"
-                                    fill="currentColor"
-                                    aria-hidden="true"
-                                >
-                                    <path
-                                        d="M11 1H2a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V5L11 1Zm0 1.5L13.5 5H11V2.5ZM2 2h8v4h4v8H2V2Zm3 6a1 1 0 0 0-1 1v4h8V9a1 1 0 0 0-1-1H5Zm0 1h6v3H5V9Z"
-                                    />
-                                </svg>
-                            </button>
-                        </div>
-
-                        <div class="row">
-                            <div class="invite-preview-block">
-                                <div class="invite-preview-header">
-                                    <div class="invite-preview-title">
-                                        Preview
-                                    </div>
-                                    <button
-                                        id="copyInviteIcon"
-                                        type="button"
-                                        class="btn-icon copy-icon"
-                                        hidden
-                                        title="Copy to clipboard"
-                                        aria-label="Copy to clipboard"
-                                    >
-                                        &#x29C9;
-                                    </button>
-                                </div>
-                                <pre
-                                    id="preview"
-                                    class="invite-preview-content"
-                                ></pre>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="detailMessageMount"></div>
-
-                    <div id="tabFreePrompt" class="tab-panel">
+                    <div class="section-divider"></div>
+                    <div id="tabFreePrompt">
                         <div class="row">
                             <label><small>Language</small></label>
                             <select id="freePromptLanguage">
@@ -586,159 +455,37 @@
                             </div>
                         </div>
                     </div>
-                </div>
-
-                <div id="tabMessage" class="tab-panel">
-                    <div class="row">
-                        <label><small>Language</small></label>
-                        <select id="messageLanguage">
-                            <option value="Portuguese" selected>
-                                Portuguese
-                            </option>
-                            <option value="English">English</option>
-                            <option value="Dutch">Dutch</option>
-                            <option value="Spanish">Spanish</option>
-                        </select>
-                    </div>
-                    <div id="acceptedMode">
-                        <div id="initialMessageSection">
-                            <div class="row">
-                                <div class="label-row">
-                                    <label
-                                        ><small
-                                            >Additional prompt (optional)</small
-                                        ></label
-                                    >
-                                    <span
-                                        class="info-tooltip info-tooltip-right"
-                                        >i
-                                        <span class="info-tooltip-content"
-                                            >Use this to guide the first message
-                                            for this person. This text will be
-                                            appended to the standard
-                                            prompt.</span
-                                        ></span
-                                    >
-                                </div>
-                                <textarea
-                                    id="firstMessageAdditionalPrompt"
-                                    rows="3"
-                                    placeholder="Add your own prompt"
-                                ></textarea>
-                            </div>
-
-                            <div class="inline invite-actions">
-                                <button
-                                    id="generateFirstMessage"
-                                    class="btn btn-primary"
-                                    type="button"
-                                >
-                                    Generate first message
-                                </button>
-                                <button
-                                    id="saveFirstMessageIcon"
-                                    type="button"
-                                    class="btn-icon invite-save-icon"
-                                    hidden
-                                    title="Save"
-                                    aria-label="Save"
-                                >
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        width="14"
-                                        height="14"
-                                        viewBox="0 0 16 16"
-                                        fill="currentColor"
-                                        aria-hidden="true"
-                                    >
-                                        <path
-                                            d="M11 1H2a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V5L11 1Zm0 1.5L13.5 5H11V2.5ZM2 2h8v4h4v8H2V2Zm3 6a1 1 0 0 0-1 1v4h8V9a1 1 0 0 0-1-1H5Zm0 1h6v3H5V9Z"
-                                        />
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-
-                        <div id="firstMessagePreviewSection">
-                            <div class="row">
-                                <div class="invite-preview-block">
-                                    <div class="invite-preview-header">
-                                        <div class="invite-preview-title">
-                                            Preview
-                                        </div>
-                                        <button
-                                            id="copyFirstMessage"
-                                            type="button"
-                                            class="btn-icon copy-icon"
-                                            hidden
-                                            title="Copy to clipboard"
-                                            aria-label="Copy to clipboard"
-                                        >
-                                            &#x29C9;
-                                        </button>
-                                    </div>
-                                    <pre
-                                        id="firstMessagePreview"
-                                        class="invite-preview-content first-message-preview-content"
-                                    ></pre>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="firstMessageSentMode" hidden>
-                        <div id="followupSection">
-                            <div class="row">
-                                <label><small>Objective</small></label>
-                                <textarea
-                                    id="followupObjective"
-                                    placeholder="Objective for the next message..."
-                                ></textarea>
-                            </div>
-                            <div class="row">
-                                <label class="checkbox-row">
-                                    <input
-                                        type="checkbox"
-                                        id="includeStrategy"
-                                        class="strategy-checkbox"
-                                        checked
-                                    />
-                                    <small>Include strategy</small>
-                                </label>
-                            </div>
-                            <button
-                                id="generateFollowup"
-                                class="btn btn-primary"
-                                type="button"
-                            >
-                                Generate follow-up
-                            </button>
-                            <div class="row">
-                                <div class="invite-preview-block">
-                                    <div class="invite-preview-header">
-                                        <div class="invite-preview-title">
-                                            Preview
-                                        </div>
-                                        <button
-                                            id="copyFollowup"
-                                            type="button"
-                                            class="btn-icon copy-icon"
-                                            hidden
-                                            title="Copy to clipboard"
-                                            aria-label="Copy to clipboard"
-                                        >
-                                            &#x29C9;
-                                        </button>
-                                    </div>
-                                    <textarea
-                                        id="followupPreview"
-                                        class="invite-preview-content followup-preview-content"
-                                    ></textarea>
-                                </div>
-                            </div>
-                        </div>
+                    <div style="display: none" aria-hidden="true">
+                        <select id="inviteLanguage"></select>
+                        <textarea id="focus"></textarea>
+                        <button id="generate" type="button"></button>
+                        <button id="saveInviteBtn" type="button"></button>
+                        <button id="copyInviteIcon" type="button"></button>
+                        <pre id="preview"></pre>
+                        <button id="detailTabInviteBtn" type="button"></button>
+                        <button id="detailTabFirstMessageBtn" type="button"></button>
+                        <button id="detailTabFollowBtn" type="button"></button>
+                        <button id="tabFreePromptBtn" type="button"></button>
+                        <div id="detailInviteSection"></div>
+                        <div id="detailMessageMount"></div>
+                        <div id="tabMessage"></div>
+                        <div id="acceptedMode"></div>
+                        <div id="firstMessageSentMode"></div>
+                        <textarea id="firstMessageAdditionalPrompt"></textarea>
+                        <button id="generateFirstMessage" type="button"></button>
+                        <button id="saveFirstMessageIcon" type="button"></button>
+                        <button id="copyFirstMessage" type="button"></button>
+                        <pre id="firstMessagePreview"></pre>
+                        <button id="markMessageSent" type="button"></button>
+                        <textarea id="followupObjective"></textarea>
+                        <input id="includeStrategy" type="checkbox" />
+                        <button id="generateFollowup" type="button"></button>
+                        <textarea id="followupPreview"></textarea>
+                        <button id="copyFollowup" type="button"></button>
                     </div>
                 </div>
+
+                
 
                 <div id="tabOverview" class="tab-panel">
                     <div class="overview-filters list-filters row">
