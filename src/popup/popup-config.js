@@ -1,3 +1,4 @@
+function initConfigModule(deps = {}) {
 var apiKeyEl = document.getElementById("apiKey");
 var modelEl = document.getElementById("model");
 var strategyEl = document.getElementById("strategy");
@@ -25,12 +26,12 @@ async function loadSettings() {
   if (modelEl) modelEl.value = model || "gpt-4.1";
   if (strategyEl && strategyCore) strategyEl.value = strategyCore;
   if (webhookBaseUrlEl) {
-    webhookBaseUrlEl.value = getEffectiveSupabaseUrl(
+    webhookBaseUrlEl.value = deps.getEffectiveSupabaseUrl(
       supabaseUrlLocal,
       webhookBaseUrl,
     );
   }
-  const navPacingConfig = await loadNavPacingConfigForUi();
+  const navPacingConfig = await deps.loadNavPacingConfigForUi();
   if (navPacingEnabledEl) {
     navPacingEnabledEl.checked = Boolean(navPacingConfig.enabled);
   }
@@ -41,7 +42,7 @@ async function saveConfig() {
   const model = (modelEl.value || "gpt-4.1").trim();
   const strategyCore = (strategyEl.value || "").trim();
 
-  const webhookBaseUrl = await saveSupabaseUrlOverride(
+  const webhookBaseUrl = await deps.saveSupabaseUrlOverride(
     webhookBaseUrlEl?.value || "",
     { showStatus: false },
   );
@@ -53,7 +54,7 @@ async function saveConfig() {
   await chrome.storage.local.set(localConfigPayload);
   await chrome.storage.sync.set({ model, strategyCore, webhookBaseUrl });
 
-  setFooterStatus("Config saved.");
+  deps.setFooterStatus("Config saved.");
 }
 
 function bindConfigEvents() {
@@ -61,11 +62,11 @@ function bindConfigEvents() {
   if (saveConfigBtnEl && saveConfigBtnEl.dataset.configBound !== "1") {
     saveConfigBtnEl.dataset.configBound = "1";
     saveConfigBtnEl.addEventListener("click", async () => {
-      setFooterUpdatingStatus();
+      deps.setFooterUpdatingStatus();
       try {
         await saveConfig();
       } finally {
-        setFooterReady();
+        deps.setFooterReady();
       }
     });
   }
@@ -73,14 +74,29 @@ function bindConfigEvents() {
   if (webhookBaseUrlEl && webhookBaseUrlEl.dataset.configBound !== "1") {
     webhookBaseUrlEl.dataset.configBound = "1";
     webhookBaseUrlEl.addEventListener("change", async () => {
-      await saveSupabaseUrlOverride(webhookBaseUrlEl.value || "");
+      await deps.saveSupabaseUrlOverride(webhookBaseUrlEl.value || "");
     });
   }
 
   if (navPacingEnabledEl && navPacingEnabledEl.dataset.configBound !== "1") {
     navPacingEnabledEl.dataset.configBound = "1";
     navPacingEnabledEl.addEventListener("change", async () => {
-      await saveNavPacingEnabled(Boolean(navPacingEnabledEl.checked));
+      await deps.saveNavPacingEnabled(Boolean(navPacingEnabledEl.checked));
     });
   }
 }
+
+return {
+  apiKeyEl,
+  modelEl,
+  strategyEl,
+  webhookBaseUrlEl,
+  webhookSecretEl,
+  navPacingEnabledEl,
+  loadSettings,
+  saveConfig,
+  bindConfigEvents,
+};
+}
+
+globalThis.initConfigModule = initConfigModule;

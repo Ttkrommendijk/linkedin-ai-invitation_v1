@@ -1,4 +1,4 @@
-(function initPopupTabs(globalObj) {
+function initTabsModule(deps = {}) {
   function getEl(id) {
     return document.getElementById(id);
   }
@@ -19,7 +19,7 @@
   }
 
   function setActiveTab(which, { userInitiated = false } = {}) {
-    if (globalObj.IS_SIDE_PANEL_CONTEXT && !userInitiated) {
+    if (deps.IS_SIDE_PANEL_CONTEXT && !userInitiated) {
       return;
     }
 
@@ -39,7 +39,7 @@
     const freePromptActive = which === "free_prompt";
     const detailActive =
       which === "detail" || which === "invitation" || freePromptActive;
-    const overviewActive = globalObj.OVERVIEW_ENABLED && which === "overview";
+    const overviewActive = deps.OVERVIEW_ENABLED && which === "overview";
     const configActive = which === "config" || which === "supabase_login";
     const supabaseAuthActive = which === "supabase_login";
 
@@ -54,28 +54,29 @@
     tabConfig.classList.toggle("active", configActive);
     setConfigInnerTab(supabaseAuthActive ? "supabase" : "general");
 
-    const detailInnerTab = globalObj.getDetailInnerTab?.();
+    const detailInnerTab = deps.getDetailInnerTab?.();
     if (tabMessage) {
       tabMessage.hidden =
-        globalObj.isCompanyProfileMode?.() ||
+        deps.isCompanyProfileMode?.() ||
         !detailActive ||
         detailInnerTab === "invite" ||
         detailInnerTab === "free_prompt";
     }
 
-    if (globalObj.isCompanyProfileMode?.()) {
-      globalObj.applyProfileModeUi?.();
+    if (deps.isCompanyProfileMode?.()) {
+      deps.applyProfileModeUi?.();
     }
 
     if (freePromptActive) {
-      globalObj.setDetailInnerTab?.("free_prompt");
+      deps.setDetailInnerTab?.("free_prompt");
     }
 
     if (overviewActive) {
-      globalObj.fetchOverviewPage?.();
+      deps.fetchOverviewPage?.();
     }
   }
 
-  globalObj.setConfigInnerTab = setConfigInnerTab;
-  globalObj.setActiveTab = setActiveTab;
-})(globalThis);
+  return { setConfigInnerTab, setActiveTab };
+}
+
+globalThis.initTabsModule = initTabsModule;

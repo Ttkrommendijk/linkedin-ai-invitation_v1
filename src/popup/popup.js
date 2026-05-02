@@ -11,15 +11,6 @@ const cancelNewCampaignBtnEl = document.getElementById("cancelNewCampaign");
 const firstMessageAdditionalPromptEl = document.getElementById(
   "firstMessageAdditionalPrompt",
 );
-const messagePromptEl = document.getElementById("messagePrompt");
-const messagePromptWrapEl =
-  document.getElementById("firstPromptContainer") ||
-  document.getElementById("messagePromptWrap");
-const toggleMessagePromptBtnEl =
-  document.getElementById("togglePrompt") ||
-  document.getElementById("toggleMessagePrompt");
-const saveMessagePromptBtnEl = document.getElementById("saveMessagePrompt");
-const resetMessagePromptBtnEl = document.getElementById("resetMessagePrompt");
 const generateFirstMessageBtnEl = document.getElementById(
   "generateFirstMessage",
 );
@@ -95,7 +86,6 @@ const UI_TEXT = {
   lifecycleFirstMessageSent: "First message sent",
   lifecycleInDatabase: "In database",
 };
-const STORAGE_KEY_FIRST_MESSAGE_PROMPT = "firstMessagePrompt";
 const STORAGE_KEY_MESSAGE_LANGUAGE = "message_language";
 const STORAGE_KEY_FREE_PROMPT_LANGUAGE = "free_prompt_language";
 const STORAGE_KEY_LAST_ACTIVE_CAMPAIGN = "last_active_campaign";
@@ -111,7 +101,6 @@ const DEFAULT_NAV_PACING_CONFIG = Object.freeze({
   quiet_reset_ms: 12000,
 });
 const SUPPORTED_LANGUAGES = ["Portuguese", "English", "Dutch", "Spanish"];
-const DEFAULT_FIRST_MESSAGE_PROMPT = messagePromptEl?.value || "";
 const LEF_UTILS_SOURCE = globalThis.LEFUtils;
 if (
   (!LEF_UTILS_SOURCE || typeof LEF_UTILS_SOURCE !== "object") &&
@@ -394,8 +383,6 @@ let companyLinkSearchDebounceTimer = null;
 let companyLinkSearchResults = [];
 let selectedCompanyForSave = null;
 let firstMessage = "";
-let lastSavedFirstMessagePrompt = "";
-let isMessagePromptCollapsed = true;
 let dbInvitationRow = null;
 let dbCompanyRow = null;
 let companyPeopleRows = [];
@@ -455,6 +442,52 @@ const COPY_TOOLTIP_SUCCESS = "Copied";
 const OVERVIEW_ENABLED = Boolean(
   IS_SIDE_PANEL_CONTEXT && tabOverviewBtn && tabOverview,
 );
+const state = {
+  profile: null,
+  dbRow: null,
+  messageStatus: null,
+};
+let popupModulesInitialized = false;
+
+function initPopupModules() {
+  if (popupModulesInitialized) return;
+  const tabsApi = initTabsModule({
+    IS_SIDE_PANEL_CONTEXT,
+    OVERVIEW_ENABLED,
+    getDetailInnerTab: () => detailInnerTab,
+    isCompanyProfileMode,
+    applyProfileModeUi,
+    setDetailInnerTab,
+    fetchOverviewPage,
+  });
+  const configApi = initConfigModule({
+    state,
+    getEffectiveSupabaseUrl,
+    loadNavPacingConfigForUi,
+    saveSupabaseUrlOverride,
+    saveNavPacingEnabled,
+    setFooterStatus,
+    setFooterUpdatingStatus,
+    setFooterReady,
+  });
+  const promptsApi = initPromptsModule({
+    state,
+    setFooterUpdatingStatus,
+    setFooterStatus,
+    setFooterReady,
+  });
+  const personApi = initPersonModule({ state });
+  const messagesApi = initMessagesModule({ state });
+  Object.assign(
+    globalThis,
+    tabsApi,
+    configApi,
+    promptsApi,
+    personApi,
+    messagesApi,
+  );
+  popupModulesInitialized = true;
+}
 
 function timingLog(eventName, details = {}) {
   console.log("[LEF][timing]", eventName, {
@@ -903,22 +936,6 @@ function isPostSendMode() {
     status === "message responded" ||
     status === "message_responded"
   );
-}
-
-function getOutreachStatusFromDbRow() {
-  const status = getLifecycleStatusValue(dbInvitationRow);
-  return status === "first message sent" ||
-    status === "first_message_sent" ||
-    status === "message responded" ||
-    status === "message_responded"
-    ? "first_message_sent"
-    : "accepted";
-}
-
-function renderMessageTab(status) {
-  // First/Follow visibility is controlled only by inner tab selection.
-  // Status must not hide first-message UI.
-  void status;
 }
 
 function coalesceDbThenScraped(dbValue, scrapedValue) {
@@ -1817,16 +1834,6 @@ function setDetailInnerTab(tab) {
   }
 }
 
-Object.assign(globalThis, {
-  IS_SIDE_PANEL_CONTEXT,
-  OVERVIEW_ENABLED,
-  getDetailInnerTab: () => detailInnerTab,
-  isCompanyProfileMode,
-  applyProfileModeUi,
-  setDetailInnerTab,
-  fetchOverviewPage,
-});
-
 function updateGenerateFirstMessageButtonLabel() {
   generateFirstMessageBtnEl.textContent = isPostSendMode()
     ? "Create new message"
@@ -1926,43 +1933,6 @@ function isMessageBoxMissingError(errorText) {
   );
 }
 
-async function refreshChatHistoryFromActiveTab() {
-  const result = await fetchChatHistory();
-  extractedChatMessages = result.messages;
-}
-
-async function fetchChatHistory() {
-  const reqId = `chat_${Date.now()}_${++chatExtractSeq}`;
-  const result = await sendRuntimeMessage("FETCH_CHAT_HISTORY", {
-    payload: { reqId },
-  });
-  if (!result.ok) {
-    return { messages: [], chatHistory: "" };
-  }
-  const resp = result.data || {};
-  const messages = Array.isArray(resp?.data?.messages)
-    ? resp.data.messages
-    : [];
-  const chatHistory =
-    typeof resp?.data?.chat_history === "string"
-      ? resp.data.chat_history
-      : formatChatHistory(messages);
-  return { messages, chatHistory };
-}
-
-function setMessagePromptCollapsed(collapsed) {
-  if (!messagePromptWrapEl || !toggleMessagePromptBtnEl) return;
-  isMessagePromptCollapsed = collapsed;
-  messagePromptWrapEl.hidden = collapsed;
-  toggleMessagePromptBtnEl.textContent = collapsed
-    ? "Show prompt"
-    : "Hide prompt";
-  toggleMessagePromptBtnEl.setAttribute(
-    "aria-expanded",
-    collapsed ? "false" : "true",
-  );
-}
-
 function setCommunicationStatus(text) {
   setFooterStatus(text || "Ready");
 }
@@ -2053,176 +2023,6 @@ function formatDateTime(isoString) {
   }
 }
 
-function applyLifecycleUiState(dbRow, { preserveTabs = false } = {}) {
-  const generateBtn = document.getElementById("generate");
-
-  if (!generateBtn) return;
-  updateGenerateFirstMessageButtonLabel();
-
-  generateBtn.disabled = false;
-
-  const status = getLifecycleStatusValue(dbRow);
-  const dbMessage = (dbRow?.message || "").trim();
-  if (dbMessage) {
-    previewEl.textContent = dbMessage;
-    updateInviteCopyIconVisibility();
-  }
-
-  if (status === "generated") {
-    if (!preserveTabs) {
-      setActiveTab("detail");
-      setDetailInnerTab("invite");
-    }
-    if (dbMessage) {
-      previewEl.textContent = dbMessage;
-      updateInviteCopyIconVisibility();
-    }
-    return;
-  }
-
-  if (status === "invited") {
-    if (!preserveTabs) {
-      setActiveTab("detail");
-      setDetailInnerTab("invite");
-    }
-    if (dbMessage) {
-      previewEl.textContent = dbMessage;
-      updateInviteCopyIconVisibility();
-    }
-    generateBtn.disabled = true;
-    return;
-  }
-
-  if (
-    status === "first message sent" ||
-    status === "first_message_sent" ||
-    status === "message responded" ||
-    status === "message_responded"
-  ) {
-    if (!preserveTabs) {
-      setActiveTab("detail");
-      setDetailInnerTab("first");
-    }
-    generateBtn.disabled = true;
-    if (dbMessage) {
-      previewEl.textContent = dbMessage;
-      updateInviteCopyIconVisibility();
-    }
-  }
-
-  updateInviteCopyIconVisibility();
-
-  if (
-    status === "first message sent" ||
-    status === "first_message_sent" ||
-    status === "message responded" ||
-    status === "message_responded" ||
-    status === "accepted"
-  ) {
-    const dbFirstMessage = (dbRow?.first_message || "").trim();
-    if (dbFirstMessage) {
-      firstMessagePreviewEl.textContent = dbFirstMessage;
-      firstMessage = dbFirstMessage;
-    }
-  }
-}
-
-function deriveLifecycleState(row) {
-  if (!row) {
-    return { key: "not_in_database", text: UI_TEXT.lifecycleNotInDatabase };
-  }
-
-  const status = (row.status || "").trim().toLowerCase();
-  if (status === "generated") {
-    return { key: "generated", text: UI_TEXT.lifecycleGenerated };
-  }
-  if (status === "invited") {
-    return { key: "invited", text: UI_TEXT.lifecycleInvited };
-  }
-  if (status === "first message sent") {
-    return {
-      key: "first_message_sent",
-      text: UI_TEXT.lifecycleFirstMessageSent,
-    };
-  }
-  if ((row.first_message || "").trim()) {
-    return {
-      key: "first_message_generated",
-      text: UI_TEXT.lifecycleFirstMessageGenerated,
-    };
-  }
-  if (status) {
-    return { key: "neutral", text: row.status };
-  }
-  return { key: "neutral", text: UI_TEXT.lifecycleInDatabase };
-}
-
-async function refreshInvitationRowFromDb({ preserveTabs = false } = {}) {
-  if (isCompanyProfileMode()) {
-    await refreshCompanyRowFromDb();
-    return;
-  }
-  setFooterFetchingStatus();
-  const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
-  if (!linkedin_url) {
-    dbInvitationRow = null;
-    hideCompanySuggestionUi();
-    setCampaignSelectValue("");
-    setCommunicationStatus(UI_TEXT.lifecycleOpenLinkedInProfileFirst);
-    applyLifecycleUiState(dbInvitationRow, { preserveTabs });
-    outreachMessageStatus = "accepted";
-    renderMessageTab(outreachMessageStatus);
-    renderDetailHeader();
-    updatePhaseButtons();
-    setFooterReady();
-    return;
-  }
-
-  try {
-    const result = await sendRuntimeMessage("DB_GET_INVITATION", {
-      payload: { linkedin_url },
-    });
-    const resp = result.data || {};
-    if (!result.ok) {
-      dbInvitationRow = null;
-      hideCompanySuggestionUi();
-      setCommunicationStatus(getErrorMessage(result.error));
-      applyLifecycleUiState(dbInvitationRow, { preserveTabs });
-      outreachMessageStatus = "accepted";
-      renderMessageTab(outreachMessageStatus);
-      renderDetailHeader();
-      updatePhaseButtons();
-      return;
-    }
-
-    dbInvitationRow = resp.row || null;
-    await maybeAutocorrectLegacyMessageCount();
-    await applyCampaignSelectionFromProfile();
-    await setLanguage(
-      dbInvitationRow?.language ||
-        currentProfileContext?.language ||
-        getLanguage(),
-      { persist: false },
-    );
-    debug("DB invitation row fetched:", {
-      has_row: Boolean(dbInvitationRow),
-      message_length: (dbInvitationRow?.message || "").length,
-    });
-    applyLifecycleUiState(dbInvitationRow, { preserveTabs });
-    outreachMessageStatus = getOutreachStatusFromDbRow();
-    if (outreachMessageStatus === "first_message_sent") {
-      await chrome.storage.local.set({ message_status: "first_message_sent" });
-    }
-    renderMessageTab(outreachMessageStatus);
-    updateMessageTabControls();
-    renderDetailHeader();
-    await refreshCompanySuggestionUiForCurrentInvitation();
-    updatePhaseButtons();
-  } finally {
-    setFooterReady();
-  }
-}
-
 async function refreshCompanyRowFromDb({
   linkedin_id: linkedinIdOverride,
   allowNameSearch = true,
@@ -2251,77 +2051,6 @@ async function refreshCompanyRowFromDb({
   } finally {
     setFooterReady();
   }
-}
-
-async function maybeAutocorrectLegacyMessageCount() {
-  const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
-  if (!linkedin_url || !dbInvitationRow) return;
-  if (!isMessageSentOrBeyondStatus(getLifecycleStatusValue(dbInvitationRow))) {
-    return;
-  }
-  const currentCount = getMessageCountValue(dbInvitationRow);
-  if (currentCount > 0) return;
-  if (messageCountLegacyFixAttemptedUrl === linkedin_url) return;
-  messageCountLegacyFixAttemptedUrl = linkedin_url;
-  const result = await sendRuntimeMessage("DB_SET_MESSAGE_COUNT", {
-    payload: { linkedin_url, message_count: 1 },
-  });
-  const resp = result.data || {};
-  if (resp?.ok) {
-    dbInvitationRow = { ...dbInvitationRow, message_count: 1 };
-    return;
-  }
-  setFooterStatus(
-    `Could not correct message count: ${getErrorMessage(resp?.error || result.error)}`,
-  );
-}
-
-function hasMessageProfileUrl() {
-  return Boolean(getLinkedinUrlFromContext(currentProfileContext));
-}
-
-function updateSavePromptButtonState() {
-  if (!saveMessagePromptBtnEl || !resetMessagePromptBtnEl || !messagePromptEl) {
-    return;
-  }
-  saveMessagePromptBtnEl.disabled =
-    messagePromptEl.value === lastSavedFirstMessagePrompt;
-  resetMessagePromptBtnEl.disabled =
-    messagePromptEl.value === DEFAULT_FIRST_MESSAGE_PROMPT;
-}
-
-function updateFirstMessageCopyIconVisibility() {
-  if (!copyFirstMessageBtnEl || !firstMessagePreviewEl) return;
-  const hasText = (firstMessagePreviewEl.textContent || "").trim().length > 0;
-  if (!hasText) {
-    setCopyIconDefaultState(copyFirstMessageBtnEl);
-  }
-  copyFirstMessageBtnEl.hidden = !hasText;
-  copyFirstMessageBtnEl.disabled = !hasText;
-}
-
-function updateFirstMessageSaveIconVisibility() {
-  if (!saveFirstMessageIconEl || !firstMessagePreviewEl) return;
-  saveFirstMessageIconEl.hidden =
-    (firstMessagePreviewEl.textContent || "").trim().length === 0;
-}
-
-function updateMessageTabControls() {
-  const hasProfileUrl = hasMessageProfileUrl();
-  const hasGeneratedFirstMessage = Boolean(
-    (firstMessagePreviewEl.textContent || "").trim(),
-  );
-  const isFirstMessageSent = outreachMessageStatus === "first_message_sent";
-
-  if (generateFirstMessageBtnEl) {
-    generateFirstMessageBtnEl.disabled = !hasProfileUrl;
-  }
-  if (markMessageSentBtnEl) {
-    markMessageSentBtnEl.disabled =
-      isFirstMessageSent || !(hasProfileUrl && hasGeneratedFirstMessage);
-  }
-  updateFirstMessageCopyIconVisibility();
-  updateFirstMessageSaveIconVisibility();
 }
 
 function getOverviewLastRelevantDate(row) {
@@ -3646,19 +3375,6 @@ async function loadProfileContextOnOpen() {
   }
 }
 
-async function loadFirstMessagePrompt() {
-  if (!messagePromptEl) return;
-  const { [STORAGE_KEY_FIRST_MESSAGE_PROMPT]: savedPrompt } =
-    await chrome.storage.sync.get([STORAGE_KEY_FIRST_MESSAGE_PROMPT]);
-
-  if (typeof savedPrompt === "string" && savedPrompt.trim()) {
-    messagePromptEl.value = savedPrompt;
-  }
-
-  lastSavedFirstMessagePrompt = messagePromptEl.value;
-  updateSavePromptButtonState();
-}
-
 function normalizeLanguageValue(value) {
   const raw = String(value || "").trim();
   if (!raw) return "";
@@ -3780,33 +3496,6 @@ async function copyToClipboard(text) {
   }
 }
 
-function setCopyButtonEnabled(enabled) {
-  if (copyInviteIconEl) {
-    copyInviteIconEl.hidden = !enabled;
-    copyInviteIconEl.disabled = !enabled;
-  }
-}
-
-function setInviteSaveButtonEnabled(enabled) {
-  if (saveInviteBtnEl) {
-    saveInviteBtnEl.hidden = !enabled;
-  }
-}
-
-function showInviteCopySuccessCheck() {
-  if (!copyInviteIconEl) return;
-  setCopyIconSuccessState(copyInviteIconEl);
-  if (inviteCopyIconResetTimer) {
-    clearTimeout(inviteCopyIconResetTimer);
-  }
-  inviteCopyIconResetTimer = setTimeout(() => {
-    if (copyInviteIconEl) {
-      setCopyIconDefaultState(copyInviteIconEl);
-    }
-    inviteCopyIconResetTimer = null;
-  }, 900);
-}
-
 function showFirstMessageCopySuccessCheck(buttonEl) {
   const btn = buttonEl || copyFirstMessageBtnEl;
   if (!btn) return;
@@ -3866,19 +3555,6 @@ function setCopyIconSuccessState(buttonEl) {
   buttonEl.setAttribute("aria-label", COPY_TOOLTIP_SUCCESS);
 }
 
-function updateInviteCopyIconVisibility() {
-  const normalizedPreview =
-    typeof normalizeWhitespace === "function"
-      ? normalizeWhitespace(previewEl.textContent || "")
-      : String(previewEl.textContent || "").trim();
-  if (!normalizedPreview && copyInviteIconEl) {
-    setCopyIconDefaultState(copyInviteIconEl);
-  }
-  const hasPreview = Boolean(normalizedPreview);
-  setCopyButtonEnabled(hasPreview);
-  setInviteSaveButtonEnabled(hasPreview);
-}
-
 function updateFollowupCopyIconVisibility() {
   if (!copyFollowupBtnEl || !followupPreviewEl) return;
   const hasText = (followupPreviewEl.value || "").trim().length > 0;
@@ -3897,26 +3573,6 @@ function updateFreePromptCopyButtonState() {
   }
   copyFreePromptBtnEl.hidden = !hasText;
   copyFreePromptBtnEl.disabled = !hasText;
-}
-
-async function onInvitationTabOpenedByUser() {
-  setFooterStatus(UI_TEXT.preparingProfile);
-  await loadProfileContextOnOpen();
-}
-
-async function refreshMessagesTab({ reason = "manual_refresh" } = {}) {
-  debug("refreshMessagesTab:", reason);
-  setFooterStatus(UI_TEXT.preparingProfile);
-  const hasOpenProfile = await loadProfileContextOnOpen();
-  if (!hasOpenProfile) return;
-  outreachMessageStatus = getOutreachStatusFromDbRow();
-  renderMessageTab(outreachMessageStatus);
-  updateMessageTabControls();
-  await refreshChatHistoryFromActiveTab();
-}
-
-async function onMessagesTabOpenedByUser() {
-  await refreshMessagesTab({ reason: "tab_click" });
 }
 
 function setAuthInnerTab(which) {
@@ -4069,6 +3725,7 @@ function logPopupInitError(error) {
 }
 
 function runPopupInit() {
+  initPopupModules();
   tabMainBtn?.addEventListener("click", async () => {
     setFooterFetchingStatus();
     try {
@@ -4185,6 +3842,9 @@ function runPopupInit() {
   setCopyButtonEnabled(false);
   updateInviteCopyIconVisibility();
   updateFollowupCopyIconVisibility();
+  bindPromptEvents();
+  bindPersonWorkflowEvents();
+  bindMessagesWorkflowEvents();
   setMessagePromptCollapsed(true);
   bindStepperClickHandlers();
   updateMessageTabControls();
@@ -4216,8 +3876,7 @@ function runPopupInit() {
   updatePhaseButtons();
   loadProfileContextOnOpen().catch((_e) => {});
   loadFirstMessagePrompt().catch((_e) => {
-    lastSavedFirstMessagePrompt = messagePromptEl?.value || "";
-    updateSavePromptButtonState();
+    syncFirstMessagePromptSavedState();
   });
   loadMessageLanguage().catch((_e) => {});
   loadFreePromptLanguage().catch((_e) => {});
@@ -4235,14 +3894,6 @@ function runPopupInit() {
         .catch(() => null);
     });
   setNewCampaignRowVisible(false);
-
-  toggleMessagePromptBtnEl?.addEventListener("click", () => {
-    setMessagePromptCollapsed(!isMessagePromptCollapsed);
-  });
-
-  messagePromptEl?.addEventListener("input", () => {
-    updateSavePromptButtonState();
-  });
 
   getLanguageSelectElements().forEach((el) => {
     el.addEventListener("change", async () => {
@@ -4327,158 +3978,6 @@ if (document.readyState === "loading") {
     logPopupInitError(error);
   }
 }
-
-saveMessagePromptBtnEl?.addEventListener("click", async () => {
-  if (!messagePromptEl) return;
-  setFooterUpdatingStatus();
-  try {
-    const promptValue = messagePromptEl.value;
-    await chrome.storage.sync.set({
-      [STORAGE_KEY_FIRST_MESSAGE_PROMPT]: promptValue,
-    });
-    lastSavedFirstMessagePrompt = promptValue;
-    updateSavePromptButtonState();
-    setFooterStatus(UI_TEXT.promptSaved);
-  } finally {
-    setFooterReady();
-  }
-});
-
-resetMessagePromptBtnEl?.addEventListener("click", () => {
-  if (!messagePromptEl) return;
-  messagePromptEl.value = DEFAULT_FIRST_MESSAGE_PROMPT;
-  updateSavePromptButtonState();
-  setFooterStatus(UI_TEXT.promptReset);
-});
-
-async function handleGenerateFirstMessageClick() {
-  const activeTabsBeforeGeneration = captureActiveTabState();
-  let hadError = false;
-  setFooterLlmStatus();
-  try {
-    setFooterStatus(UI_TEXT.generatingFirstMessage);
-    if (firstMessagePreviewEl) {
-      firstMessagePreviewEl.textContent = "";
-    }
-    updateFirstMessageCopyIconVisibility();
-
-    const [{ apiKey: apiKeyLocal }, { model }] = await Promise.all([
-      chrome.storage.local.get(["apiKey"]),
-      chrome.storage.sync.get(["model"]),
-    ]);
-    const language = getLanguage();
-    const additionalPrompt = (
-      firstMessageAdditionalPromptEl?.value || ""
-    ).trim();
-
-    let apiKey = (apiKeyLocal || "").trim();
-    if (!apiKey) {
-      const typed = (apiKeyEl.value || "").trim();
-      if (typed) {
-        apiKey = typed;
-        await chrome.storage.local.set({ apiKey });
-      }
-    }
-    if (!apiKey) {
-      const msg = UI_TEXT.setApiKeyInConfig;
-      setFooterStatus(msg);
-      return;
-    }
-
-    let profileContextForGeneration = null;
-    try {
-      const activeTab = await getActiveTabForProfileCheck().catch(() => null);
-      const pageInfo = detectLinkedInPageType(activeTab?.url || "");
-      if (pageInfo.page_type !== "person") {
-        throw new Error("Active page is not a LinkedIn person profile.");
-      }
-      profileContextForGeneration = await getFreshScrapeForPage(pageInfo, {
-        source: "first_message",
-      });
-    } catch (e) {
-      const msg = UI_TEXT.couldNotExtractProfileContext;
-      console.error("[first-message] scrape failed", e);
-      setFooterStatus(msg);
-      return;
-    }
-
-    const linkedinUrl = getLinkedinUrlFromContext(profileContextForGeneration);
-    if (!linkedinUrl) {
-      const msg = UI_TEXT.openLinkedInProfileFirst;
-      setFooterStatus(msg);
-      return;
-    }
-
-    currentProfileContext = profileContextForGeneration;
-    lastProfileContextSent = { ...profileContextForGeneration };
-
-    const result = await sendRuntimeMessage("GENERATE_FIRST_MESSAGE", {
-      // prompt: buildFirstMessageTextPrompt (Generate first message button)
-      payload: {
-        apiKey,
-        model: (model || "gpt-4.1").trim(),
-        language,
-        additionalPrompt,
-        profile: profileContextForGeneration,
-      },
-    });
-    const resp = result.data || {};
-
-    if (!result.ok || !resp?.ok) {
-      throw new Error(getErrorMessage(result.error || resp?.error));
-    }
-
-    firstMessage = (resp.first_message || "").trim();
-    if (firstMessagePreviewEl) {
-      firstMessagePreviewEl.textContent = firstMessage;
-    }
-    updateMessageTabControls();
-    setFooterStatus(UI_TEXT.firstMessageGenerated);
-
-    if (!isPostSendMode()) {
-      setFooterUpdatingStatus();
-      const dbResult = await sendRuntimeMessage("DB_UPDATE_FIRST_MESSAGE", {
-        payload: {
-          linkedin_url: linkedinUrl,
-          first_message: firstMessage,
-          first_message_generated_at: new Date().toISOString(),
-        },
-      });
-      const dbResp = dbResult.data || {};
-      if (!dbResult.ok || !dbResp?.ok) {
-        setFooterStatus(
-          `${UI_TEXT.generatedButDbErrorPrefix} ${getErrorMessage(dbResult.error || dbResp?.error)}`,
-        );
-      } else {
-        await refreshInvitationRowFromDb({ preserveTabs: true });
-        updateMessageTabControls();
-      }
-    }
-  } catch (e) {
-    hadError = true;
-    console.error("[first-message] generate failed", e);
-    setFooterStatus(`${UI_TEXT.errorPrefix} ${getErrorMessage(e)}`);
-  } finally {
-    restoreActiveTabState(activeTabsBeforeGeneration);
-    if (hadError) {
-      setFooterStatus("Error");
-    } else {
-      setFooterReady();
-    }
-  }
-}
-
-function bindGenerateFirstMessageClickHandler() {
-  if (!generateFirstMessageBtnEl) return;
-  if (generateFirstMessageBtnEl.dataset.firstMessageBound === "1") return;
-  generateFirstMessageBtnEl.dataset.firstMessageBound = "1";
-  generateFirstMessageBtnEl.addEventListener(
-    "click",
-    handleGenerateFirstMessageClick,
-  );
-}
-
-bindGenerateFirstMessageClickHandler();
 
 async function extractAndPersistProfileDetails() {
   const activeTab = await getActiveTabForProfileCheck().catch(() => null);
@@ -4885,505 +4384,6 @@ function bindProfileEditControls() {
 
 bindProfileEditControls();
 
-async function upsertCurrentProfileWithStatus(statusValue) {
-  if (!currentProfileContext) return { ok: false, error: "missing_profile" };
-  const linkedinUrl = getLinkedinUrlFromContext(currentProfileContext);
-  if (!linkedinUrl) return { ok: false, error: "missing_url" };
-  const fullName = getFullNameFromContext(currentProfileContext);
-  const message = (previewEl.textContent || "").trim();
-  const [{ model, positioning, strategyCore }] = await Promise.all([
-    chrome.storage.sync.get(["model", "positioning", "strategyCore"]),
-  ]);
-  const result = await sendRuntimeMessage("DB_UPSERT_GENERATED", {
-    payload: {
-      linkedin_url: linkedinUrl,
-      language: getLanguage(),
-      message,
-      generated_at: new Date().toISOString(),
-    },
-  });
-  return result.data || {};
-}
-
-async function onStepRegisterClick() {
-  const activeTabsBeforeRegister = captureActiveTabState();
-  let footerHandled = false;
-  setFooterLlmStatus();
-  try {
-    const activeTab = await getActiveTabForProfileCheck().catch(() => null);
-    const pageInfo = detectLinkedInPageType(activeTab?.url || "");
-    if (pageInfo.page_type !== "person") {
-      throw new Error("Active page is not a LinkedIn person profile.");
-    }
-    const profileContext = await getFreshScrapeForPage(pageInfo, {
-      source: "register_click",
-    });
-    const extracted = await extractProfileDetailsFromLlm(profileContext);
-    setFooterDbStatus();
-    const result = await sendRuntimeMessage("DB_UPSERT_GENERATED", {
-      payload: {
-        linkedin_url: extracted.linkedin_url,
-        full_name: extracted.full_name || null,
-        company: extracted.company || null,
-        headline: extracted.headline || null,
-        language: extracted.language || getLanguage(),
-        status: "registered",
-        campaign:
-          normalizeCampaignValue(campaignSelectEl?.value || "") || null,
-      },
-    });
-    const resp = result.data || {};
-    setFooterStatus(
-      resp?.ok
-        ? "Registered"
-        : `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`,
-    );
-    if (resp?.ok) {
-      await refreshInvitationRowFromDb({ preserveTabs: true });
-      setFooterStatus("Successfully set status registered");
-      footerHandled = true;
-    } else {
-      setFooterStatus(
-        `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`,
-      );
-      footerHandled = true;
-    }
-  } catch (e) {
-    setFooterStatus(`${UI_TEXT.errorPrefix} ${getErrorMessage(e)}`);
-    footerHandled = true;
-  } finally {
-    restoreActiveTabState(activeTabsBeforeRegister);
-    if (!footerHandled) setFooterReady();
-  }
-}
-
-async function onStepInvitedClick() {
-  await setMarkedStatusForStepper("invited", UI_TEXT.markedInvited);
-}
-
-async function onStepAcceptedClick() {
-  await setAcceptedToggleForStepper();
-}
-
-async function onStepFirstMessageSentClick() {
-  if (isMarkingMessageSent) return;
-  isMarkingMessageSent = true;
-  let footerHandled = false;
-  setFooterDbStatus();
-  try {
-    const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
-    if (!linkedin_url) {
-      setFooterStatus(UI_TEXT.openLinkedInProfileFirst);
-      footerHandled = true;
-      return;
-    }
-    const result = await sendRuntimeMessage("DB_MARK_FIRST_MESSAGE_SENT", {
-      payload: { linkedin_url },
-    });
-    const resp = result.data || {};
-    if (resp?.ok) {
-      await refreshInvitationRowFromDb({ preserveTabs: true });
-      setFooterStatus("Successfully set status first message sent");
-      footerHandled = true;
-    } else {
-      setFooterStatus(
-        `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error || result.error)}`,
-      );
-      footerHandled = true;
-    }
-  } finally {
-    isMarkingMessageSent = false;
-    if (!footerHandled) setFooterReady();
-  }
-}
-
-async function onStepMessageRespondedClick() {
-  await setStatusOnlyForStepper(
-    "message responded",
-    "Marked as message responded",
-  );
-}
-
-async function setStatusOnlyForStepper(statusValue, successText) {
-  let footerHandled = false;
-  setFooterDbStatus();
-  try {
-    const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
-    if (!linkedin_url) {
-      setFooterStatus(UI_TEXT.openLinkedInProfileFirst);
-      footerHandled = true;
-      return { ok: false };
-    }
-    const payloadStatus =
-      statusValue === "message responded" ? "message responded" : statusValue;
-    const result = await sendRuntimeMessage("DB_SET_STATUS_ONLY", {
-      payload: { linkedin_url, status: payloadStatus },
-    });
-    const resp = result.data || {};
-    setFooterStatus(
-      resp?.ok
-        ? successText
-        : `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`,
-    );
-    if (resp?.ok) {
-      await refreshInvitationRowFromDb();
-      setFooterStatus(`Successfully set status ${payloadStatus}`);
-      footerHandled = true;
-      return { ok: true };
-    } else {
-      setFooterStatus(
-        `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`,
-      );
-      footerHandled = true;
-      return { ok: false };
-    }
-  } finally {
-    if (!footerHandled) setFooterReady();
-  }
-  return { ok: false };
-}
-
-async function setMarkedStatusForStepper(statusValue, successText) {
-  let footerHandled = false;
-  setFooterDbStatus();
-  try {
-    const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
-    if (!linkedin_url) {
-      setFooterStatus(UI_TEXT.openLinkedInProfileFirst);
-      footerHandled = true;
-      return { ok: false };
-    }
-    const result = await sendRuntimeMessage("DB_MARK_STATUS", {
-      payload: { linkedin_url, status: statusValue },
-    });
-    const resp = result.data || {};
-    setFooterStatus(
-      resp?.ok
-        ? successText
-        : `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`,
-    );
-    if (resp?.ok) {
-      await refreshInvitationRowFromDb({ preserveTabs: true });
-      setFooterStatus(`Successfully set status ${statusValue}`);
-      footerHandled = true;
-      return { ok: true };
-    } else {
-      setFooterStatus(
-        `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`,
-      );
-      footerHandled = true;
-      return { ok: false };
-    }
-  } finally {
-    if (!footerHandled) setFooterReady();
-  }
-  return { ok: false };
-}
-
-async function setAcceptedToggleForStepper() {
-  let footerHandled = false;
-  setFooterDbStatus();
-  try {
-    const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
-    if (!linkedin_url) {
-      setFooterStatus(UI_TEXT.openLinkedInProfileFirst);
-      footerHandled = true;
-      return;
-    }
-    const hasAccepted = isAcceptedRow(dbInvitationRow);
-    const messageType = hasAccepted
-      ? "DB_CLEAR_ACCEPTED_AT"
-      : "DB_SET_ACCEPTED_AT_NOW";
-    const result = await sendRuntimeMessage(messageType, {
-      payload: { linkedin_url },
-    });
-    const resp = result.data || {};
-    const successText = hasAccepted ? "Accepted cleared" : "Marked as accepted";
-    setFooterStatus(
-      resp?.ok
-        ? successText
-        : `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`,
-    );
-    if (resp?.ok) {
-      await refreshInvitationRowFromDb({ preserveTabs: true });
-      await refreshOverviewListContextSnapshot();
-      footerHandled = true;
-    } else {
-      setFooterStatus(
-        `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`,
-      );
-      footerHandled = true;
-    }
-  } finally {
-    if (!footerHandled) setFooterReady();
-  }
-}
-
-async function adjustMessageCountForCurrentProfile(delta) {
-  const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
-  if (!linkedin_url) {
-    setFooterStatus(UI_TEXT.openLinkedInProfileFirst);
-    return false;
-  }
-  const result = await sendRuntimeMessage("DB_INCREMENT_MESSAGE_COUNT", {
-    payload: { linkedin_url, delta },
-  });
-  const resp = result.data || {};
-  if (!resp?.ok) {
-    setFooterStatus(
-      `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error || result.error)}`,
-    );
-    return false;
-  }
-  await refreshInvitationRowFromDb({ preserveTabs: true });
-  await refreshOverviewListContextSnapshot();
-  return true;
-}
-
-async function setMessageCountForCurrentProfile(message_count) {
-  const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
-  if (!linkedin_url) {
-    setFooterStatus(UI_TEXT.openLinkedInProfileFirst);
-    return false;
-  }
-  const result = await sendRuntimeMessage("DB_SET_MESSAGE_COUNT", {
-    payload: { linkedin_url, message_count },
-  });
-  const resp = result.data || {};
-  if (!resp?.ok) {
-    setFooterStatus(
-      `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error || result.error)}`,
-    );
-    await refreshInvitationRowFromDb({ preserveTabs: true });
-    return false;
-  }
-  await refreshInvitationRowFromDb({ preserveTabs: true });
-  await refreshOverviewListContextSnapshot();
-  return true;
-}
-
-function bindStepperClickHandlers() {
-  if (!statusStepperEl) return;
-  if (statusStepperEl.dataset.stepperBound === "1") return;
-  statusStepperEl.dataset.stepperBound = "1";
-  statusStepperEl.addEventListener("click", async (event) => {
-    const targetEl =
-      event.target instanceof Element
-        ? event.target.closest(".status-step")
-        : null;
-    if (!targetEl) return;
-    const stepKey = targetEl.getAttribute("data-step") || "";
-    if (!stepKey || !stepperAllowedActions[stepKey]) return;
-
-    if (stepperForwardSteps.has(stepKey)) {
-      if (stepKey === "registered") {
-        await onStepRegisterClick();
-        return;
-      }
-      if (stepKey === "invited") {
-        await onStepInvitedClick();
-        return;
-      }
-      if (stepKey === "accepted") {
-        await onStepAcceptedClick();
-        return;
-      }
-      if (stepKey === "first_message_sent") {
-        await onStepFirstMessageSentClick();
-        return;
-      }
-      if (stepKey === "message_responded") {
-        await onStepMessageRespondedClick();
-      }
-      return;
-    }
-
-    if (stepKey === stepperBackTarget) {
-      if (stepperBackAction === "status_registered") {
-        await setStatusOnlyForStepper("registered", "Back to registered");
-        return;
-      }
-      if (stepperBackAction === "status_invited") {
-        const backResult = await setStatusOnlyForStepper(
-          "invited",
-          "Back to invited",
-        );
-        if (backResult?.ok) {
-          await setMessageCountForCurrentProfile(0);
-        }
-        return;
-      }
-      if (stepperBackAction === "status_first_message_sent") {
-        await setStatusOnlyForStepper(
-          "first message sent",
-          "Back to first message sent",
-        );
-        return;
-      }
-      if (stepperBackAction === "clear_accepted") {
-        await onStepAcceptedClick();
-      }
-    }
-
-    if (stepKey === "accepted") {
-      await onStepAcceptedClick();
-    }
-  });
-}
-
-copyInviteIconEl?.addEventListener("click", async () => {
-  const copyResult = await copyToClipboard(previewEl.textContent || "");
-  if (copyResult.ok) {
-    showInviteCopySuccessCheck();
-    setFooterStatus(UI_TEXT.copiedToClipboard);
-  } else {
-    setFooterStatus(
-      `${UI_TEXT.copyFailedPrefix} ${getErrorMessage(copyResult.error)}`,
-    );
-  }
-});
-
-function bindMessagePreviewCopyHandlers() {
-  if (document.documentElement.dataset.messageCopyBound === "1") return;
-  document.documentElement.dataset.messageCopyBound = "1";
-  document.addEventListener("click", async (event) => {
-    const eventTarget = event.target;
-    const targetEl =
-      eventTarget instanceof Element
-        ? eventTarget
-        : eventTarget instanceof Node
-          ? eventTarget.parentElement
-          : null;
-    const clickedBtn = targetEl?.closest("#copyFirstMessage, #copyFollowup");
-    if (!clickedBtn) return;
-
-    const isFirstMessageCopy = clickedBtn.id === "copyFirstMessage";
-    const previewNode = document.getElementById(
-      isFirstMessageCopy ? "firstMessagePreview" : "followupPreview",
-    );
-    if (!previewNode) {
-      setFooterStatus(
-        `${UI_TEXT.copyFailedPrefix} ${getErrorMessage("Missing preview element.")}`,
-      );
-      return;
-    }
-
-    const previewText = isFirstMessageCopy
-      ? previewNode.textContent || ""
-      : previewNode.value || "";
-    if (!previewText.trim()) {
-      setFooterStatus(UI_TEXT.nothingToCopy);
-      return;
-    }
-
-    const copyResult = await copyToClipboard(previewText);
-    if (!copyResult.ok) {
-      const errorText = getErrorMessage(copyResult.error);
-      setFooterStatus(`${UI_TEXT.copyFailedPrefix} ${errorText}`);
-      if (!isFirstMessageCopy) {
-        console.error("[LEF][chat] followup copy failed", errorText);
-      }
-      return;
-    }
-
-    if (isFirstMessageCopy) {
-      showFirstMessageCopySuccessCheck(clickedBtn);
-      updateMessageTabControls();
-    } else {
-      showFollowupCopySuccessCheck(clickedBtn);
-    }
-    setFooterStatus(UI_TEXT.copiedToClipboard);
-  });
-}
-
-function bindFirstMessageCopyHandler() {
-  if (!copyFirstMessageBtnEl) {
-    debugLog("[copy] missing #copyFirstMessage");
-    return;
-  }
-  bindMessagePreviewCopyHandlers();
-}
-
-bindFirstMessageCopyHandler();
-
-async function handleSaveInviteClick() {
-  setFooterDbStatus();
-  try {
-    const resp = await upsertCurrentProfileWithStatus("generated");
-    if (!resp?.ok) {
-      setFooterStatus(
-        `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`,
-      );
-      return;
-    }
-    setFooterStatus("Saved.");
-    await refreshInvitationRowFromDb();
-  } finally {
-    setFooterReady();
-  }
-}
-
-function bindSaveInviteClickHandler() {
-  if (!saveInviteBtnEl) return;
-  if (saveInviteBtnEl.dataset.saveBound === "1") return;
-  saveInviteBtnEl.dataset.saveBound = "1";
-  saveInviteBtnEl.addEventListener("click", handleSaveInviteClick);
-}
-
-async function handleSaveFirstMessageClick() {
-  const activeTabsBeforeSave = captureActiveTabState();
-  setFooterUpdatingStatus();
-  try {
-    const textToSave = (
-      firstMessage ||
-      firstMessagePreviewEl?.textContent ||
-      ""
-    ).trim();
-    if (!textToSave) {
-      return;
-    }
-
-    const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
-    if (!linkedin_url) {
-      setFooterStatus(UI_TEXT.openLinkedInProfileFirst);
-      return;
-    }
-
-    const result = await sendRuntimeMessage("DB_UPDATE_FIRST_MESSAGE", {
-      payload: {
-        linkedin_url,
-        first_message: textToSave,
-        first_message_generated_at: new Date().toISOString(),
-      },
-    });
-    const resp = result.data || {};
-
-    if (!result.ok || !resp?.ok) {
-      throw new Error(getErrorMessage(result.error || resp?.error));
-    }
-
-    setFooterStatus("Saved.");
-    await refreshInvitationRowFromDb({ preserveTabs: true });
-    updateMessageTabControls();
-  } catch (e) {
-    console.error("[first-message] save failed", e);
-    setFooterStatus(`${UI_TEXT.dbErrorPrefix} ${getErrorMessage(e)}`);
-  } finally {
-    restoreActiveTabState(activeTabsBeforeSave);
-    setFooterReady();
-  }
-}
-
-function bindSaveFirstMessageClickHandler() {
-  if (!saveFirstMessageIconEl) return;
-  if (saveFirstMessageIconEl.dataset.saveBound === "1") return;
-  saveFirstMessageIconEl.dataset.saveBound = "1";
-  saveFirstMessageIconEl.addEventListener("click", handleSaveFirstMessageClick);
-}
-
-bindSaveInviteClickHandler();
-bindSaveFirstMessageClickHandler();
-
 function bindOpenSidePanelClickHandler() {
   if (!openSidePanelBtnEl) return;
   if (openSidePanelBtnEl.dataset.sidePanelBound === "1") return;
@@ -5419,91 +4419,6 @@ function bindOpenSidePanelClickHandler() {
 }
 
 bindOpenSidePanelClickHandler();
-
-if (!document.getElementById("generate")) {
-  console.error("[invite] missing #generate button");
-}
-
-async function handleGenerateInviteClick() {
-  setFooterLlmStatus();
-  try {
-    previewEl.textContent = "";
-    updateInviteCopyIconVisibility();
-
-    const [{ apiKey: apiKeyLocal }, { model, positioning, strategyCore }] =
-      await Promise.all([
-        chrome.storage.local.get(["apiKey"]),
-        chrome.storage.sync.get(["model", "positioning", "strategyCore"]),
-      ]);
-
-    let apiKey = (apiKeyLocal || "").trim();
-    if (!apiKey) {
-      const typed = (apiKeyEl.value || "").trim();
-      if (typed) {
-        apiKey = typed;
-        await chrome.storage.local.set({ apiKey });
-      }
-    }
-    if (!apiKey) {
-      setFooterStatus(UI_TEXT.setApiKeyInConfig);
-      return;
-    }
-
-    const activeTab = await getActiveTabForProfileCheck().catch(() => null);
-    const pageInfo = detectLinkedInPageType(activeTab?.url || "");
-    if (pageInfo.page_type !== "person") {
-      throw new Error("Active page is not a LinkedIn person profile.");
-    }
-    const profileContext = await getFreshScrapeForPage(pageInfo, {
-      source: "invite",
-    });
-    currentProfileContext = profileContext;
-    lastProfileContextSent = profileContext;
-    lastProfileContextEnriched = null;
-    renderDetailHeader();
-
-    const result = await sendRuntimeMessage("GENERATE_INVITE", {
-      // prompt: buildInviteTextPrompt (Generate invite button)
-      payload: {
-        apiKey,
-        model: (model || "gpt-4.1").trim(),
-        positioning: positioning || "",
-        focus: (focusEl?.value || "").trim(),
-        language: getLanguage(),
-        strategyCore: strategyCore || "",
-        profile: { ...profileContext },
-      },
-    });
-    const resp = result.data || {};
-
-    if (!result.ok || !resp?.ok) {
-      throw new Error(getErrorMessage(result.error || resp?.error));
-    }
-
-    previewEl.textContent = (resp.invite_text || "").trim();
-    updateInviteCopyIconVisibility();
-    setFooterStatus(
-      previewEl.textContent
-        ? UI_TEXT.generatedClickCopy
-        : UI_TEXT.noMessageGenerated,
-    );
-  } catch (e) {
-    console.error("[invite] generate failed", e);
-    setFooterStatus(`${UI_TEXT.errorPrefix} ${getErrorMessage(e)}`);
-  } finally {
-    setFooterReady();
-  }
-}
-
-function bindGenerateInviteClickHandler() {
-  const generateInviteBtnEl = document.getElementById("generate");
-  if (!generateInviteBtnEl) return;
-  if (generateInviteBtnEl.dataset.generateInviteBound === "1") return;
-  generateInviteBtnEl.dataset.generateInviteBound = "1";
-  generateInviteBtnEl.addEventListener("click", handleGenerateInviteClick);
-}
-
-bindGenerateInviteClickHandler();
 
 acceptCompanySuggestionBtnEl?.addEventListener("click", async () => {
   if (isAcceptingCompanySuggestion) return;
@@ -5629,43 +4544,6 @@ companyPeopleListEl?.addEventListener("keydown", async (event) => {
   await openLinkedIn(linkedinUrl);
 });
 
-markMessageSentBtnEl?.addEventListener("click", async () => {
-  setFooterDbStatus();
-  try {
-    if (!currentProfileContext) {
-      setFooterStatus(UI_TEXT.openLinkedInProfileFirst);
-      return;
-    }
-
-    const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
-    if (!linkedin_url) {
-      setFooterStatus(UI_TEXT.missingLinkedinUrl);
-      return;
-    }
-
-    const result = await sendRuntimeMessage("DB_MARK_STATUS", {
-      payload: { linkedin_url, status: "first message sent" },
-    });
-    const resp = result.data || {};
-
-    setFooterStatus(
-      resp?.ok
-        ? UI_TEXT.markedFirstMessageSent
-        : `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(resp?.error)}`,
-    );
-
-    if (resp?.ok) {
-      outreachMessageStatus = "first_message_sent";
-      await chrome.storage.local.set({ message_status: "first_message_sent" });
-      renderMessageTab(outreachMessageStatus);
-      await refreshInvitationRowFromDb();
-    }
-    updateMessageTabControls();
-  } finally {
-    setFooterReady();
-  }
-});
-
 async function handleGenerateFreePromptClick() {
   try {
     const prompt = (freePromptInputEl?.value || "").trim();
@@ -5756,157 +4634,6 @@ async function handleGenerateFreePromptClick() {
   }
 }
 
-if (!generateFollowupBtnEl) {
-  console.error("[followup] missing #generateFollowup");
-}
-
-async function handleGenerateFollowupClick() {
-  setFooterLlmStatus();
-  try {
-    const objective = (followupObjectiveEl?.value || "").trim();
-    const strategy = (strategyEl.value || "").trim();
-    const includeStrategy = includeStrategyEl
-      ? includeStrategyEl.checked
-      : true;
-    const language = getLanguage();
-    const chatResult = await fetchChatHistory().catch((e) => {
-      debugLog("[followup] chat history fetch failed", {
-        message: getErrorMessage(e),
-      });
-      return { messages: [], chatHistory: "" };
-    });
-    extractedChatMessages = Array.isArray(chatResult.messages)
-      ? chatResult.messages
-      : [];
-    const chatHistory = (chatResult.chatHistory || "").trim();
-    const last10 = extractedChatMessages.slice(-10);
-    debugLog("[LEF][chat] followup generate clicked", {
-      includeStrategy,
-      language,
-      objectiveLen: objective.length,
-      last10Count: last10.length,
-      chatHistoryChars: chatHistory.length,
-    });
-
-    if (!objective) {
-      if (followupObjectiveEl) {
-        followupObjectiveEl.classList.add("is-invalid");
-        followupObjectiveEl.focus();
-      }
-      setFooterStatus("Objective is required.");
-      return;
-    }
-    followupObjectiveEl?.classList.remove("is-invalid");
-
-    const activeTab = await getActiveTabForProfileCheck().catch(() => null);
-    const pageInfo = detectLinkedInPageType(activeTab?.url || "");
-    if (pageInfo.page_type !== "person") {
-      setFooterStatus(UI_TEXT.openLinkedInProfileFirst);
-      return;
-    }
-
-    const profileContextForFollowup = await getFreshScrapeForPage(pageInfo, {
-      source: "followup",
-    });
-    if (!profileContextForFollowup) {
-      setFooterStatus(UI_TEXT.couldNotExtractProfileContext);
-      return;
-    }
-
-    setFooterStatus("Generating...");
-
-    const [{ apiKey: apiKeyLocal }, { model }] = await Promise.all([
-      chrome.storage.local.get(["apiKey"]),
-      chrome.storage.sync.get(["model"]),
-    ]);
-
-    let apiKey = (apiKeyLocal || "").trim();
-    if (!apiKey) {
-      const typed = (apiKeyEl.value || "").trim();
-      if (typed) {
-        apiKey = typed;
-        await chrome.storage.local.set({ apiKey });
-      }
-    }
-
-    if (!apiKey) {
-      setFooterStatus(UI_TEXT.setApiKeyInConfig);
-      setActiveTab("config");
-      return;
-    }
-
-    const contextLast10 = last10.map((m) => ({
-      direction:
-        m?.direction === "them"
-          ? "them"
-          : m?.direction === "me"
-            ? "me"
-            : "unknown",
-      text: (m?.text || "").trim(),
-      ts: (m?.ts || "").trim(),
-    }));
-    debugLog("[LEF][chat] followup payload", {
-      language,
-      objectiveLen: objective.length,
-      ctxCount: contextLast10.length,
-    });
-
-    const request = {
-      // prompt: buildFollowupPrompt (Generate follow-up button)
-      type: "GENERATE_FOLLOWUP_MESSAGE",
-      payload: {
-        apiKey,
-        model: (model || "gpt-4.1").trim(),
-        objective,
-        strategy: includeStrategy ? strategy : "",
-        includeStrategy,
-        chat_history: chatHistory,
-        contextLast10,
-        profile_context: { ...profileContextForFollowup },
-        profileContext: { ...profileContextForFollowup },
-        language,
-      },
-    };
-    debugLog("[LEF][chat] sending type", request.type);
-    const result = await sendRuntimeMessage(request.type, {
-      payload: request.payload,
-    });
-    const resp = result.data || {};
-
-    if (!result.ok || !resp?.ok) {
-      const msg = getErrorMessage(result.error || resp?.error);
-      console.error("[LEF][chat] followup generate failed", msg);
-      setFooterStatus(msg);
-      if (followupPreviewEl) followupPreviewEl.value = msg;
-      updateFollowupCopyIconVisibility();
-      return;
-    }
-
-    const text = (resp.text || resp.first_message || "").trim();
-    if (followupPreviewEl) followupPreviewEl.value = text;
-    updateFollowupCopyIconVisibility();
-    setFooterStatus("Generated.");
-    debugLog("[LEF][chat] followup generated", { chars: text.length });
-  } catch (e) {
-    const msg = getErrorMessage(e);
-    console.error("[LEF][chat] followup exception", e);
-    setFooterStatus(msg);
-    if (followupPreviewEl) followupPreviewEl.value = msg;
-    updateFollowupCopyIconVisibility();
-  } finally {
-    setFooterReady();
-  }
-}
-
-function bindGenerateFollowupClickHandler() {
-  if (!generateFollowupBtnEl) return;
-  if (generateFollowupBtnEl.dataset.followupBound === "1") return;
-  generateFollowupBtnEl.dataset.followupBound = "1";
-  generateFollowupBtnEl.addEventListener("click", handleGenerateFollowupClick);
-}
-
-bindGenerateFollowupClickHandler();
-
 function bindGenerateFreePromptClickHandler() {
   if (!generateFreePromptBtnEl) return;
   if (generateFreePromptBtnEl.dataset.freePromptBound === "1") return;
@@ -5918,16 +4645,6 @@ function bindGenerateFreePromptClickHandler() {
 }
 
 bindGenerateFreePromptClickHandler();
-
-function bindFollowupCopyHandler() {
-  if (!copyFollowupBtnEl) {
-    debugLog("[copy] missing #copyFollowup");
-    return;
-  }
-  bindMessagePreviewCopyHandlers();
-}
-
-bindFollowupCopyHandler();
 
 function bindCopyFreePromptHandler() {
   if (!copyFreePromptBtnEl || !freePromptPreviewEl) return;
@@ -5953,17 +4670,5 @@ function bindCopyFreePromptHandler() {
 
 bindCopyFreePromptHandler();
 setCopyIconDefaultState(copyInviteIconEl);
-setCopyIconDefaultState(copyFirstMessageBtnEl);
-setCopyIconDefaultState(copyFollowupBtnEl);
 setCopyIconDefaultState(copyFreePromptBtnEl);
 updateFreePromptCopyButtonState();
-
-followupPreviewEl?.addEventListener("input", () => {
-  updateFollowupCopyIconVisibility();
-});
-
-followupObjectiveEl?.addEventListener("input", () => {
-  if ((followupObjectiveEl.value || "").trim()) {
-    followupObjectiveEl.classList.remove("is-invalid");
-  }
-});
