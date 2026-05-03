@@ -1189,9 +1189,12 @@ async function restoreOverviewFiltersFromStorage() {
     "headline",
     "status",
     "most_relevant_date",
-    "campaign",
+    "campaigns",
     "archived",
   ]);
+  if (savedSortKey === "campaign") {
+    overviewSortField = "campaigns";
+  }
   if (allowedSortFields.has(savedSortKey)) {
     overviewSortField = savedSortKey === "full_name" ? "name" : savedSortKey;
   }
@@ -2777,7 +2780,7 @@ function buildOverviewQueryState() {
 }
 
 function isOverviewRowNoCampaign(row) {
-  const campaignValue = row?.campaign;
+  const campaignValue = row?.campaigns;
   return campaignValue == null || String(campaignValue).trim() === "";
 }
 
@@ -2971,7 +2974,7 @@ function renderOverviewTable(rows) {
       },
       {
         className: "overview-cell-text overview-cell-campaign",
-        value: (row) => row?.campaign || "",
+        value: (row) => row?.campaigns || "",
       },
     ],
   });

@@ -2412,11 +2412,12 @@ function toOverviewSortField(value) {
     "headline",
     "status",
     "most_relevant_date",
-    "campaign",
+    "campaigns",
     "archived",
   ]);
   const field = String(value || "");
   if (field === "full_name") return "name";
+  if (field === "campaign") return "campaigns";
   return allowed.has(field) ? field : "most_relevant_date";
 }
 
@@ -2462,7 +2463,7 @@ async function supabaseListInvitationsOverview({
   const params = new URLSearchParams();
   params.set(
     "select",
-    "url,name,company,headline,most_relevant_date,archived,campaign,status,accepted",
+    "url,name,company,headline,most_relevant_date,archived,campaigns,status,accepted",
   );
   params.set("limit", String(safePageSize));
   params.set("offset", String(offset));
@@ -2471,7 +2472,7 @@ async function supabaseListInvitationsOverview({
   if (filters?.campaign) {
     const campaignName = String(filters.campaign).trim().replace(/\*/g, "");
     if (campaignName) {
-      params.set("campaign", `ilike.*${campaignName}*`);
+      params.set("campaigns", `ilike.*${campaignName}*`);
     }
   }
   if (filters?.archived === "0" || filters?.archived === "1") {
