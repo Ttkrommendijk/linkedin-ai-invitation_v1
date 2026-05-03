@@ -6,6 +6,11 @@ function initPromptsModule(deps = {}) {
   // DOM bindings
   const promptSelectEl = document.getElementById("promptSelect");
   const toggleNewPromptBtnEl = document.getElementById("toggleNewPrompt");
+  const renamePromptBtnEl = document.getElementById("renamePrompt");
+  const renamePromptRowEl = document.getElementById("renamePromptRow");
+  const renamePromptNameEl = document.getElementById("renamePromptName");
+  const saveRenamePromptBtnEl = document.getElementById("saveRenamePrompt");
+  const cancelRenamePromptBtnEl = document.getElementById("cancelRenamePrompt");
   const newPromptRowEl = document.getElementById("newPromptRow");
   const newPromptNameEl = document.getElementById("newPromptName");
   const addPromptBtnEl = document.getElementById("addPrompt");
@@ -41,6 +46,7 @@ function initPromptsModule(deps = {}) {
     const value = String(idValue || "");
     promptSelectEl.value = value;
     selectedPromptId = value;
+    updateRenamePromptButtonState();
   }
 
   function getPromptById(idValue) {
@@ -60,6 +66,22 @@ function initPromptsModule(deps = {}) {
     if (!visible && newPromptNameEl) {
       newPromptNameEl.value = "";
     }
+  }
+
+  function setRenamePromptRowVisible(visible) {
+    if (!renamePromptRowEl) return;
+    renamePromptRowEl.hidden = !visible;
+    if (renamePromptBtnEl) {
+      renamePromptBtnEl.hidden = Boolean(visible);
+    }
+    if (!visible && renamePromptNameEl) {
+      renamePromptNameEl.value = "";
+    }
+  }
+
+  function updateRenamePromptButtonState() {
+    if (!renamePromptBtnEl) return;
+    renamePromptBtnEl.hidden = !selectedPromptId;
   }
 
   // render/update functions
@@ -106,6 +128,8 @@ function initPromptsModule(deps = {}) {
     if (selectedBefore && !getPromptById(selectedBefore)) {
       setPromptSelectValue("");
     }
+    setRenamePromptRowVisible(false);
+    updateRenamePromptButtonState();
   }
 
   async function loadPromptOptions() {
@@ -141,6 +165,34 @@ function initPromptsModule(deps = {}) {
     updatePromptSaveButtonVisibility();
   }
 
+  async function renameSelectedPromptName(name) {
+    if (!selectedPromptId || !deps.sendRuntimeMessage) {
+      throw new Error("Select a prompt first.");
+    }
+    const promptName = normalizePromptName(name);
+    if (!promptName) {
+      throw new Error("Prompt name is required.");
+    }
+    const result = await deps.sendRuntimeMessage("UPDATE_PROMPT_NAME", {
+      payload: {
+        id: selectedPromptId,
+        name: promptName,
+      },
+    });
+    if (!result.ok) {
+      throw new Error(result.error || "Could not rename prompt.");
+    }
+    const row = getPromptById(selectedPromptId);
+    if (row) row.name = promptName;
+    promptRowsCache.sort((a, b) =>
+      normalizePromptName(a?.name || "").localeCompare(
+        normalizePromptName(b?.name || ""),
+      ),
+    );
+    rebuildPromptSelectOptions();
+    setPromptSelectValue(selectedPromptId);
+  }
+
   async function createPromptFromInline() {
     const name = normalizePromptName(newPromptNameEl?.value || "");
     if (!name) {
@@ -174,8 +226,12 @@ function initPromptsModule(deps = {}) {
 
   // event listeners
   function bindPromptManagementEvents() {
+    setNewPromptRowVisible(false);
+    setRenamePromptRowVisible(false);
+    updateRenamePromptButtonState();
     promptSelectEl?.addEventListener("change", () => {
       applyPromptSelectionById(promptSelectEl.value || "");
+      updateRenamePromptButtonState();
     });
     freePromptInputEl?.addEventListener("input", () => {
       updatePromptSaveButtonVisibility();
@@ -194,11 +250,26 @@ function initPromptsModule(deps = {}) {
       }
     });
     toggleNewPromptBtnEl?.addEventListener("click", () => {
+      setRenamePromptRowVisible(false);
       setNewPromptRowVisible(true);
       newPromptNameEl?.focus();
     });
+    renamePromptBtnEl?.addEventListener("click", () => {
+      if (!selectedPromptId) return;
+      const row = getPromptById(selectedPromptId);
+      setNewPromptRowVisible(false);
+      setRenamePromptRowVisible(true);
+      if (renamePromptNameEl) {
+        renamePromptNameEl.value = normalizePromptName(row?.name || "");
+        renamePromptNameEl.focus();
+        renamePromptNameEl.select();
+      }
+    });
     cancelNewPromptBtnEl?.addEventListener("click", () => {
       setNewPromptRowVisible(false);
+    });
+    cancelRenamePromptBtnEl?.addEventListener("click", () => {
+      setRenamePromptRowVisible(false);
     });
     addPromptBtnEl?.addEventListener("click", async () => {
       deps.setFooterUpdatingStatus?.();
@@ -208,6 +279,20 @@ function initPromptsModule(deps = {}) {
       } catch (e) {
         deps.setFooterStatus?.(`Error: ${e?.message || e}`);
       } finally {
+        deps.setFooterReady?.();
+      }
+    });
+    saveRenamePromptBtnEl?.addEventListener("click", async () => {
+      if (saveRenamePromptBtnEl) saveRenamePromptBtnEl.disabled = true;
+      deps.setFooterUpdatingStatus?.();
+      try {
+        await renameSelectedPromptName(renamePromptNameEl?.value || "");
+        setRenamePromptRowVisible(false);
+        deps.setFooterStatus?.("Prompt renamed.");
+      } catch (e) {
+        deps.setFooterStatus?.(`Error: ${e?.message || e}`);
+      } finally {
+        if (saveRenamePromptBtnEl) saveRenamePromptBtnEl.disabled = false;
         deps.setFooterReady?.();
       }
     });

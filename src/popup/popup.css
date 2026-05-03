@@ -805,7 +805,10 @@ pre {
     margin-bottom: 14px;
 }
 .campaign-group {
-    margin-top: 10px;
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 .campaign-main-row {
     display: flex;
@@ -824,14 +827,16 @@ pre {
     align-items: center;
 }
 #newCampaignRow[hidden] {
-    display: flex;
-    visibility: hidden;
-    pointer-events: none;
+    display: none !important;
 }
 #newPromptRow[hidden] {
-    display: flex;
-    visibility: hidden;
-    pointer-events: none;
+    display: none !important;
+}
+#renameCampaignRow[hidden] {
+    display: none !important;
+}
+#renamePromptRow[hidden] {
+    display: none !important;
 }
 .campaign-new-row input {
     flex: 1 1 auto;
@@ -850,25 +855,26 @@ pre {
     color: var(--muted);
 }
 .linked-campaigns-list {
-    margin-top: 6px;
+    margin-top: 2px;
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 8px;
 }
 .campaign-chip {
     display: inline-flex;
     align-items: center;
     gap: 4px;
     max-width: 100%;
-    padding: 2px 8px;
+    padding: 4px 10px;
     border: 1px solid var(--line-soft);
     border-radius: 999px;
     background: #f9fafb;
     font-size: 11px;
     color: #374151;
+    cursor: pointer;
 }
 .campaign-chip-name {
-    max-width: 160px;
+    max-width: 190px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

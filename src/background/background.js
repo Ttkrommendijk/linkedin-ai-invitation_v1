@@ -2096,12 +2096,55 @@ async function supabaseCreateCampaign({ campaign_name }) {
   return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
 }
 
+async function supabaseUpdateCampaign({ campaign_id, campaign_name, color }) {
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
+  const targetId = normalizeProfileField(campaign_id);
+  const normalizedName = normalizeProfileField(campaign_name);
+  const normalizedColor = normalizeProfileField(color);
+  if (!targetId) {
+    throw new Error("Campaign id is required.");
+  }
+  const payload = {};
+  if (normalizedName) {
+    payload.campaign_name = normalizedName;
+  }
+  if (normalizedColor) {
+    payload.color = normalizedColor;
+  }
+  if (Object.keys(payload).length === 0) {
+    throw new Error("Nothing to update.");
+  }
+  const url = `${supabaseUrl}/rest/v1/campaign?campaign_id=eq.${encodeURIComponent(targetId)}`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify(payload),
+    },
+    15000,
+    "Supabase request",
+  );
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+  const rows = await res.json();
+  return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+}
+
 async function supabaseListPersonCampaigns({ person_id }) {
   const { supabaseUrl, supabaseAnonKey, accessToken } =
     await getSupabaseRequestContext();
   const normalizedPersonId = normalizeProfileField(person_id);
   if (!normalizedPersonId) return [];
-  const url = `${supabaseUrl}/rest/v1/person_campaign?select=campaign_id,campaign:campaign(campaign_id,campaign_name)&person_id=eq.${encodeURIComponent(normalizedPersonId)}&order=campaign_id.asc`;
+  const url = `${supabaseUrl}/rest/v1/person_campaign?select=campaign_id,campaign:campaign(campaign_id,campaign_name,color)&person_id=eq.${encodeURIComponent(normalizedPersonId)}&order=campaign_id.asc`;
   const res = await fetchWithTimeout(
     url,
     {
@@ -2128,6 +2171,7 @@ async function supabaseListPersonCampaigns({ person_id }) {
       return {
         campaign_id: normalizeProfileField(row?.campaign_id || campaignObj?.campaign_id),
         campaign_name: normalizeProfileField(campaignObj?.campaign_name),
+        color: normalizeProfileField(campaignObj?.color),
       };
     })
     .filter((row) => row.campaign_id && row.campaign_name);
@@ -2285,6 +2329,48 @@ async function supabaseUpdatePrompt({ id, prompt }) {
     throw new Error("Prompt id is required.");
   }
   const url = `${supabaseUrl}/rest/v1/prompt?prompt_id=eq.${encodeURIComponent(targetId)}`;
+  const payload = {};
+  if (prompt !== undefined) {
+    payload.prompt_text = normalizeProfileField(prompt);
+  }
+  if (Object.keys(payload).length === 0) {
+    throw new Error("Nothing to update.");
+  }
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify(payload),
+    },
+    15000,
+    "Supabase request",
+  );
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+  const rows = await res.json();
+  return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+}
+
+async function supabaseUpdatePromptName({ id, name }) {
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
+  const targetId = normalizeProfileField(id);
+  const normalizedName = normalizeProfileField(name);
+  if (!targetId) {
+    throw new Error("Prompt id is required.");
+  }
+  if (!normalizedName) {
+    throw new Error("Prompt name is required.");
+  }
+  const url = `${supabaseUrl}/rest/v1/prompt?prompt_id=eq.${encodeURIComponent(targetId)}`;
   const res = await fetchWithTimeout(
     url,
     {
@@ -2296,7 +2382,7 @@ async function supabaseUpdatePrompt({ id, prompt }) {
         Prefer: "return=representation",
       },
       body: JSON.stringify({
-        prompt_text: normalizeProfileField(prompt),
+        prompt_name: normalizedName,
       }),
     },
     15000,
@@ -3492,6 +3578,22 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
 
+  if (msg?.type === "UPDATE_PROMPT_NAME") {
+    (async () => {
+      emitUiStatus("Updating\u2026");
+      try {
+        const prompt = await supabaseUpdatePromptName(msg?.payload || {});
+        sendResponse({ ok: true, prompt });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
   if (msg?.type === "DB_LIST_CAMPAIGNS") {
     (async () => {
       emitUiStatus("Fetching\u2026");
@@ -3521,6 +3623,22 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse({
           ok: false,
           error: normalizeError(e, "SUPABASE_UPSERT_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "DB_UPDATE_CAMPAIGN") {
+    (async () => {
+      emitUiStatus("Updating\u2026");
+      try {
+        const campaign = await supabaseUpdateCampaign(msg?.payload || {});
+        sendResponse({ ok: true, campaign });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
         });
       }
     })();

@@ -3,6 +3,11 @@ const messageLanguageEl = document.getElementById("messageLanguage");
 const inviteLanguageEl = document.getElementById("inviteLanguage");
 const freePromptLanguageEl = document.getElementById("freePromptLanguage");
 const campaignSelectEl = document.getElementById("campaignSelect");
+const renameCampaignBtnEl = document.getElementById("renameCampaign");
+const renameCampaignRowEl = document.getElementById("renameCampaignRow");
+const renameCampaignNameEl = document.getElementById("renameCampaignName");
+const saveRenameCampaignBtnEl = document.getElementById("saveRenameCampaign");
+const cancelRenameCampaignBtnEl = document.getElementById("cancelRenameCampaign");
 const newCampaignRowEl = document.getElementById("newCampaignRow");
 const toggleNewCampaignBtnEl = document.getElementById("toggleNewCampaign");
 const newCampaignNameEl = document.getElementById("newCampaignName");
@@ -707,14 +712,19 @@ function appendCampaignOption(campaignRow) {
 function setCampaignSelectValue(campaignId) {
   if (!campaignSelectEl) return;
   const normalizedId = String(campaignId || "").trim();
+  let nextValue = "";
   if (normalizedId) {
     const row = knownCampaignRows.find(
       (item) => String(item?.campaign_id || "").trim() === normalizedId,
     );
-    if (row) appendCampaignOption(row);
+    if (row) {
+      appendCampaignOption(row);
+      nextValue = normalizedId;
+    }
   }
-  campaignSelectEl.value = normalizedId || "";
+  campaignSelectEl.value = nextValue;
   updateDetailCampaignSelectTitle();
+  updateRenameCampaignButtonState();
 }
 
 function setNewCampaignRowVisible(visible) {
@@ -728,6 +738,23 @@ function setNewCampaignRowVisible(visible) {
   }
 }
 
+function setRenameCampaignRowVisible(visible) {
+  if (!renameCampaignRowEl) return;
+  renameCampaignRowEl.hidden = !visible;
+  if (renameCampaignBtnEl) {
+    renameCampaignBtnEl.hidden = Boolean(visible);
+  }
+  if (!visible && renameCampaignNameEl) {
+    renameCampaignNameEl.value = "";
+  }
+}
+
+function updateRenameCampaignButtonState() {
+  if (!renameCampaignBtnEl || !campaignSelectEl) return;
+  const hasSelection = Boolean(String(campaignSelectEl.value || "").trim());
+  renameCampaignBtnEl.hidden = !hasSelection;
+}
+
 async function saveLastActiveCampaign(value) {
   await chrome.storage.local.set({
     [STORAGE_KEY_LAST_ACTIVE_CAMPAIGN]: normalizeCampaignValue(value),
@@ -738,7 +765,20 @@ async function loadLastActiveCampaign() {
   const data = await chrome.storage.local.get([
     STORAGE_KEY_LAST_ACTIVE_CAMPAIGN,
   ]);
-  return normalizeCampaignValue(data?.[STORAGE_KEY_LAST_ACTIVE_CAMPAIGN] || "");
+  const stored = normalizeCampaignValue(
+    data?.[STORAGE_KEY_LAST_ACTIVE_CAMPAIGN] || "",
+  );
+  if (!stored) return "";
+  const byId = knownCampaignRows.find(
+    (row) => String(row?.campaign_id || "").trim() === stored,
+  );
+  if (byId) return String(byId.campaign_id || "").trim();
+  const byName = knownCampaignRows.find(
+    (row) =>
+      normalizeCampaignValue(row?.campaign_name || "").toLowerCase() ===
+      stored.toLowerCase(),
+  );
+  return byName ? String(byName.campaign_id || "").trim() : "";
 }
 
 function rebuildCampaignSelectOptions(campaignRows) {
@@ -753,6 +793,8 @@ function rebuildCampaignSelectOptions(campaignRows) {
   for (const campaignRow of campaignRows || []) {
     appendCampaignOption(campaignRow);
   }
+  setRenameCampaignRowVisible(false);
+  updateRenameCampaignButtonState();
 }
 
 function rebuildOverviewCampaignFilterOptions(campaignRows) {
@@ -1070,22 +1112,77 @@ async function loadCampaignOptions({ keepSelected = true } = {}) {
 async function applyCampaignSelectionFromProfile() {
   if (!campaignSelectEl) return;
   const lastActiveCampaignId = await loadLastActiveCampaign();
+  if (!lastActiveCampaignId) {
+    setCampaignSelectValue("");
+    return;
+  }
   setCampaignSelectValue(lastActiveCampaignId);
 }
 
 function renderLinkedCampaignChips() {
   if (!linkedCampaignsListEl) return;
   linkedCampaignsListEl.innerHTML = "";
+  const pickTextColorForBg = (hexColor) => {
+    const raw = String(hexColor || "").trim();
+    const match = raw.match(/^#?([0-9a-f]{6})$/i);
+    if (!match) return "#374151";
+    const hex = match[1];
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance < 0.55 ? "#ffffff" : "#111827";
+  };
   for (const row of linkedPersonCampaignRows) {
     const campaignId = String(row?.campaign_id || "").trim();
     const campaignName = normalizeCampaignValue(row?.campaign_name || "");
+    const campaignColor = normalizeCampaignValue(row?.color || "");
     if (!campaignId || !campaignName) continue;
     const chipEl = document.createElement("span");
     chipEl.className = "campaign-chip";
+    if (/^#[0-9a-f]{6}$/i.test(campaignColor)) {
+      chipEl.style.backgroundColor = campaignColor;
+      chipEl.style.color = pickTextColorForBg(campaignColor);
+    }
+    chipEl.title = "Click to set campaign color";
     const nameEl = document.createElement("span");
     nameEl.className = "campaign-chip-name";
     nameEl.textContent = campaignName;
     chipEl.appendChild(nameEl);
+    chipEl.addEventListener("click", async (event) => {
+      if (event.target === removeBtn) return;
+      const colorInputEl = document.createElement("input");
+      colorInputEl.type = "color";
+      colorInputEl.value = /^#[0-9a-f]{6}$/i.test(campaignColor)
+        ? campaignColor
+        : "#2563eb";
+      colorInputEl.style.position = "fixed";
+      colorInputEl.style.left = "-9999px";
+      document.body.appendChild(colorInputEl);
+      colorInputEl.addEventListener(
+        "input",
+        async () => {
+          setFooterUpdatingStatus();
+          try {
+            const result = await sendRuntimeMessage("DB_UPDATE_CAMPAIGN", {
+              payload: { campaign_id: campaignId, color: colorInputEl.value },
+            });
+            if (!result.ok) {
+              throw new Error(getErrorMessage(result.error));
+            }
+            await refreshPersonCampaignLinks();
+            setFooterStatus("Campaign color updated.");
+          } catch (e) {
+            setFooterStatus(`${UI_TEXT.dbErrorPrefix} ${getErrorMessage(e)}`);
+          } finally {
+            setFooterReady();
+            colorInputEl.remove();
+          }
+        },
+        { once: true },
+      );
+      colorInputEl.click();
+    });
     const removeBtn = document.createElement("button");
     removeBtn.type = "button";
     removeBtn.className = "campaign-chip-remove";
@@ -1159,6 +1256,25 @@ async function handleCampaignSelection(campaignId) {
   if (!normalizedCampaignId) return;
   await linkCampaignToCurrentPerson(normalizedCampaignId);
   setFooterStatus("Campaign linked.");
+}
+
+async function renameSelectedCampaign(campaignName) {
+  const campaignId = String(campaignSelectEl?.value || "").trim();
+  const nextName = normalizeCampaignValue(campaignName);
+  if (!campaignId) throw new Error("Select a campaign first.");
+  if (!nextName) throw new Error("Campaign name is required.");
+  const result = await sendRuntimeMessage("DB_UPDATE_CAMPAIGN", {
+    payload: {
+      campaign_id: campaignId,
+      campaign_name: nextName,
+    },
+  });
+  if (!result.ok) {
+    throw new Error(getErrorMessage(result.error));
+  }
+  await loadCampaignOptions({ keepSelected: true });
+  setCampaignSelectValue(campaignId);
+  await saveLastActiveCampaign(campaignId);
 }
 
 function isPostSendMode() {
@@ -4463,6 +4579,7 @@ function runPopupInit() {
         .catch(() => null);
     });
   setNewCampaignRowVisible(false);
+  setRenameCampaignRowVisible(false);
 
   getLanguageSelectElements().forEach((el) => {
     el.addEventListener("change", async () => {
@@ -4504,7 +4621,11 @@ function runPopupInit() {
 
   campaignSelectEl?.addEventListener("change", async () => {
     updateDetailCampaignSelectTitle();
-    if (!campaignSelectEl.value) return;
+    updateRenameCampaignButtonState();
+    if (!campaignSelectEl.value) {
+      await saveLastActiveCampaign("");
+      return;
+    }
     setFooterUpdatingStatus();
     try {
       await handleCampaignSelection(campaignSelectEl.value);
@@ -4516,8 +4637,24 @@ function runPopupInit() {
   });
 
   toggleNewCampaignBtnEl?.addEventListener("click", () => {
+    setRenameCampaignRowVisible(false);
     setNewCampaignRowVisible(true);
     newCampaignNameEl?.focus();
+  });
+
+  renameCampaignBtnEl?.addEventListener("click", () => {
+    const selectedId = String(campaignSelectEl?.value || "").trim();
+    if (!selectedId) return;
+    const row = knownCampaignRows.find(
+      (item) => String(item?.campaign_id || "").trim() === selectedId,
+    );
+    setNewCampaignRowVisible(false);
+    setRenameCampaignRowVisible(true);
+    if (renameCampaignNameEl) {
+      renameCampaignNameEl.value = normalizeCampaignValue(row?.campaign_name || "");
+      renameCampaignNameEl.focus();
+      renameCampaignNameEl.select();
+    }
   });
 
   addCampaignBtnEl?.addEventListener("click", async () => {
@@ -4554,6 +4691,25 @@ function runPopupInit() {
 
   cancelNewCampaignBtnEl?.addEventListener("click", () => {
     setNewCampaignRowVisible(false);
+  });
+
+  cancelRenameCampaignBtnEl?.addEventListener("click", () => {
+    setRenameCampaignRowVisible(false);
+  });
+
+  saveRenameCampaignBtnEl?.addEventListener("click", async () => {
+    setFooterUpdatingStatus();
+    if (saveRenameCampaignBtnEl) saveRenameCampaignBtnEl.disabled = true;
+    try {
+      await renameSelectedCampaign(renameCampaignNameEl?.value || "");
+      setRenameCampaignRowVisible(false);
+      setFooterStatus("Campaign renamed.");
+    } catch (e) {
+      setFooterStatus(`${UI_TEXT.dbErrorPrefix} ${getErrorMessage(e)}`);
+    } finally {
+      if (saveRenameCampaignBtnEl) saveRenameCampaignBtnEl.disabled = false;
+      setFooterReady();
+    }
   });
   window.addEventListener("resize", () => {
     positionMessageCountControls();
