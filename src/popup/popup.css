@@ -217,11 +217,13 @@ button:disabled {
     color: var(--text);
 }
 .detail-person-comments {
-    min-height: 46px;
     margin-top: 6px;
     font-size: 12px;
     line-height: 1.35;
     color: var(--text);
+    min-height: calc(1.35em + 2px);
+    height: calc(1.35em + 2px);
+    overflow-y: hidden;
     resize: none;
 }
 .company-people-section {
@@ -564,9 +566,6 @@ pre {
     padding: 8px;
     border-radius: 6px;
 }
-#messagePrompt {
-    height: 160px;
-}
 #freePromptInput {
     height: 150px;
 }
@@ -574,21 +573,7 @@ pre {
     max-height: 180px;
     overflow: auto;
 }
-#firstMessagePreview {
-    max-height: 180px;
-    overflow: auto;
-}
-#toggleMessagePrompt {
-    width: auto;
-    margin-top: 0;
-    margin-left: 6px;
-    padding: 2px 8px;
-}
 #focus {
-    height: auto;
-    min-height: 72px;
-}
-#firstMessageAdditionalPrompt {
     height: auto;
     min-height: 72px;
 }
@@ -663,15 +648,6 @@ pre {
 .first-message-preview-content {
     max-height: 180px;
     overflow: auto;
-}
-.followup-preview-content {
-    min-height: 120px;
-    height: auto;
-    margin: 0;
-    background: transparent;
-    padding: 0;
-    border: none;
-    resize: vertical;
 }
 .copy-icon {
     width: 22px;

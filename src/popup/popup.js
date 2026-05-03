@@ -69,7 +69,6 @@ const UI_TEXT = {
   noMessageGenerated: "No message generated.",
   dbErrorAppendPrefix: " | DB error:",
   generatingFirstMessage: `Generating first message${SYMBOL_ELLIPSIS}`,
-  messagePromptRequired: "Message prompt is required.",
   generatedButDbErrorPrefix: "Generated, but DB error:",
   firstMessageGenerated: `First message generated ${EMOJI_CHECK}`,
   markedFirstMessageSent: `Marked as first message sent ${EMOJI_CHECK}`,
@@ -927,6 +926,12 @@ function coalesceDbThenScraped(dbValue, scrapedValue) {
     : scrapedValue || "";
 }
 
+function autoResizeCommentsField() {
+  if (!detailCommentsEl) return;
+  detailCommentsEl.style.height = "auto";
+  detailCommentsEl.style.height = `${detailCommentsEl.scrollHeight}px`;
+}
+
 function renderProfileEditControls() {
   const isCompany = isCompanyProfileMode();
   if (editProfileBtnEl) {
@@ -1288,6 +1293,7 @@ function renderDetailHeader({ force = false } = {}) {
   if (detailCommentsEl) detailCommentsEl.value = comments;
   if (detailCityEl) detailCityEl.value = "-";
   if (detailItMembersEl) detailItMembersEl.value = "-";
+  autoResizeCommentsField();
   applyProfileModeUi();
   renderProfileEditControls();
 }
@@ -3764,11 +3770,9 @@ function runPopupInit() {
   setCopyButtonEnabled(false);
   updateInviteCopyIconVisibility();
   updateFollowupCopyIconVisibility();
-  bindPromptEvents();
   bindPromptManagementEvents();
   bindPersonWorkflowEvents();
   bindMessagesWorkflowEvents();
-  setMessagePromptCollapsed(true);
   bindStepperClickHandlers();
   updateMessageTabControls();
   if (OVERVIEW_ENABLED) {
@@ -3798,9 +3802,6 @@ function runPopupInit() {
   renderDetailHeader();
   updatePhaseButtons();
   loadProfileContextOnOpen().catch((_e) => {});
-  loadFirstMessagePrompt().catch((_e) => {
-    syncFirstMessagePromptSavedState();
-  });
   supabaseAuthUiPromise.finally(() => {
     loadPromptOptions().catch((e) => {
       console.warn("[LEF][prompt] failed to load prompt options", e);
@@ -4471,6 +4472,10 @@ companyPeopleListEl?.addEventListener("keydown", async (event) => {
   if (!linkedinUrl) return;
   event.preventDefault();
   await openLinkedIn(linkedinUrl);
+});
+
+detailCommentsEl?.addEventListener("input", () => {
+  autoResizeCommentsField();
 });
 
 async function handleGenerateFreePromptClick() {

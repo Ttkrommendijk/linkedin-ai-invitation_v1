@@ -2560,17 +2560,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   const req = msg || {};
   debug("onMessage:", msg?.type);
   console.log("[LEF][chat] received type", req.type);
-  if (
-    msg?.type === "GENERATE_FIRST_MESSAGE" ||
-    msg?.type === "GENERATE_FOLLOWUP_MESSAGE"
-  ) {
-    console.log("[LEF][chat] LLM type", msg?.type);
-  }
-
-  if (msg?.type === "GET_STANDARD_INVITE_PROMPT") {
-    sendResponse({ ok: true, prompt: buildStandardInvitePrompt("") });
-    return false;
-  }
 
   if (msg?.type === "GET_ACTIVE_TAB_CONTEXT") {
     (async () => {
@@ -2756,23 +2745,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
 
-  if (msg?.type === "GENERATE_FIRST_MESSAGE") {
-    (async () => {
-      emitUiStatus("Sending to LLM\u2026");
-      try {
-        // prompt: buildFirstMessageTextPrompt
-        const first_message = await callOpenAIFirstMessage(msg.payload);
-        sendResponse({ ok: true, first_message });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "GENERATION_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
   if (msg?.type === "GENERATE_FREE_PROMPT") {
     (async () => {
       emitUiStatus("Sending to LLM\u2026");
@@ -2785,23 +2757,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse({
           ok: false,
           error: normalizeError(e, "GENERATION_FAILED", details),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (req.type === "GENERATE_FOLLOWUP_MESSAGE") {
-    (async () => {
-      emitUiStatus("Sending to LLM\u2026");
-      try {
-        // prompt: buildFollowupPrompt
-        const text = await callOpenAIFollowupMessage(req.payload);
-        sendResponse({ ok: true, text });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "GENERATION_FAILED"),
         });
       }
     })();

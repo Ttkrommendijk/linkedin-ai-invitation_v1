@@ -100,7 +100,10 @@
                                 </button>
                             </div>
                         </div>
-                        <div id="detailCompanyLabel" class="company-display-label">
+                        <div
+                            id="detailCompanyLabel"
+                            class="company-display-label"
+                        >
                             Company:
                         </div>
                         <input
@@ -115,7 +118,9 @@
                             class="company-suggestion-row"
                             hidden
                         >
-                            <span id="companyLinkedName" class="company-link-name"
+                            <span
+                                id="companyLinkedName"
+                                class="company-link-name"
                                 >-</span
                             >
                             <input
@@ -175,7 +180,10 @@
                             readonly
                             hidden
                         />
-                        <div id="detailItMembersLabel" class="company-display-label">
+                        <div
+                            id="detailItMembersLabel"
+                            class="company-display-label"
+                        >
                             IT members:
                         </div>
                         <input
@@ -186,7 +194,10 @@
                             readonly
                             hidden
                         />
-                        <div id="detailHeadlineLabel" class="company-display-label">
+                        <div
+                            id="detailHeadlineLabel"
+                            class="company-display-label"
+                        >
                             Job title:
                         </div>
                         <input
@@ -196,13 +207,16 @@
                             value="-"
                             readonly
                         />
-                        <div id="detailCommentsLabel" class="company-display-label">
+                        <div
+                            id="detailCommentsLabel"
+                            class="company-display-label"
+                        >
                             Comments:
                         </div>
                         <textarea
                             id="detailComments"
                             class="detail-person-comments"
-                            rows="3"
+                            rows="1"
                             readonly
                         ></textarea>
                         <div
@@ -250,7 +264,9 @@
                                     Link
                                 </button>
                             </div>
-                            <datalist id="companyExistingLinkOptions"></datalist>
+                            <datalist
+                                id="companyExistingLinkOptions"
+                            ></datalist>
                         </div>
                         <div
                             id="companyPeopleSection"
@@ -260,7 +276,10 @@
                             <div class="company-people-title">
                                 Registered people
                             </div>
-                            <div id="companyPeopleList" class="company-people-list"></div>
+                            <div
+                                id="companyPeopleList"
+                                class="company-people-list"
+                            ></div>
                         </div>
                     </div>
                     <div id="campaignDivider" class="section-divider"></div>
@@ -387,7 +406,10 @@
                         <div class="row">
                             <label><small>Prompt</small></label>
                             <div class="campaign-main-row filter-field">
-                                <select id="promptSelect" class="campaign-select">
+                                <select
+                                    id="promptSelect"
+                                    class="campaign-select"
+                                >
                                     <option value="">(no prompt)</option>
                                 </select>
                                 <button
@@ -527,7 +549,10 @@
                         <button id="copyInviteIcon" type="button"></button>
                         <pre id="preview"></pre>
                         <button id="detailTabInviteBtn" type="button"></button>
-                        <button id="detailTabFirstMessageBtn" type="button"></button>
+                        <button
+                            id="detailTabFirstMessageBtn"
+                            type="button"
+                        ></button>
                         <button id="detailTabFollowBtn" type="button"></button>
                         <button id="tabFreePromptBtn" type="button"></button>
                         <div id="detailInviteSection"></div>
@@ -536,8 +561,14 @@
                         <div id="acceptedMode"></div>
                         <div id="firstMessageSentMode"></div>
                         <textarea id="firstMessageAdditionalPrompt"></textarea>
-                        <button id="generateFirstMessage" type="button"></button>
-                        <button id="saveFirstMessageIcon" type="button"></button>
+                        <button
+                            id="generateFirstMessage"
+                            type="button"
+                        ></button>
+                        <button
+                            id="saveFirstMessageIcon"
+                            type="button"
+                        ></button>
                         <button id="copyFirstMessage" type="button"></button>
                         <pre id="firstMessagePreview"></pre>
                         <button id="markMessageSent" type="button"></button>
@@ -548,8 +579,6 @@
                         <button id="copyFollowup" type="button"></button>
                     </div>
                 </div>
-
-                
 
                 <div id="tabOverview" class="tab-panel">
                     <div class="overview-filters list-filters row">
@@ -736,7 +765,10 @@
                         </button>
                     </div>
 
-                    <div id="configGeneralPanel" class="config-sub-panel active">
+                    <div
+                        id="configGeneralPanel"
+                        class="config-sub-panel active"
+                    >
                         <div class="row">
                             <label><small>OpenAI API key (saved)</small></label>
                             <input
@@ -770,14 +802,9 @@
                                 <small>Navigation pacing</small>
                             </label>
                         </div>
-
                     </div>
 
-                    <div
-                        id="tabSupabaseAuth"
-                        class="config-sub-panel"
-                        hidden
-                    >
+                    <div id="tabSupabaseAuth" class="config-sub-panel" hidden>
                         <div class="row">
                             <label><small>Supabase URL</small></label>
                             <input
@@ -876,7 +903,8 @@
 
                         <div id="supabaseLoggedInPanel" class="row" hidden>
                             <small
-                                >Logged in as: <span id="supabaseUserEmail"></span
+                                >Logged in as:
+                                <span id="supabaseUserEmail"></span
                             ></small>
                             <button
                                 id="supabaseLogoutBtn"
