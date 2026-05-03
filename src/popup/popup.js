@@ -2651,7 +2651,32 @@ function renderCompanyOverviewTable(rows) {
       { className: "overview-cell-text", value: (row) => row?.campaigns || "" },
     ],
   });
+  bindCompanyLinkedPersonsActions(rows);
   scheduleCompanyOverviewAutoSize();
+}
+
+function bindCompanyLinkedPersonsActions(rows) {
+  if (!companyOverviewTbodyEl || !Array.isArray(rows)) return;
+  const bodyRows = Array.from(companyOverviewTbodyEl.querySelectorAll("tr"));
+  bodyRows.forEach((tr, index) => {
+    const row = rows[index];
+    if (!row) return;
+    const linkedCount = Number(row?.linked_person_count || 0);
+    if (!Number.isFinite(linkedCount) || linkedCount <= 0) return;
+    const companyName = String(row?.company_name || "").trim();
+    if (!companyName) return;
+    const linkedCountCell = tr.children[3];
+    if (!linkedCountCell) return;
+    linkedCountCell.classList.add("overview-linked-persons-clickable");
+    linkedCountCell.title = `Show persons from ${companyName}`;
+    linkedCountCell.addEventListener("click", () => {
+      if (overviewSearchEl) {
+        overviewSearchEl.value = companyName;
+        overviewSearchEl.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      setActiveListTab("persons");
+    });
+  });
 }
 
 async function fetchCompaniesOverviewPage() {

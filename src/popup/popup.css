@@ -619,6 +619,12 @@ pre {
 .info-tooltip:hover .info-tooltip-content {
     display: block;
 }
+
+.overview-linked-persons-clickable {
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+}
 .invite-preview-block {
     background: #f6f6f6;
     border-radius: 8px;
