@@ -248,6 +248,19 @@ const companyExistingLinkOptionsEl = document.getElementById(
 );
 const companyPeopleSectionEl = document.getElementById("companyPeopleSection");
 const companyPeopleListEl = document.getElementById("companyPeopleList");
+const companyCampaignControlsEl = document.getElementById("companyCampaignControls");
+const companyLinkedCampaignsListEl = document.getElementById("companyLinkedCampaignsList");
+const companyCampaignSelectEl = document.getElementById("companyCampaignSelect");
+const companyRenameCampaignBtnEl = document.getElementById("companyRenameCampaign");
+const companyRenameCampaignRowEl = document.getElementById("companyRenameCampaignRow");
+const companyRenameCampaignNameEl = document.getElementById("companyRenameCampaignName");
+const companySaveRenameCampaignBtnEl = document.getElementById("companySaveRenameCampaign");
+const companyCancelRenameCampaignBtnEl = document.getElementById("companyCancelRenameCampaign");
+const companyToggleNewCampaignBtnEl = document.getElementById("companyToggleNewCampaign");
+const companyNewCampaignRowEl = document.getElementById("companyNewCampaignRow");
+const companyNewCampaignNameEl = document.getElementById("companyNewCampaignName");
+const companyAddCampaignBtnEl = document.getElementById("companyAddCampaign");
+const companyCancelNewCampaignBtnEl = document.getElementById("companyCancelNewCampaign");
 const enrichProfileBtnEl = document.getElementById("enrichProfileBtn");
 const editProfileBtnEl = document.getElementById("editProfileBtn");
 const saveProfileFieldsBtnEl = document.getElementById("saveProfileFieldsBtn");
@@ -394,6 +407,7 @@ let firstMessage = "";
 let dbInvitationRow = null;
 let dbCompanyRow = null;
 let companyPeopleRows = [];
+let companyLinkedCampaignRows = [];
 let companyExistingLinkResults = [];
 let selectedExistingCompanyForLink = null;
 let companyExistingLinkDebounceTimer = null;
@@ -613,6 +627,60 @@ function normalizeCampaignValue(value) {
   return safeTrim(value);
 }
 
+function pickCampaignTextColor(hexColor) {
+  const raw = String(hexColor || "").trim();
+  const match = raw.match(/^#?([0-9a-f]{6})$/i);
+  if (!match) return "#374151";
+  const hex = match[1];
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance < 0.55 ? "#ffffff" : "#111827";
+}
+
+async function openCampaignColorPicker({
+  campaignId,
+  campaignColor,
+  onSaved = null,
+} = {}) {
+  const normalizedCampaignId = safeTrim(campaignId);
+  if (!normalizedCampaignId) return;
+  const colorInputEl = document.createElement("input");
+  colorInputEl.type = "color";
+  colorInputEl.value = /^#[0-9a-f]{6}$/i.test(campaignColor || "")
+    ? campaignColor
+    : "#2563eb";
+  colorInputEl.style.position = "fixed";
+  colorInputEl.style.left = "-9999px";
+  document.body.appendChild(colorInputEl);
+  colorInputEl.addEventListener(
+    "input",
+    async () => {
+      setFooterUpdatingStatus();
+      try {
+        const result = await sendRuntimeMessage("DB_UPDATE_CAMPAIGN", {
+          payload: { campaign_id: normalizedCampaignId, color: colorInputEl.value },
+        });
+        if (!result.ok) {
+          throw new Error(getErrorMessage(result.error));
+        }
+        if (typeof onSaved === "function") {
+          await onSaved();
+        }
+        setFooterStatus("Campaign color updated.");
+      } catch (e) {
+        setFooterStatus(`${UI_TEXT.dbErrorPrefix} ${getErrorMessage(e)}`);
+      } finally {
+        setFooterReady();
+        colorInputEl.remove();
+      }
+    },
+    { once: true },
+  );
+  colorInputEl.click();
+}
+
 function normalizeSupabaseUrl(value) {
   return String(value || "")
     .trim()
@@ -795,6 +863,123 @@ function rebuildCampaignSelectOptions(campaignRows) {
   }
   setRenameCampaignRowVisible(false);
   updateRenameCampaignButtonState();
+}
+
+function rebuildCompanyCampaignSelectOptions() {
+  if (!companyCampaignSelectEl) return;
+  const selectedBefore = String(companyCampaignSelectEl.value || "").trim();
+  while (companyCampaignSelectEl.firstChild) {
+    companyCampaignSelectEl.removeChild(companyCampaignSelectEl.firstChild);
+  }
+  const emptyOptionEl = document.createElement("option");
+  emptyOptionEl.value = "";
+  emptyOptionEl.textContent = "Select campaign";
+  companyCampaignSelectEl.appendChild(emptyOptionEl);
+  for (const campaignRow of knownCampaignRows) {
+    const optionEl = buildCampaignOptionElement(campaignRow);
+    if (!optionEl) continue;
+    companyCampaignSelectEl.appendChild(optionEl);
+  }
+  const hasSelected = Array.from(companyCampaignSelectEl.options || []).some(
+    (opt) => String(opt.value || "").trim() === selectedBefore,
+  );
+  companyCampaignSelectEl.value = hasSelected ? selectedBefore : "";
+  updateCompanyRenameCampaignButtonState();
+}
+
+function renderCompanyLinkedCampaignChips() {
+  if (!companyLinkedCampaignsListEl) return;
+  companyLinkedCampaignsListEl.innerHTML = "";
+  for (const row of companyLinkedCampaignRows) {
+    const campaignId = safeTrim(row?.campaign_id);
+    const campaignName = safeTrim(row?.campaign_name);
+    const campaignColor = safeTrim(row?.color);
+    if (!campaignId || !campaignName) continue;
+    const chipEl = document.createElement("span");
+    chipEl.className = "campaign-chip";
+    if (/^#[0-9a-f]{6}$/i.test(campaignColor)) {
+      chipEl.style.backgroundColor = campaignColor;
+      chipEl.style.color = pickCampaignTextColor(campaignColor);
+    }
+    chipEl.title = "Click to set campaign color";
+    const nameEl = document.createElement("span");
+    nameEl.className = "campaign-chip-name";
+    nameEl.textContent = campaignName;
+    chipEl.appendChild(nameEl);
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "campaign-chip-remove";
+    removeBtn.textContent = "\u00d7";
+    removeBtn.title = "Remove link from all linked persons";
+    removeBtn.setAttribute(
+      "aria-label",
+      `Remove ${campaignName} from all linked persons`,
+    );
+    removeBtn.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const personIds = Array.from(
+        new Set(
+          companyPeopleRows
+            .map((personRow) => safeTrim(personRow?.id))
+            .filter((id) => Boolean(id)),
+        ),
+      );
+      if (!personIds.length) return;
+      setFooterUpdatingStatus();
+      try {
+        await Promise.all(
+          personIds.map((personId) =>
+            sendRuntimeMessage("DB_UNLINK_PERSON_CAMPAIGN", {
+              payload: { person_id: personId, campaign_id: campaignId },
+            }),
+          ),
+        );
+        await refreshCompanyPeopleList();
+        setFooterStatus("Campaign link removed from all linked persons.");
+      } catch (e) {
+        setFooterStatus(`${UI_TEXT.dbErrorPrefix} ${getErrorMessage(e)}`);
+      } finally {
+        setFooterReady();
+      }
+    });
+    chipEl.appendChild(removeBtn);
+    chipEl.addEventListener("click", async () => {
+      await openCampaignColorPicker({
+        campaignId,
+        campaignColor,
+        onSaved: refreshCompanyPeopleList,
+      });
+    });
+    companyLinkedCampaignsListEl.appendChild(chipEl);
+  }
+}
+
+function setCompanyNewCampaignRowVisible(visible) {
+  if (!companyNewCampaignRowEl) return;
+  companyNewCampaignRowEl.hidden = !visible;
+  if (companyToggleNewCampaignBtnEl) {
+    companyToggleNewCampaignBtnEl.hidden = Boolean(visible);
+  }
+  if (!visible && companyNewCampaignNameEl) {
+    companyNewCampaignNameEl.value = "";
+  }
+}
+
+function setCompanyRenameCampaignRowVisible(visible) {
+  if (!companyRenameCampaignRowEl) return;
+  companyRenameCampaignRowEl.hidden = !visible;
+  if (companyRenameCampaignBtnEl) {
+    companyRenameCampaignBtnEl.hidden = Boolean(visible);
+  }
+  if (!visible && companyRenameCampaignNameEl) {
+    companyRenameCampaignNameEl.value = "";
+  }
+}
+
+function updateCompanyRenameCampaignButtonState() {
+  if (!companyRenameCampaignBtnEl || !companyCampaignSelectEl) return;
+  companyRenameCampaignBtnEl.hidden = !String(companyCampaignSelectEl.value || "").trim();
 }
 
 function rebuildOverviewCampaignFilterOptions(campaignRows) {
@@ -1104,6 +1289,7 @@ async function loadCampaignOptions({ keepSelected = true } = {}) {
   }
   rebuildOverviewCampaignFilterOptions(knownCampaignRows);
   rebuildCompanyCampaignFilterOptions(knownCampaignRows);
+  rebuildCompanyCampaignSelectOptions();
   if (campaignSelectEl) {
     setCampaignSelectValue(selectedBefore);
   }
@@ -1137,24 +1323,16 @@ function renderLinkedCampaignChips() {
     const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
     return luminance < 0.55 ? "#ffffff" : "#111827";
   };
-  for (const row of linkedPersonCampaignRows) {
-    const campaignId = String(row?.campaign_id || "").trim();
-    const campaignName = normalizeCampaignValue(row?.campaign_name || "");
-    const campaignColor = normalizeCampaignValue(row?.color || "");
-    if (!campaignId || !campaignName) continue;
-    const chipEl = document.createElement("span");
-    chipEl.className = "campaign-chip";
+  const applyCampaignChipColor = (chipEl, campaignColor) => {
+    if (!chipEl) return;
     if (/^#[0-9a-f]{6}$/i.test(campaignColor)) {
       chipEl.style.backgroundColor = campaignColor;
       chipEl.style.color = pickTextColorForBg(campaignColor);
     }
-    chipEl.title = "Click to set campaign color";
-    const nameEl = document.createElement("span");
-    nameEl.className = "campaign-chip-name";
-    nameEl.textContent = campaignName;
-    chipEl.appendChild(nameEl);
+  };
+  const bindCampaignChipColorPicker = (chipEl, campaignId, campaignColor) => {
     chipEl.addEventListener("click", async (event) => {
-      if (event.target === removeBtn) return;
+      if (event.target.classList?.contains("campaign-chip-remove")) return;
       const colorInputEl = document.createElement("input");
       colorInputEl.type = "color";
       colorInputEl.value = /^#[0-9a-f]{6}$/i.test(campaignColor)
@@ -1175,6 +1353,7 @@ function renderLinkedCampaignChips() {
               throw new Error(getErrorMessage(result.error));
             }
             await refreshPersonCampaignLinks();
+            await refreshCompanyPeopleList();
             setFooterStatus("Campaign color updated.");
           } catch (e) {
             setFooterStatus(`${UI_TEXT.dbErrorPrefix} ${getErrorMessage(e)}`);
@@ -1187,6 +1366,21 @@ function renderLinkedCampaignChips() {
       );
       colorInputEl.click();
     });
+  };
+  for (const row of linkedPersonCampaignRows) {
+    const campaignId = String(row?.campaign_id || "").trim();
+    const campaignName = normalizeCampaignValue(row?.campaign_name || "");
+    const campaignColor = normalizeCampaignValue(row?.color || "");
+    if (!campaignId || !campaignName) continue;
+    const chipEl = document.createElement("span");
+    chipEl.className = "campaign-chip";
+    applyCampaignChipColor(chipEl, campaignColor);
+    chipEl.title = "Click to set campaign color";
+    const nameEl = document.createElement("span");
+    nameEl.className = "campaign-chip-name";
+    nameEl.textContent = campaignName;
+    chipEl.appendChild(nameEl);
+    bindCampaignChipColorPicker(chipEl, campaignId, campaignColor);
     const removeBtn = document.createElement("button");
     removeBtn.type = "button";
     removeBtn.className = "campaign-chip-remove";
@@ -1695,6 +1889,12 @@ function renderCompanyPeopleList() {
   const isCompany = isCompanyProfileMode();
   companyPeopleSectionEl.hidden = !isCompany;
   companyPeopleListEl.innerHTML = "";
+  if (companyCampaignControlsEl) {
+    const hasRegisteredCompany = Boolean(safeTrim(dbCompanyRow?.company_id));
+    companyCampaignControlsEl.hidden =
+      !(isCompany && hasRegisteredCompany && companyPeopleRows.length > 0);
+  }
+  renderCompanyLinkedCampaignChips();
   if (!isCompany) return;
 
   if (!companyPeopleRows.length) {
@@ -1736,9 +1936,68 @@ function renderCompanyPeopleList() {
     const headlineEl = document.createElement("div");
     headlineEl.className = "company-person-function";
     headlineEl.textContent = headline;
+    const personCampaignsEl = document.createElement("div");
+    personCampaignsEl.className = "company-person-campaigns";
+    const personCampaignRows = Array.isArray(row?.campaign_rows)
+      ? row.campaign_rows
+      : [];
+    for (const campaignRow of personCampaignRows) {
+      const campaignId = safeTrim(campaignRow?.campaign_id);
+      const campaignName = safeTrim(campaignRow?.campaign_name);
+      const campaignColor = safeTrim(campaignRow?.color);
+      if (!campaignId || !campaignName) continue;
+      const chipEl = document.createElement("span");
+      chipEl.className = "campaign-chip";
+      if (/^#[0-9a-f]{6}$/i.test(campaignColor)) {
+        chipEl.style.backgroundColor = campaignColor;
+        chipEl.style.color = pickCampaignTextColor(campaignColor);
+      }
+      chipEl.title = "Click to set campaign color";
+      const nameChipEl = document.createElement("span");
+      nameChipEl.className = "campaign-chip-name";
+      nameChipEl.textContent = campaignName;
+      chipEl.appendChild(nameChipEl);
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "campaign-chip-remove";
+      removeBtn.textContent = "\u00d7";
+      removeBtn.title = "Remove link";
+      removeBtn.addEventListener("click", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const personId = safeTrim(row?.id);
+        if (!personId) return;
+        setFooterUpdatingStatus();
+        try {
+          const result = await sendRuntimeMessage("DB_UNLINK_PERSON_CAMPAIGN", {
+            payload: { person_id: personId, campaign_id: campaignId },
+          });
+          if (!result.ok) throw new Error(getErrorMessage(result.error));
+          await refreshCompanyPeopleList();
+          setFooterStatus("Campaign link removed.");
+        } catch (e) {
+          setFooterStatus(`${UI_TEXT.dbErrorPrefix} ${getErrorMessage(e)}`);
+        } finally {
+          setFooterReady();
+        }
+      });
+      chipEl.appendChild(removeBtn);
+      chipEl.addEventListener("click", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.target === removeBtn) return;
+        await openCampaignColorPicker({
+          campaignId,
+          campaignColor,
+          onSaved: refreshCompanyPeopleList,
+        });
+      });
+      personCampaignsEl.appendChild(chipEl);
+    }
 
     textEl.appendChild(nameEl);
     textEl.appendChild(headlineEl);
+    textEl.appendChild(personCampaignsEl);
     rowEl.appendChild(textEl);
     companyPeopleListEl.appendChild(rowEl);
   }
@@ -1746,6 +2005,7 @@ function renderCompanyPeopleList() {
 
 async function refreshCompanyPeopleList() {
   companyPeopleRows = [];
+  companyLinkedCampaignRows = [];
   renderCompanyPeopleList();
   if (!isCompanyProfileMode()) return;
   const company_id = safeTrim(dbCompanyRow?.company_id);
@@ -1754,8 +2014,35 @@ async function refreshCompanyPeopleList() {
     payload: { company_id },
   });
   const resp = result.data || {};
-  companyPeopleRows = result.ok && Array.isArray(resp?.rows) ? resp.rows : [];
+  const baseRows = result.ok && Array.isArray(resp?.rows) ? resp.rows : [];
+  const enrichedRows = await Promise.all(
+    baseRows.map(async (row) => {
+      const personId = safeTrim(row?.id);
+      if (!personId) return { ...row, campaign_rows: [] };
+      const campaignsResult = await sendRuntimeMessage("DB_LIST_PERSON_CAMPAIGNS", {
+        payload: { person_id: personId },
+      });
+      const campaignsResp = campaignsResult.data || {};
+      return {
+        ...row,
+        campaign_rows:
+          campaignsResult.ok && Array.isArray(campaignsResp?.rows)
+            ? campaignsResp.rows
+            : [],
+      };
+    }),
+  );
+  companyPeopleRows = enrichedRows;
+  companyLinkedCampaignRows = Array.from(
+    new Map(
+      enrichedRows
+        .flatMap((row) => (Array.isArray(row?.campaign_rows) ? row.campaign_rows : []))
+        .map((row) => [safeTrim(row?.campaign_id), row])
+        .filter(([id]) => Boolean(id)),
+    ).values(),
+  );
   renderCompanyPeopleList();
+  rebuildCompanyCampaignSelectOptions();
 }
 
 function buildCompanyProfileSavePayload() {
@@ -4584,6 +4871,9 @@ function runPopupInit() {
     });
   setNewCampaignRowVisible(false);
   setRenameCampaignRowVisible(false);
+  setCompanyNewCampaignRowVisible(false);
+  setCompanyRenameCampaignRowVisible(false);
+  updateCompanyRenameCampaignButtonState();
 
   getLanguageSelectElements().forEach((el) => {
     el.addEventListener("change", async () => {
@@ -4712,6 +5002,116 @@ function runPopupInit() {
       setFooterStatus(`${UI_TEXT.dbErrorPrefix} ${getErrorMessage(e)}`);
     } finally {
       if (saveRenameCampaignBtnEl) saveRenameCampaignBtnEl.disabled = false;
+      setFooterReady();
+    }
+  });
+
+  companyCampaignSelectEl?.addEventListener("change", async () => {
+    updateCompanyRenameCampaignButtonState();
+    const campaignId = safeTrim(companyCampaignSelectEl.value);
+    if (!campaignId) return;
+    const personIds = Array.from(
+      new Set(
+        companyPeopleRows
+          .map((row) => safeTrim(row?.id))
+          .filter((id) => Boolean(id)),
+      ),
+    );
+    if (!personIds.length) return;
+    setFooterUpdatingStatus();
+    try {
+      await Promise.all(
+        personIds.map((personId) =>
+          sendRuntimeMessage("DB_LINK_PERSON_CAMPAIGN", {
+            payload: { person_id: personId, campaign_id: campaignId },
+          }),
+        ),
+      );
+      await refreshCompanyPeopleList();
+      setFooterStatus("Campaign linked to all persons.");
+      companyCampaignSelectEl.value = "";
+      updateCompanyRenameCampaignButtonState();
+    } catch (e) {
+      setFooterStatus(`${UI_TEXT.dbErrorPrefix} ${getErrorMessage(e)}`);
+    } finally {
+      setFooterReady();
+    }
+  });
+
+  companyToggleNewCampaignBtnEl?.addEventListener("click", () => {
+    setCompanyRenameCampaignRowVisible(false);
+    setCompanyNewCampaignRowVisible(true);
+    companyNewCampaignNameEl?.focus();
+  });
+
+  companyCancelNewCampaignBtnEl?.addEventListener("click", () => {
+    setCompanyNewCampaignRowVisible(false);
+  });
+
+  companyAddCampaignBtnEl?.addEventListener("click", async () => {
+    const campaignName = normalizeCampaignValue(companyNewCampaignNameEl?.value || "");
+    if (!campaignName) return;
+    setFooterUpdatingStatus();
+    try {
+      const createResult = await sendRuntimeMessage("DB_CREATE_CAMPAIGN", {
+        payload: { campaign_name: campaignName },
+      });
+      const createResp = createResult.data || {};
+      if (!createResult.ok || !createResp?.campaign?.campaign_id) {
+        throw new Error(getErrorMessage(createResult.error || createResp?.error));
+      }
+      await loadCampaignOptions({ keepSelected: true });
+      setCompanyNewCampaignRowVisible(false);
+      setFooterStatus("Campaign created.");
+    } catch (e) {
+      setFooterStatus(`${UI_TEXT.dbErrorPrefix} ${getErrorMessage(e)}`);
+    } finally {
+      setFooterReady();
+    }
+  });
+
+  companyRenameCampaignBtnEl?.addEventListener("click", () => {
+    const selectedId = safeTrim(companyCampaignSelectEl?.value);
+    if (!selectedId) return;
+    const row = knownCampaignRows.find(
+      (item) => safeTrim(item?.campaign_id) === selectedId,
+    );
+    setCompanyNewCampaignRowVisible(false);
+    setCompanyRenameCampaignRowVisible(true);
+    if (companyRenameCampaignNameEl) {
+      companyRenameCampaignNameEl.value = normalizeCampaignValue(
+        row?.campaign_name || "",
+      );
+      companyRenameCampaignNameEl.focus();
+      companyRenameCampaignNameEl.select();
+    }
+  });
+
+  companyCancelRenameCampaignBtnEl?.addEventListener("click", () => {
+    setCompanyRenameCampaignRowVisible(false);
+  });
+
+  companySaveRenameCampaignBtnEl?.addEventListener("click", async () => {
+    const campaignId = safeTrim(companyCampaignSelectEl?.value);
+    const campaignName = normalizeCampaignValue(companyRenameCampaignNameEl?.value || "");
+    if (!campaignId || !campaignName) return;
+    setFooterUpdatingStatus();
+    if (companySaveRenameCampaignBtnEl) companySaveRenameCampaignBtnEl.disabled = true;
+    try {
+      const result = await sendRuntimeMessage("DB_UPDATE_CAMPAIGN", {
+        payload: { campaign_id: campaignId, campaign_name: campaignName },
+      });
+      if (!result.ok) throw new Error(getErrorMessage(result.error));
+      await loadCampaignOptions({ keepSelected: true });
+      setCompanyRenameCampaignRowVisible(false);
+      companyCampaignSelectEl.value = campaignId;
+      updateCompanyRenameCampaignButtonState();
+      await refreshCompanyPeopleList();
+      setFooterStatus("Campaign renamed.");
+    } catch (e) {
+      setFooterStatus(`${UI_TEXT.dbErrorPrefix} ${getErrorMessage(e)}`);
+    } finally {
+      if (companySaveRenameCampaignBtnEl) companySaveRenameCampaignBtnEl.disabled = false;
       setFooterReady();
     }
   });

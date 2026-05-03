@@ -838,6 +838,12 @@ pre {
 #renamePromptRow[hidden] {
     display: none !important;
 }
+#companyRenameCampaignRow[hidden] {
+    display: none !important;
+}
+#companyNewCampaignRow[hidden] {
+    display: none !important;
+}
 .campaign-new-row input {
     flex: 1 1 auto;
     min-width: 0;
@@ -898,6 +904,18 @@ pre {
 .campaign-chip:hover .campaign-chip-remove {
     opacity: 1;
     pointer-events: auto;
+}
+.company-campaign-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+.company-person-campaigns {
+    margin-top: 6px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
 }
 .hidden {
     display: none;

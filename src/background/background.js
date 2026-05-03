@@ -1845,7 +1845,7 @@ async function supabaseListInvitationsByCompany({ company_id }) {
   const params = new URLSearchParams();
   params.set(
     "select",
-    "linkedin_url,full_name,headline,company,company_id,accepted",
+    "id,linkedin_url,full_name,headline,company,company_id,accepted",
   );
   params.set("order", "full_name.asc.nullslast");
   params.set("limit", "50");

@@ -273,6 +273,91 @@
                             class="company-people-section"
                             hidden
                         >
+                            <div
+                                id="companyCampaignControls"
+                                class="company-campaign-controls"
+                                hidden
+                            >
+                                <div
+                                    id="companyLinkedCampaignsList"
+                                    class="linked-campaigns-list"
+                                ></div>
+                                <div class="campaign-main-row filter-field">
+                                    <select
+                                        id="companyCampaignSelect"
+                                        class="campaign-select"
+                                    >
+                                        <option value="">Select campaign</option>
+                                    </select>
+                                    <button
+                                        id="companyRenameCampaign"
+                                        class="btn-link"
+                                        type="button"
+                                        title="Rename campaign"
+                                        aria-label="Rename campaign"
+                                        hidden
+                                    >
+                                        ✎
+                                    </button>
+                                    <button
+                                        id="companyToggleNewCampaign"
+                                        class="btn-link"
+                                        type="button"
+                                    >
+                                        + New
+                                    </button>
+                                </div>
+                                <div
+                                    id="companyRenameCampaignRow"
+                                    class="campaign-new-row"
+                                    hidden
+                                >
+                                    <input
+                                        id="companyRenameCampaignName"
+                                        type="text"
+                                        placeholder="Campaign name"
+                                    />
+                                    <button
+                                        id="companySaveRenameCampaign"
+                                        class="btn-small-primary"
+                                        type="button"
+                                    >
+                                        Save
+                                    </button>
+                                    <button
+                                        id="companyCancelRenameCampaign"
+                                        class="btn-small-secondary"
+                                        type="button"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                                <div
+                                    id="companyNewCampaignRow"
+                                    class="campaign-new-row"
+                                    hidden
+                                >
+                                    <input
+                                        id="companyNewCampaignName"
+                                        type="text"
+                                        placeholder="New campaign name"
+                                    />
+                                    <button
+                                        id="companyAddCampaign"
+                                        class="btn-small-primary"
+                                        type="button"
+                                    >
+                                        Add
+                                    </button>
+                                    <button
+                                        id="companyCancelNewCampaign"
+                                        class="btn-small-secondary"
+                                        type="button"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
                             <div class="company-people-title">
                                 Registered people
                             </div>
