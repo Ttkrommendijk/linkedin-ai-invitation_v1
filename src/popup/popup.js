@@ -284,6 +284,9 @@ const companySuggestionWarningEl = document.getElementById(
 const personNotRegisteredStateEl = document.getElementById(
   "personNotRegisteredState",
 );
+const companyUrlMismatchBannerEl = document.getElementById(
+  "companyUrlMismatchBanner",
+);
 const campaignGroupEl = document.getElementById("campaignGroup");
 const campaignDividerEl = document.getElementById("campaignDivider");
 const statusDividerEl = document.getElementById("statusDivider");
@@ -411,6 +414,7 @@ let companyLinkedCampaignRows = [];
 let companyExistingLinkResults = [];
 let selectedExistingCompanyForLink = null;
 let companyExistingLinkDebounceTimer = null;
+let selectedCompanyFromListLinkedinUrl = "";
 let extractedChatMessages = [];
 let outreachMessageStatus = "accepted";
 let overviewPage = 1;
@@ -625,6 +629,35 @@ function restoreActiveTabState(tabState) {
 
 function normalizeCampaignValue(value) {
   return safeTrim(value);
+}
+
+function normalizeLinkedinCompanyCompareUrl(value) {
+  const canonical = canonicalizeLinkedInUrl(value || "");
+  return String(canonical || "").replace(/\/+$/, "").toLowerCase();
+}
+
+function setCompanyUrlMismatchBannerVisible(visible) {
+  if (!companyUrlMismatchBannerEl) return;
+  companyUrlMismatchBannerEl.hidden = !visible;
+}
+
+async function refreshCompanyUrlMismatchBanner() {
+  const selectedUrl = normalizeLinkedinCompanyCompareUrl(
+    selectedCompanyFromListLinkedinUrl,
+  );
+  if (!selectedUrl) {
+    setCompanyUrlMismatchBannerVisible(false);
+    return;
+  }
+  const activeTab = await getActiveTabForProfileCheck().catch(() => null);
+  const activeUrl = canonicalizeLinkedInUrl(activeTab?.url || "");
+  const activePage = detectLinkedInPageType(activeUrl);
+  if (activePage.page_type !== "company") {
+    setCompanyUrlMismatchBannerVisible(false);
+    return;
+  }
+  const activeCompanyUrl = normalizeLinkedinCompanyCompareUrl(activePage.linkedin_id);
+  setCompanyUrlMismatchBannerVisible(Boolean(activeCompanyUrl && activeCompanyUrl !== selectedUrl));
 }
 
 function pickCampaignTextColor(hexColor) {
@@ -1622,6 +1655,9 @@ function applyProfileModeUi() {
   }
   if (personNotRegisteredStateEl) {
     personNotRegisteredStateEl.hidden = !shouldShowPersonNotRegistered;
+  }
+  if (!isCompany) {
+    setCompanyUrlMismatchBannerVisible(false);
   }
   if (companyExistingLinkSectionEl) {
     companyExistingLinkSectionEl.hidden = !shouldShowExistingCompanyDropdown;
@@ -3113,6 +3149,7 @@ function bindCompanyNameDetailsActions(rows) {
         }
         dbCompanyRow = companyRow;
         const linkedinId = safeTrim(companyRow?.linkedin_id || row?.linkedin_url || "");
+        selectedCompanyFromListLinkedinUrl = linkedinId;
         currentProfileContext = {
           url: linkedinId,
           linkedin_id: linkedinId,
@@ -3122,6 +3159,7 @@ function bindCompanyNameDetailsActions(rows) {
         setNoProfileStateVisible(false);
         renderDetailHeader({ force: true });
         await refreshCompanyPeopleList();
+        await refreshCompanyUrlMismatchBanner();
         setActiveTab("detail", { userInitiated: true });
         setFooterStatus("Company details loaded.");
       } catch (e) {
@@ -3850,6 +3888,7 @@ function getProfileForGeneration(profile) {
 }
 
 function isCompanyProfileMode(profileContext = currentProfileContext) {
+  if (safeTrim(dbCompanyRow?.company_id)) return true;
   const url = String(getLinkedinUrlFromContext(profileContext) || "");
   return /linkedin\.com\/(company|school)\//i.test(url);
 }
@@ -4264,6 +4303,8 @@ function applyProfileExtractionFailureState(statusText) {
 }
 
 async function refreshAll() {
+  selectedCompanyFromListLinkedinUrl = "";
+  setCompanyUrlMismatchBannerVisible(false);
   const activeTab = await getActiveTabForProfileCheck().catch(() => null);
   const tabUrl = activeTab?.url || "";
   const canonicalTabUrl = canonicalizeLinkedInUrl(tabUrl);
@@ -5722,6 +5763,12 @@ companyExistingLinkButtonEl?.addEventListener("click", async () => {
     updateExistingCompanyLinkUi();
     setFooterReady();
   }
+});
+
+companyUrlMismatchBannerEl?.addEventListener("click", async () => {
+  const targetUrl = safeTrim(selectedCompanyFromListLinkedinUrl);
+  if (!targetUrl) return;
+  await openLinkedIn(targetUrl);
 });
 
 companyPeopleListEl?.addEventListener("click", async (event) => {

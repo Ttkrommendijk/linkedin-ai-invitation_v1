@@ -1152,6 +1152,16 @@ pre {
     cursor: pointer;
     border-radius: 8px;
 }
+.company-url-mismatch-banner {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border: 1px solid #ef4444;
+    background: #fee2e2;
+    color: #991b1b;
+    border-radius: 8px;
+    font-size: 12px;
+    cursor: pointer;
+}
 .overview-grid .icon-btn:hover {
     background: rgba(0, 0, 0, 0.06);
 }
