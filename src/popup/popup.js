@@ -881,9 +881,23 @@ function collectOverviewFilterUiState() {
   };
 }
 
+function collectCompanyFilterUiState() {
+  return {
+    campaign: companyOverviewFilters.campaign || "",
+    archived: companyOverviewFilters.archived || "",
+    search: companySearchEl?.value || companyOverviewSearch || "",
+    sort_key: companyOverviewSortField || "company_name",
+    sort_dir: companyOverviewSortDir === "asc" ? "asc" : "desc",
+    page_size: String(companyOverviewPageSizeEl?.value || companyOverviewPageSize || 25),
+  };
+}
+
 async function persistOverviewFiltersToStorage() {
   await chrome.storage.local.set({
-    [STORAGE_KEY_LIST_FILTERS]: collectOverviewFilterUiState(),
+    [STORAGE_KEY_LIST_FILTERS]: {
+      persons: collectOverviewFilterUiState(),
+      companies: collectCompanyFilterUiState(),
+    },
   });
 }
 
@@ -895,13 +909,18 @@ async function restoreOverviewFiltersFromStorage() {
     return;
   }
 
-  const savedCampaign = String(saved.campaign || "");
-  const savedArchived = String(saved.archived || "");
-  const savedStatus = String(saved.status || "");
-  const savedAccepted = String(saved.accepted || "");
-  const savedSearch = String(saved.search || "");
-  const savedSortKey = String(saved.sort_key || "");
-  const savedSortDir = String(saved.sort_dir || "").toLowerCase();
+  const savedPersons =
+    saved && typeof saved.persons === "object" ? saved.persons : saved;
+  const savedCompanies =
+    saved && typeof saved.companies === "object" ? saved.companies : null;
+
+  const savedCampaign = String(savedPersons?.campaign || "");
+  const savedArchived = String(savedPersons?.archived || "");
+  const savedStatus = String(savedPersons?.status || "");
+  const savedAccepted = String(savedPersons?.accepted || "");
+  const savedSearch = String(savedPersons?.search || "");
+  const savedSortKey = String(savedPersons?.sort_key || "");
+  const savedSortDir = String(savedPersons?.sort_dir || "").toLowerCase();
 
   const allowedSortFields = new Set([
     "name",
@@ -957,6 +976,67 @@ async function restoreOverviewFiltersFromStorage() {
   personGridState.filters = { ...overviewFilters };
   personGridState.search = overviewSearch;
   updateOverviewCampaignFilterTitle();
+
+  if (savedCompanies && typeof savedCompanies === "object") {
+    const companySortKey = String(savedCompanies.sort_key || "");
+    const companySortDir = String(savedCompanies.sort_dir || "").toLowerCase();
+    const companySearch = String(savedCompanies.search || "");
+    const companyArchived = String(savedCompanies.archived || "");
+    const companyCampaign = String(savedCompanies.campaign || "");
+    const companyPageSize = Number(savedCompanies.page_size || 25);
+    const companyAllowedSortFields = new Set([
+      "company_name",
+      "linked_person_count",
+      "customer_potential_score",
+      "sector",
+      "campaigns",
+      "archived",
+    ]);
+
+    if (companyAllowedSortFields.has(companySortKey)) {
+      companyOverviewSortField = companySortKey;
+    }
+    if (companySortDir === "asc" || companySortDir === "desc") {
+      companyOverviewSortDir = companySortDir;
+    }
+
+    if (companyArchivedFilterEl) {
+      const archivedOptionExists = Array.from(
+        companyArchivedFilterEl.options || [],
+      ).some((option) => option.value === companyArchived);
+      companyArchivedFilterEl.value = archivedOptionExists ? companyArchived : "";
+    }
+    if (companyCampaignFilterEl) {
+      const selectedOption = Array.from(companyCampaignFilterEl.options || []).find(
+        (option) => String(option?.dataset?.campaignName || "") === companyCampaign,
+      );
+      companyCampaignFilterEl.value = selectedOption ? selectedOption.value : "";
+    }
+    if (companySearchEl) {
+      companySearchEl.value = companySearch;
+    }
+    if (companyOverviewPageSizeEl && Number.isFinite(companyPageSize)) {
+      const pageSizeValue = String(companyPageSize);
+      const hasPageSize = Array.from(companyOverviewPageSizeEl.options || []).some(
+        (option) => option.value === pageSizeValue,
+      );
+      if (hasPageSize) {
+        companyOverviewPageSizeEl.value = pageSizeValue;
+      }
+    }
+
+    companyOverviewFilters.archived = companyArchivedFilterEl?.value || "";
+    companyOverviewFilters.campaign = companyCampaignFilterEl?.selectedOptions?.[0]
+      ? String(companyCampaignFilterEl.selectedOptions[0].dataset?.campaignName || "")
+      : "";
+    companyOverviewSearch = companySearchEl?.value || "";
+    companyOverviewPageSize = Number(companyOverviewPageSizeEl?.value || 25);
+    companyGridState.sortField = companyOverviewSortField;
+    companyGridState.sortDir = companyOverviewSortDir;
+    companyGridState.filters = { ...companyOverviewFilters };
+    companyGridState.search = companyOverviewSearch;
+    companyGridState.pageSize = companyOverviewPageSize;
+  }
 }
 
 async function loadCampaignOptions({ keepSelected = true } = {}) {
@@ -2508,7 +2588,7 @@ function renderCompanyOverviewTable(rows) {
   LEF_GRID.renderGridRows({
     tbodyEl: companyOverviewTbodyEl,
     rows,
-    emptyColSpan: 5,
+    emptyColSpan: 6,
     actions: [
       {
         visible: (row) => isLinkedInProfileLikeUrl(row?.linkedin_url || ""),
@@ -2557,17 +2637,18 @@ function renderCompanyOverviewTable(rows) {
     columns: [
       {
         className: "overview-cell-text",
+        value: (row) => Number(row?.customer_potential_score || 0),
+      },
+      {
+        className: "overview-cell-text",
         value: (row) => row?.company_name || "",
       },
-      { className: "overview-cell-text", value: (row) => row?.campaigns || "" },
       {
         className: "overview-cell-text",
         value: (row) => row?.linked_person_count ?? 0,
       },
-      {
-        className: "overview-cell-text",
-        value: (row) => (row?.archived != null ? String(row.archived) : "0"),
-      },
+      { className: "overview-cell-text", value: (row) => row?.sector || "" },
+      { className: "overview-cell-text", value: (row) => row?.campaigns || "" },
     ],
   });
   scheduleCompanyOverviewAutoSize();
@@ -2591,7 +2672,7 @@ async function fetchCompaniesOverviewPage() {
       LEF_GRID?.renderGridRows({
         tbodyEl: companyOverviewTbodyEl,
         rows: [],
-        emptyColSpan: 5,
+        emptyColSpan: 6,
         emptyText: getErrorMessage(result.error),
       });
       companyOverviewTotal = null;
@@ -2610,7 +2691,7 @@ async function fetchCompaniesOverviewPage() {
     LEF_GRID?.renderGridRows({
       tbodyEl: companyOverviewTbodyEl,
       rows: [],
-      emptyColSpan: 5,
+      emptyColSpan: 6,
       emptyText: getErrorMessage(e),
     });
     companyOverviewTotal = null;
@@ -2623,10 +2704,11 @@ function getGridColumnBounds(kind, index) {
   if (kind === "companies") {
     const bounds = [
       { min: 72, max: 220 },
+      { min: 80, max: 140 },
       { min: 120, max: 320 },
+      { min: 90, max: 180 },
       { min: 100, max: 260 },
-      { min: 90, max: 160 },
-      { min: 70, max: 120 },
+      { min: 100, max: 260 },
     ];
     return bounds[index] || { min: 70, max: 420 };
   }
@@ -2646,10 +2728,11 @@ function getGridColumnKey(kind, index) {
   if (kind === "companies") {
     const keys = [
       "companies_actions",
+      "companies_customer_potential_score",
       "companies_company_name",
-      "companies_campaigns",
       "companies_linked_person_count",
-      "companies_archived",
+      "companies_sector",
+      "companies_campaigns",
     ];
     return keys[index] || `companies_col_${index}`;
   }
@@ -3172,10 +3255,12 @@ function wireOverviewEvents() {
         companyOverviewSortDir = companyOverviewSortDir === "asc" ? "desc" : "asc";
       } else {
         companyOverviewSortField = field;
-        companyOverviewSortDir = "asc";
+        companyOverviewSortDir =
+          field === "customer_potential_score" ? "desc" : "asc";
       }
       companyGridState.sortField = companyOverviewSortField;
       companyGridState.sortDir = companyOverviewSortDir;
+      persistOverviewFiltersToStorage().catch(() => null);
       companyOverviewPage = 1;
       companyGridState.page = companyOverviewPage;
       fetchCompaniesOverviewPage();
@@ -3185,6 +3270,7 @@ function wireOverviewEvents() {
   companyArchivedFilterEl?.addEventListener("change", () => {
     companyOverviewFilters.archived = companyArchivedFilterEl.value || "";
     companyGridState.filters.archived = companyOverviewFilters.archived;
+    persistOverviewFiltersToStorage().catch(() => null);
     companyOverviewPage = 1;
     companyGridState.page = companyOverviewPage;
     fetchCompaniesOverviewPage();
@@ -3196,12 +3282,14 @@ function wireOverviewEvents() {
     const campaignName = String(selectedOption?.dataset?.campaignName || "").trim();
     companyOverviewFilters.campaign = campaignName;
     companyGridState.filters.campaign = campaignName;
+    persistOverviewFiltersToStorage().catch(() => null);
     companyOverviewPage = 1;
     companyGridState.page = companyOverviewPage;
     fetchCompaniesOverviewPage();
   });
 
   companySearchEl?.addEventListener("input", () => {
+    persistOverviewFiltersToStorage().catch(() => null);
     if (companyOverviewSearchDebounceTimer) {
       clearTimeout(companyOverviewSearchDebounceTimer);
     }
@@ -3218,6 +3306,7 @@ function wireOverviewEvents() {
     const nextSize = Number(companyOverviewPageSizeEl.value);
     companyOverviewPageSize = Number.isFinite(nextSize) ? nextSize : 25;
     companyGridState.pageSize = companyOverviewPageSize;
+    persistOverviewFiltersToStorage().catch(() => null);
     companyOverviewPage = 1;
     companyGridState.page = companyOverviewPage;
     fetchCompaniesOverviewPage();

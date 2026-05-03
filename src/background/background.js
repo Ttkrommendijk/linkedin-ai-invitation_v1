@@ -2335,8 +2335,10 @@ function toOverviewSortField(value) {
 
 function toCompanyOverviewSortField(value) {
   const allowed = new Set([
+    "customer_potential_score",
     "company_name",
     "linked_person_count",
+    "sector",
     "campaigns",
     "archived",
   ]);
@@ -2510,7 +2512,7 @@ async function supabaseListCompaniesOverview({
   const params = new URLSearchParams();
   params.set(
     "select",
-    "company_id,company_name,linkedin_id,archived,linked_person_count,campaigns",
+    "company_id,company_name,linkedin_id,archived,linked_person_count,customer_potential_score,sector,campaigns",
   );
   params.set("limit", String(safePageSize));
   params.set("offset", String(offset));
@@ -2526,7 +2528,10 @@ async function supabaseListCompaniesOverview({
   }
   if (search && String(search).trim()) {
     const q = String(search).trim().replace(/\*/g, "");
-    params.set("or", `(company_name.ilike.*${q}*,campaigns.ilike.*${q}*)`);
+    params.set(
+      "or",
+      `(company_name.ilike.*${q}*,sector.ilike.*${q}*,campaigns.ilike.*${q}*)`,
+    );
   }
 
   const url = `${supabaseUrl}/rest/v1/vw_company_overview?${params.toString()}`;
@@ -2560,6 +2565,8 @@ async function supabaseListCompaniesOverview({
     linkedin_url: normalizeLinkedinCompanyUrl(row?.linkedin_id),
     archived: row?.archived ?? 0,
     linked_person_count: Number(row?.linked_person_count || 0),
+    customer_potential_score: Number(row?.customer_potential_score || 0),
+    sector: normalizeProfileField(row?.sector),
     campaigns: normalizeProfileField(row?.campaigns),
   }));
   return { rows, total };
