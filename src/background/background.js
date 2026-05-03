@@ -1602,7 +1602,7 @@ async function supabaseGetInvitationByLinkedinUrl(linkedin_url) {
     targetUrl === targetUrlWithSlash
       ? `linkedin_url.eq.${encodeURIComponent(targetUrl)}`
       : `linkedin_url.eq.${encodeURIComponent(targetUrl)},linkedin_url.eq.${encodeURIComponent(targetUrlWithSlash)}`;
-  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?or=(${urlFilter})&select=linkedin_url,status,message,generated_at,invited_at,accepted,accepted_at,first_message,first_message_generated_at,first_message_sent_at,message_count,company,company_id,headline,comments,language,full_name,campaign&limit=1`;
+  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?or=(${urlFilter})&select=id,linkedin_url,status,message,generated_at,invited_at,accepted,accepted_at,first_message,first_message_generated_at,first_message_sent_at,message_count,company,company_id,headline,comments,language,full_name,campaign&limit=1`;
 
   const res = await fetchWithTimeout(
     url,
@@ -1641,12 +1641,12 @@ async function supabaseFindCompanyByName({ company_name }) {
   };
 
   const queries = [
-    `company_name=eq.${encodeURIComponent(normalizedName)}`,
-    `company_name=ilike.${encodeURIComponent(normalizedName)}`,
+    `company_name=eq.${encodeURIComponent(normalizedName)}&archived=eq.0`,
+    `company_name=ilike.${encodeURIComponent(normalizedName)}&archived=eq.0`,
   ];
 
   for (const query of queries) {
-    const url = `${supabaseUrl}/rest/v1/company?select=company_id,company_name&${query}&limit=1`;
+    const url = `${supabaseUrl}/rest/v1/company?select=company_id,company_name,archived&${query}&limit=1`;
     const res = await fetchWithTimeout(
       url,
       {
@@ -1674,7 +1674,7 @@ async function supabaseGetCompanyById({ company_id }) {
     await getSupabaseRequestContext();
   const normalizedCompanyId = normalizeProfileField(company_id);
   if (!normalizedCompanyId) return null;
-  const url = `${supabaseUrl}/rest/v1/company?select=company_id,company_name,linkedin_id&company_id=eq.${encodeURIComponent(normalizedCompanyId)}&limit=1`;
+  const url = `${supabaseUrl}/rest/v1/company?select=company_id,company_name,linkedin_id,archived&company_id=eq.${encodeURIComponent(normalizedCompanyId)}&limit=1`;
   const res = await fetchWithTimeout(
     url,
     {
@@ -1707,7 +1707,7 @@ async function supabaseSearchCompanies({ term, limit }) {
     Number.isFinite(parsedLimit) && parsedLimit > 0
       ? Math.min(50, Math.floor(parsedLimit))
       : 10;
-  const url = `${supabaseUrl}/rest/v1/company?select=company_id,company_name&company_name=ilike.${encodeURIComponent(`*${normalizedTerm}*`)}&order=company_name.asc&limit=${safeLimit}`;
+  const url = `${supabaseUrl}/rest/v1/company?select=company_id,company_name,archived&company_name=ilike.${encodeURIComponent(`*${normalizedTerm}*`)}&archived=eq.0&order=company_name.asc&limit=${safeLimit}`;
   const res = await fetchWithTimeout(
     url,
     {
@@ -1746,6 +1746,7 @@ async function supabaseSearchUnlinkedCompanies({ term, limit }) {
   );
   params.set("company_name", `ilike.*${normalizedTerm}*`);
   params.set("or", "(linkedin_id.is.null,linkedin_id.eq.)");
+  params.set("archived", "eq.0");
   params.set("order", "company_name.asc");
   params.set("limit", String(safeLimit));
   const url = `${supabaseUrl}/rest/v1/company?${params.toString()}`;
@@ -2040,7 +2041,7 @@ async function supabaseSetMessageCount({ linkedin_url, message_count }) {
 async function supabaseListCampaigns() {
   const { supabaseUrl, supabaseAnonKey, accessToken } =
     await getSupabaseRequestContext();
-  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?select=campaign`;
+  const url = `${supabaseUrl}/rest/v1/campaign?select=campaign_id,campaign_name&order=campaign_name.asc`;
   const res = await fetchWithTimeout(
     url,
     {
@@ -2061,57 +2062,158 @@ async function supabaseListCampaigns() {
   }
 
   const rows = await res.json();
-  const uniqueCampaigns = Array.from(
-    new Set(
-      (Array.isArray(rows) ? rows : [])
-        .map((row) => normalizeProfileField(row?.campaign))
-        .filter((campaign) => Boolean(campaign)),
-    ),
-  );
-  uniqueCampaigns.sort((a, b) => a.localeCompare(b));
-  return uniqueCampaigns;
+  return Array.isArray(rows) ? rows : [];
 }
 
-async function supabaseUpdateCampaign({ linkedin_url, campaign }) {
+async function supabaseCreateCampaign({ campaign_name }) {
   const { supabaseUrl, supabaseAnonKey, accessToken } =
     await getSupabaseRequestContext();
-  const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
-  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
+  const normalizedName = normalizeProfileField(campaign_name);
+  if (!normalizedName) {
+    throw new Error("Campaign name is required.");
+  }
+  const url = `${supabaseUrl}/rest/v1/campaign`;
   const res = await fetchWithTimeout(
     url,
     {
-      method: "PATCH",
+      method: "POST",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify([{ campaign_name: normalizedName }]),
+    },
+    15000,
+    "Supabase request",
+  );
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+  const rows = await res.json();
+  return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+}
+
+async function supabaseListPersonCampaigns({ person_id }) {
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
+  const normalizedPersonId = normalizeProfileField(person_id);
+  if (!normalizedPersonId) return [];
+  const url = `${supabaseUrl}/rest/v1/person_campaign?select=campaign_id,campaign:campaign(campaign_id,campaign_name)&person_id=eq.${encodeURIComponent(normalizedPersonId)}&order=campaign_id.asc`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "GET",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    },
+    15000,
+    "Supabase request",
+  );
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+  const rows = await res.json();
+  return (Array.isArray(rows) ? rows : [])
+    .map((row) => {
+      const campaignObj = Array.isArray(row?.campaign)
+        ? row.campaign[0]
+        : row?.campaign || {};
+      return {
+        campaign_id: normalizeProfileField(row?.campaign_id || campaignObj?.campaign_id),
+        campaign_name: normalizeProfileField(campaignObj?.campaign_name),
+      };
+    })
+    .filter((row) => row.campaign_id && row.campaign_name);
+}
+
+async function supabaseLinkPersonCampaign({ person_id, campaign_id }) {
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
+  const normalizedPersonId = normalizeProfileField(person_id);
+  const normalizedCampaignId = normalizeProfileField(campaign_id);
+  if (!normalizedPersonId || !normalizedCampaignId) {
+    throw new Error("Missing person_id or campaign_id.");
+  }
+  const existingUrl = `${supabaseUrl}/rest/v1/person_campaign?select=person_id,campaign_id&person_id=eq.${encodeURIComponent(normalizedPersonId)}&campaign_id=eq.${encodeURIComponent(normalizedCampaignId)}&limit=1`;
+  const existingRes = await fetchWithTimeout(
+    existingUrl,
+    {
+      method: "GET",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    },
+    15000,
+    "Supabase request",
+  );
+  if (!existingRes.ok) {
+    const txt = await existingRes.text().catch(() => "");
+    throw createProviderHttpError("supabase", existingRes.status, txt);
+  }
+  const existingRows = await existingRes.json();
+  if (Array.isArray(existingRows) && existingRows.length > 0) {
+    return;
+  }
+  const insertUrl = `${supabaseUrl}/rest/v1/person_campaign`;
+  const insertRes = await fetchWithTimeout(
+    insertUrl,
+    {
+      method: "POST",
       headers: {
         apikey: supabaseAnonKey,
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
         Prefer: "return=minimal",
       },
-      body: JSON.stringify({
-        campaign: normalizeProfileField(campaign) || null,
-      }),
+      body: JSON.stringify([
+        { person_id: normalizedPersonId, campaign_id: normalizedCampaignId },
+      ]),
     },
     15000,
     "Supabase request",
   );
+  if (!insertRes.ok) {
+    const txt = await insertRes.text().catch(() => "");
+    throw createProviderHttpError("supabase", insertRes.status, txt);
+  }
+}
 
+async function supabaseUnlinkPersonCampaign({ person_id, campaign_id }) {
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
+  const normalizedPersonId = normalizeProfileField(person_id);
+  const normalizedCampaignId = normalizeProfileField(campaign_id);
+  if (!normalizedPersonId || !normalizedCampaignId) {
+    throw new Error("Missing person_id or campaign_id.");
+  }
+  const url = `${supabaseUrl}/rest/v1/person_campaign?person_id=eq.${encodeURIComponent(normalizedPersonId)}&campaign_id=eq.${encodeURIComponent(normalizedCampaignId)}`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "DELETE",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+    },
+    15000,
+    "Supabase request",
+  );
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
     throw createProviderHttpError("supabase", res.status, txt);
   }
-}
-
-async function supabaseUpsertCampaignMinimal({
-  linkedin_url,
-  full_name,
-  campaign,
-}) {
-  const row = {
-    linkedin_url: normalizeLinkedinInvitationUrl(linkedin_url),
-    full_name: normalizeProfileField(full_name) || null,
-    campaign: normalizeProfileField(campaign) || null,
-  };
-  await supabaseUpsertInvitation(row);
 }
 
 async function supabaseGetPrompts() {
@@ -2231,6 +2333,17 @@ function toOverviewSortField(value) {
   return allowed.has(field) ? field : "most_relevant_date";
 }
 
+function toCompanyOverviewSortField(value) {
+  const allowed = new Set([
+    "company_name",
+    "sector",
+    "linked_person_count",
+    "archived",
+  ]);
+  const field = String(value || "");
+  return allowed.has(field) ? field : "company_name";
+}
+
 function toOverviewStatusFilterValue(value) {
   const normalized = normalizeProfileField(value).toLowerCase();
   if (!normalized) return "";
@@ -2267,7 +2380,10 @@ async function supabaseListInvitationsOverview({
   params.set("order", `${safeSortField}.${safeSortDir}`);
 
   if (filters?.campaign) {
-    params.set("campaign", `eq.${String(filters.campaign).trim()}`);
+    const campaignName = String(filters.campaign).trim().replace(/\*/g, "");
+    if (campaignName) {
+      params.set("campaign", `ilike.*${campaignName}*`);
+    }
   }
   if (filters?.archived === "0" || filters?.archived === "1") {
     params.set("archived", `eq.${filters.archived}`);
@@ -2369,6 +2485,151 @@ async function supabaseSetArchived({ linkedin_url, archived }) {
     "Supabase request",
   );
 
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+}
+
+async function supabaseListCompaniesOverview({
+  page,
+  pageSize,
+  sortField,
+  sortDir,
+  filters,
+  search,
+}) {
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
+  const safePage = toOverviewInt(page, 1);
+  const safePageSize = toOverviewInt(pageSize, 25);
+  const safeSortField = toCompanyOverviewSortField(sortField);
+  const safeSortDir = toOverviewSortDir(sortDir);
+  const offset = (safePage - 1) * safePageSize;
+  const paginateOnServer = safeSortField !== "linked_person_count";
+
+  const params = new URLSearchParams();
+  params.set("select", "company_id,company_name,sector,linkedin_id,archived");
+  if (paginateOnServer) {
+    params.set("limit", String(safePageSize));
+    params.set("offset", String(offset));
+  }
+  if (safeSortField !== "linked_person_count") {
+    params.set("order", `${safeSortField}.${safeSortDir}`);
+  } else {
+    params.set("order", `company_name.asc`);
+  }
+  if (filters?.archived === "0" || filters?.archived === "1") {
+    params.set("archived", `eq.${filters.archived}`);
+  }
+  if (search && String(search).trim()) {
+    const q = String(search).trim().replace(/\*/g, "");
+    params.set("or", `(company_name.ilike.*${q}*,sector.ilike.*${q}*)`);
+  }
+
+  const url = `${supabaseUrl}/rest/v1/company?${params.toString()}`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "GET",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        Prefer: "count=exact",
+      },
+    },
+    15000,
+    "Supabase request",
+  );
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+
+  const companies = await res.json();
+  const contentRange = res.headers.get("content-range") || "";
+  const totalMatch = contentRange.match(/\/(\d+|\*)$/);
+  const total =
+    totalMatch && totalMatch[1] !== "*" ? Number(totalMatch[1]) : null;
+
+  const rows = Array.isArray(companies) ? companies : [];
+  const withCounts = await Promise.all(
+    rows.map(async (row) => {
+      const companyId = normalizeProfileField(row?.company_id);
+      let linked_person_count = 0;
+      if (companyId) {
+        const countUrl = `${supabaseUrl}/rest/v1/linkedin_invitations?select=linkedin_url&company_id=eq.${encodeURIComponent(companyId)}`;
+        const countRes = await fetchWithTimeout(
+          countUrl,
+          {
+            method: "GET",
+            headers: {
+              apikey: supabaseAnonKey,
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+              Prefer: "count=exact,head=true",
+            },
+          },
+          15000,
+          "Supabase request",
+        );
+        if (countRes.ok) {
+          const countRange = countRes.headers.get("content-range") || "";
+          const countMatch = countRange.match(/\/(\d+|\*)$/);
+          linked_person_count =
+            countMatch && countMatch[1] !== "*" ? Number(countMatch[1]) : 0;
+        }
+      }
+      return {
+        company_id: row?.company_id,
+        company_name: normalizeProfileField(row?.company_name),
+        sector: normalizeProfileField(row?.sector),
+        linkedin_url: normalizeLinkedinCompanyUrl(row?.linkedin_id),
+        archived: row?.archived ?? 0,
+        linked_person_count: Number.isFinite(linked_person_count)
+          ? linked_person_count
+          : 0,
+      };
+    }),
+  );
+
+  let orderedRows = withCounts;
+  if (safeSortField === "linked_person_count") {
+    withCounts.sort((a, b) => {
+      const diff =
+        Number(a?.linked_person_count || 0) - Number(b?.linked_person_count || 0);
+      return safeSortDir === "desc" ? -diff : diff;
+    });
+    orderedRows = withCounts.slice(offset, offset + safePageSize);
+  }
+
+  return { rows: orderedRows, total };
+}
+
+async function supabaseArchiveCompany({ company_id, archived }) {
+  const { supabaseUrl, supabaseAnonKey, accessToken } =
+    await getSupabaseRequestContext();
+  const targetCompanyId = normalizeProfileField(company_id);
+  if (!targetCompanyId) {
+    throw new Error("Missing company_id.");
+  }
+  const endpoint = `${supabaseUrl}/rest/v1/company?company_id=eq.${encodeURIComponent(targetCompanyId)}`;
+  const res = await fetchWithTimeout(
+    endpoint,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({ archived: archived ? 1 : 0 }),
+    },
+    15000,
+    "Supabase request",
+  );
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
     throw createProviderHttpError("supabase", res.status, txt);
@@ -3270,8 +3531,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Fetching\u2026");
       try {
-        const campaigns = await supabaseListCampaigns();
-        sendResponse({ ok: true, campaigns });
+        const campaign_rows = await supabaseListCampaigns();
+        const campaigns = campaign_rows
+          .map((row) => normalizeProfileField(row?.campaign_name))
+          .filter(Boolean);
+        sendResponse({ ok: true, campaigns, campaign_rows });
       } catch (e) {
         sendResponse({
           ok: false,
@@ -3282,32 +3546,64 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
 
-  if (msg?.type === "DB_UPDATE_CAMPAIGN") {
+  if (msg?.type === "DB_CREATE_CAMPAIGN") {
     (async () => {
       emitUiStatus("Updating\u2026");
       try {
-        await supabaseUpdateCampaign(msg?.payload || {});
-        sendResponse({ ok: true });
+        const campaign = await supabaseCreateCampaign(msg?.payload || {});
+        sendResponse({ ok: true, campaign });
       } catch (e) {
         sendResponse({
           ok: false,
-          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
+          error: normalizeError(e, "SUPABASE_UPSERT_FAILED"),
         });
       }
     })();
     return true;
   }
 
-  if (msg?.type === "DB_UPSERT_CAMPAIGN_MINIMAL") {
+  if (msg?.type === "DB_LIST_PERSON_CAMPAIGNS") {
     (async () => {
-      emitUiStatus("Communicating to database\u2026");
+      emitUiStatus("Fetching\u2026");
       try {
-        await supabaseUpsertCampaignMinimal(msg?.payload || {});
+        const rows = await supabaseListPersonCampaigns(msg?.payload || {});
+        sendResponse({ ok: true, rows });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_GET_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "DB_LINK_PERSON_CAMPAIGN") {
+    (async () => {
+      emitUiStatus("Updating\u2026");
+      try {
+        await supabaseLinkPersonCampaign(msg?.payload || {});
         sendResponse({ ok: true });
       } catch (e) {
         sendResponse({
           ok: false,
           error: normalizeError(e, "SUPABASE_UPSERT_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "DB_UNLINK_PERSON_CAMPAIGN") {
+    (async () => {
+      emitUiStatus("Updating\u2026");
+      try {
+        await supabaseUnlinkPersonCampaign(msg?.payload || {});
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
         });
       }
     })();
@@ -3326,6 +3622,38 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse({
           ok: false,
           error: normalizeError(e, "SUPABASE_GET_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "DB_LIST_COMPANIES") {
+    (async () => {
+      emitUiStatus("Fetching\u2026");
+      try {
+        const result = await supabaseListCompaniesOverview(msg?.payload || {});
+        sendResponse({ ok: true, rows: result.rows, total: result.total });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_GET_FAILED"),
+        });
+      }
+    })();
+    return true;
+  }
+
+  if (msg?.type === "DB_ARCHIVE_COMPANY") {
+    (async () => {
+      emitUiStatus("Updating\u2026");
+      try {
+        await supabaseArchiveCompany(msg?.payload || {});
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
         });
       }
     })();

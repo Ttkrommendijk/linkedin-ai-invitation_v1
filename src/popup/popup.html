@@ -322,8 +322,12 @@
                                 Cancel
                             </button>
                         </div>
+                        <div
+                            id="linkedCampaignsList"
+                            class="linked-campaigns-list"
+                        ></div>
                         <div class="help-text">
-                            Used to group invites. One campaign per person.
+                            Used to group invites. A person can have multiple campaigns.
                         </div>
                     </div>
                     <div id="statusDivider" class="section-divider"></div>
@@ -581,6 +585,24 @@
                 </div>
 
                 <div id="tabOverview" class="tab-panel">
+                    <div class="row inline detail-tabs" id="listTabsRow">
+                        <button
+                            id="listPersonsTabBtn"
+                            class="detail-tab-btn active"
+                            type="button"
+                        >
+                            Persons
+                        </button>
+                        <button
+                            id="listCompaniesTabBtn"
+                            class="detail-tab-btn"
+                            type="button"
+                        >
+                            Companies
+                        </button>
+                    </div>
+
+                    <div id="personsListPanel" class="detail-inner-panel">
                     <div class="overview-filters list-filters row">
                         <div class="filter-field">
                             <label for="filterCampaign"
@@ -744,6 +766,107 @@
                         <button id="overviewPrevBtn" type="button">Prev</button>
                         <button id="overviewNextBtn" type="button">Next</button>
                         <div id="overviewCountLabel">Total: ?</div>
+                    </div>
+                    </div>
+
+                    <div id="companiesListPanel" class="detail-inner-panel" hidden>
+                    <div class="overview-filters list-filters row">
+                        <div class="filter-field">
+                            <label for="companyArchivedFilter"
+                                ><small>Archived</small></label
+                            >
+                            <select id="companyArchivedFilter">
+                                <option value="">All</option>
+                                <option value="0">0</option>
+                                <option value="1">1</option>
+                            </select>
+                        </div>
+                        <div class="filter-field">
+                            <label for="companySearch"
+                                ><small>Search</small></label
+                            >
+                            <input
+                                id="companySearch"
+                                placeholder="Search company/sector"
+                            />
+                        </div>
+                    </div>
+                    <div class="overview-grid-wrap row">
+                        <table class="overview-grid" id="companyOverviewTable">
+                            <thead>
+                                <tr>
+                                    <th>Actions</th>
+                                    <th>
+                                        <button
+                                            type="button"
+                                            class="sort-btn"
+                                            data-company-sort="company_name"
+                                        >
+                                            Company name
+                                            <span
+                                                class="sort-indicator"
+                                                data-company-sort-indicator="company_name"
+                                            ></span>
+                                        </button>
+                                    </th>
+                                    <th>
+                                        <button
+                                            type="button"
+                                            class="sort-btn"
+                                            data-company-sort="sector"
+                                        >
+                                            Sector
+                                            <span
+                                                class="sort-indicator"
+                                                data-company-sort-indicator="sector"
+                                            ></span>
+                                        </button>
+                                    </th>
+                                    <th>
+                                        <button
+                                            type="button"
+                                            class="sort-btn"
+                                            data-company-sort="linked_person_count"
+                                        >
+                                            Linked persons
+                                            <span
+                                                class="sort-indicator"
+                                                data-company-sort-indicator="linked_person_count"
+                                            ></span>
+                                        </button>
+                                    </th>
+                                    <th>
+                                        <button
+                                            type="button"
+                                            class="sort-btn"
+                                            data-company-sort="archived"
+                                        >
+                                            Archived
+                                            <span
+                                                class="sort-indicator"
+                                                data-company-sort-indicator="archived"
+                                            ></span>
+                                        </button>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody id="companyOverviewTbody"></tbody>
+                        </table>
+                    </div>
+                    <div class="overview-pagination row">
+                        <select id="companyOverviewPageSize">
+                            <option value="10">10</option>
+                            <option value="25" selected>25</option>
+                            <option value="50">50</option>
+                        </select>
+                        <button id="companyOverviewPrevBtn" type="button">
+                            Prev
+                        </button>
+                        <button id="companyOverviewNextBtn" type="button">
+                            Next
+                        </button>
+                        <div id="companyOverviewCountLabel">Total: ?</div>
+                    </div>
                     </div>
                 </div>
 
@@ -933,6 +1056,7 @@
 
         <script src="../shared/utils.js"></script>
         <script src="../prompts.js"></script>
+        <script src="popup-grid.js"></script>
         <script src="popup-tabs.js"></script>
         <script src="popup-config.js"></script>
         <script src="popup-prompts.js"></script>

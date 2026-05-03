@@ -8,6 +8,7 @@ const toggleNewCampaignBtnEl = document.getElementById("toggleNewCampaign");
 const newCampaignNameEl = document.getElementById("newCampaignName");
 const addCampaignBtnEl = document.getElementById("addCampaign");
 const cancelNewCampaignBtnEl = document.getElementById("cancelNewCampaign");
+const linkedCampaignsListEl = document.getElementById("linkedCampaignsList");
 const firstMessageAdditionalPromptEl = document.getElementById(
   "firstMessageAdditionalPrompt",
 );
@@ -349,6 +350,26 @@ const overviewPrevBtnEl = document.getElementById("overviewPrevBtn");
 const overviewNextBtnEl = document.getElementById("overviewNextBtn");
 const overviewCountLabelEl = document.getElementById("overviewCountLabel");
 const overviewTableEl = document.querySelector("#tabOverview .overview-table");
+const companyOverviewTableEl = document.getElementById("companyOverviewTable");
+const listPersonsTabBtnEl = document.getElementById("listPersonsTabBtn");
+const listCompaniesTabBtnEl = document.getElementById("listCompaniesTabBtn");
+const personsListPanelEl = document.getElementById("personsListPanel");
+const companiesListPanelEl = document.getElementById("companiesListPanel");
+const companyArchivedFilterEl = document.getElementById("companyArchivedFilter");
+const companySearchEl = document.getElementById("companySearch");
+const companyOverviewTbodyEl = document.getElementById("companyOverviewTbody");
+const companyOverviewPageSizeEl = document.getElementById(
+  "companyOverviewPageSize",
+);
+const companyOverviewPrevBtnEl = document.getElementById(
+  "companyOverviewPrevBtn",
+);
+const companyOverviewNextBtnEl = document.getElementById(
+  "companyOverviewNextBtn",
+);
+const companyOverviewCountLabelEl = document.getElementById(
+  "companyOverviewCountLabel",
+);
 
 let lastProfileContextSent = {};
 let lastProfileContextEnriched = null;
@@ -385,11 +406,44 @@ let overviewFilters = {
 };
 let overviewSearch = "";
 let overviewSearchDebounceTimer = null;
-let overviewAutoSizeTimer = null;
+let gridAutoSizeTimers = {};
 let overviewColumnWidths = {};
 let overviewColumnOverridden = {};
-let overviewColumnPersistTimer = null;
+let gridColumnPersistTimer = null;
 let overviewContextRefreshPromise = null;
+let companyOverviewPage = 1;
+let companyOverviewPageSize = 25;
+let companyOverviewTotal = null;
+let companyOverviewSortField = "company_name";
+let companyOverviewSortDir = "asc";
+let companyOverviewSearch = "";
+let companyOverviewFilters = { archived: "" };
+let companyOverviewSearchDebounceTimer = null;
+let companyOverviewRows = [];
+let activeListTab = "persons";
+const personGridState = {
+  page: 1,
+  pageSize: 25,
+  total: null,
+  sortField: "most_relevant_date",
+  sortDir: "desc",
+  filters: {
+    campaign: "",
+    archived: "",
+    status: "",
+    accepted: "",
+  },
+  search: "",
+};
+const companyGridState = {
+  page: 1,
+  pageSize: 25,
+  total: null,
+  sortField: "company_name",
+  sortDir: "asc",
+  filters: { archived: "" },
+  search: "",
+};
 let chatExtractSeq = 0;
 let detailInnerTab = "invite";
 let stepperAllowedActions = {
@@ -412,6 +466,8 @@ let followupCopyIconResetTimer = null;
 let freePromptCopyIconResetTimer = null;
 let readyResetTimer = null;
 let knownCampaignValues = [];
+let knownCampaignRows = [];
+let linkedPersonCampaignRows = [];
 let overviewContextItems = [];
 let supabaseAuthIsLoggedIn = false;
 let supabaseAuthInnerTab = "signup";
@@ -429,6 +485,17 @@ const state = {
   messageStatus: null,
 };
 let popupModulesInitialized = false;
+const LEF_GRID =
+  typeof globalThis.initPopupGridUtils === "function"
+    ? globalThis.initPopupGridUtils()
+    : null;
+
+function fetchActiveListTabPage() {
+  if (activeListTab === "companies") {
+    return fetchCompaniesOverviewPage();
+  }
+  return fetchOverviewPage();
+}
 
 function initPopupModules() {
   if (popupModulesInitialized) return;
@@ -439,7 +506,7 @@ function initPopupModules() {
     isCompanyProfileMode,
     applyProfileModeUi,
     setDetailInnerTab,
-    fetchOverviewPage,
+    fetchOverviewPage: fetchActiveListTabPage,
   });
   const configApi = initConfigModule({
     state,
@@ -605,38 +672,47 @@ function truncateCampaignLabel(value, maxLen = OVERVIEW_CAMPAIGN_LABEL_MAX) {
   return `${full.slice(0, maxLen - 1).trim()}\u2026`;
 }
 
-function buildCampaignOptionElement(value) {
-  const fullCampaignValue = normalizeCampaignValue(value);
+function buildCampaignOptionElement(campaignRow) {
+  const campaignId = String(campaignRow?.campaign_id || "").trim();
+  const campaignName = normalizeCampaignValue(campaignRow?.campaign_name || "");
+  if (!campaignId || !campaignName) return null;
   const optionEl = document.createElement("option");
-  optionEl.value = fullCampaignValue;
-  optionEl.textContent = truncateCampaignLabel(fullCampaignValue);
-  optionEl.title = fullCampaignValue;
-  optionEl.dataset.full = fullCampaignValue;
+  optionEl.value = campaignId;
+  optionEl.textContent = truncateCampaignLabel(campaignName);
+  optionEl.title = campaignName;
+  optionEl.dataset.campaignId = campaignId;
+  optionEl.dataset.campaignName = campaignName;
   return optionEl;
 }
 
-function hasCampaignOption(value) {
+function hasCampaignOption(campaignId) {
   if (!campaignSelectEl) return false;
-  const normalized = normalizeCampaignValue(value);
-  if (!normalized) return false;
+  const normalizedId = String(campaignId || "").trim();
+  if (!normalizedId) return false;
   return Array.from(campaignSelectEl.options || []).some(
-    (option) => normalizeCampaignValue(option.value) === normalized,
+    (option) => String(option.value || "").trim() === normalizedId,
   );
 }
 
-function appendCampaignOption(value) {
+function appendCampaignOption(campaignRow) {
   if (!campaignSelectEl) return;
-  const normalized = normalizeCampaignValue(value);
-  if (!normalized || hasCampaignOption(normalized)) return;
-  const optionEl = buildCampaignOptionElement(normalized);
+  const campaignId = String(campaignRow?.campaign_id || "").trim();
+  if (!campaignId || hasCampaignOption(campaignId)) return;
+  const optionEl = buildCampaignOptionElement(campaignRow);
+  if (!optionEl) return;
   campaignSelectEl.appendChild(optionEl);
 }
 
-function setCampaignSelectValue(value) {
+function setCampaignSelectValue(campaignId) {
   if (!campaignSelectEl) return;
-  const normalized = normalizeCampaignValue(value);
-  if (normalized) appendCampaignOption(normalized);
-  campaignSelectEl.value = normalized || "";
+  const normalizedId = String(campaignId || "").trim();
+  if (normalizedId) {
+    const row = knownCampaignRows.find(
+      (item) => String(item?.campaign_id || "").trim() === normalizedId,
+    );
+    if (row) appendCampaignOption(row);
+  }
+  campaignSelectEl.value = normalizedId || "";
   updateDetailCampaignSelectTitle();
 }
 
@@ -664,23 +740,23 @@ async function loadLastActiveCampaign() {
   return normalizeCampaignValue(data?.[STORAGE_KEY_LAST_ACTIVE_CAMPAIGN] || "");
 }
 
-function rebuildCampaignSelectOptions(campaignValues) {
+function rebuildCampaignSelectOptions(campaignRows) {
   if (!campaignSelectEl) return;
   while (campaignSelectEl.firstChild) {
     campaignSelectEl.removeChild(campaignSelectEl.firstChild);
   }
   const emptyOptionEl = document.createElement("option");
   emptyOptionEl.value = "";
-  emptyOptionEl.textContent = "(no campaign)";
+  emptyOptionEl.textContent = "Select campaign";
   campaignSelectEl.appendChild(emptyOptionEl);
-  for (const campaignValue of campaignValues) {
-    appendCampaignOption(campaignValue);
+  for (const campaignRow of campaignRows || []) {
+    appendCampaignOption(campaignRow);
   }
 }
 
-function rebuildOverviewCampaignFilterOptions(campaignValues) {
+function rebuildOverviewCampaignFilterOptions(campaignRows) {
   if (!filterCampaignEl) return;
-  const selectedBefore = normalizeCampaignValue(filterCampaignEl.value);
+  const selectedBefore = String(filterCampaignEl.value || "").trim();
   while (filterCampaignEl.firstChild) {
     filterCampaignEl.removeChild(filterCampaignEl.firstChild);
   }
@@ -693,21 +769,26 @@ function rebuildOverviewCampaignFilterOptions(campaignValues) {
   noCampaignOptionEl.textContent = "No campaign";
   filterCampaignEl.appendChild(noCampaignOptionEl);
 
-  const uniqueValues = Array.from(
-    new Set(
-      (campaignValues || [])
-        .map((value) => normalizeCampaignValue(value))
-        .filter(Boolean),
-    ),
+  const uniqueRows = Array.from(
+    new Map(
+      (campaignRows || [])
+        .map((row) => ({
+          campaign_id: String(row?.campaign_id || "").trim(),
+          campaign_name: normalizeCampaignValue(row?.campaign_name || ""),
+        }))
+        .filter((row) => row.campaign_id && row.campaign_name)
+        .map((row) => [row.campaign_id, row]),
+    ).values(),
   );
-  uniqueValues.forEach((campaignValue) => {
-    const optionEl = buildCampaignOptionElement(campaignValue);
+  uniqueRows.forEach((row) => {
+    const optionEl = buildCampaignOptionElement(row);
+    if (!optionEl) return;
     filterCampaignEl.appendChild(optionEl);
   });
 
   if (
     selectedBefore &&
-    uniqueValues.some((campaignValue) => campaignValue === selectedBefore)
+    uniqueRows.some((row) => row.campaign_id === selectedBefore)
   ) {
     filterCampaignEl.value = selectedBefore;
   } else {
@@ -832,25 +913,35 @@ async function restoreOverviewFiltersFromStorage() {
   overviewFilters.status = overviewStatusFilterEl?.value || "";
   overviewFilters.accepted = filterAcceptedEl?.value || "";
   overviewSearch = overviewSearchEl?.value || "";
+  personGridState.sortField = overviewSortField;
+  personGridState.sortDir = overviewSortDir;
+  personGridState.filters = { ...overviewFilters };
+  personGridState.search = overviewSearch;
   updateOverviewCampaignFilterTitle();
 }
 
 async function loadCampaignOptions({ keepSelected = true } = {}) {
   const selectedBefore =
     campaignSelectEl && keepSelected
-      ? normalizeCampaignValue(campaignSelectEl.value)
+      ? String(campaignSelectEl.value || "").trim()
       : "";
   const result = await sendRuntimeMessage("DB_LIST_CAMPAIGNS");
   const resp = result.data || {};
-  const campaigns =
-    result.ok && Array.isArray(resp?.campaigns) ? resp.campaigns : [];
-  knownCampaignValues = campaigns
-    .map((campaignValue) => normalizeCampaignValue(campaignValue))
-    .filter(Boolean);
+  const campaignRowsRaw =
+    result.ok && Array.isArray(resp?.campaign_rows)
+      ? resp.campaign_rows
+      : [];
+  knownCampaignRows = campaignRowsRaw
+    .map((row) => ({
+      campaign_id: String(row?.campaign_id || "").trim(),
+      campaign_name: normalizeCampaignValue(row?.campaign_name || ""),
+    }))
+    .filter((row) => row.campaign_id && row.campaign_name);
+  knownCampaignValues = knownCampaignRows.map((row) => row.campaign_name);
   if (campaignSelectEl) {
-    rebuildCampaignSelectOptions(knownCampaignValues);
+    rebuildCampaignSelectOptions(knownCampaignRows);
   }
-  rebuildOverviewCampaignFilterOptions(knownCampaignValues);
+  rebuildOverviewCampaignFilterOptions(knownCampaignRows);
   if (campaignSelectEl) {
     setCampaignSelectValue(selectedBefore);
   }
@@ -858,56 +949,96 @@ async function loadCampaignOptions({ keepSelected = true } = {}) {
 
 async function applyCampaignSelectionFromProfile() {
   if (!campaignSelectEl) return;
-  if (dbInvitationRow) {
-    setCampaignSelectValue(dbInvitationRow?.campaign || "");
-    return;
-  }
-  const lastActiveCampaign = await loadLastActiveCampaign();
-  setCampaignSelectValue(lastActiveCampaign);
+  const lastActiveCampaignId = await loadLastActiveCampaign();
+  setCampaignSelectValue(lastActiveCampaignId);
 }
 
-async function persistCampaignForCurrentProfile(campaignValue) {
-  const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
-  if (!linkedin_url) return;
-  const normalizedCampaign = normalizeCampaignValue(campaignValue);
-
-  if (dbInvitationRow) {
-    const result = await sendRuntimeMessage("DB_UPDATE_CAMPAIGN", {
-      payload: { linkedin_url, campaign: normalizedCampaign },
+function renderLinkedCampaignChips() {
+  if (!linkedCampaignsListEl) return;
+  linkedCampaignsListEl.innerHTML = "";
+  for (const row of linkedPersonCampaignRows) {
+    const campaignId = String(row?.campaign_id || "").trim();
+    const campaignName = normalizeCampaignValue(row?.campaign_name || "");
+    if (!campaignId || !campaignName) continue;
+    const chipEl = document.createElement("span");
+    chipEl.className = "campaign-chip";
+    const nameEl = document.createElement("span");
+    nameEl.className = "campaign-chip-name";
+    nameEl.textContent = campaignName;
+    chipEl.appendChild(nameEl);
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "campaign-chip-remove";
+    removeBtn.textContent = "\u00d7";
+    removeBtn.title = "Remove link";
+    removeBtn.setAttribute("aria-label", `Remove ${campaignName}`);
+    removeBtn.addEventListener("click", async () => {
+      const personId = safeTrim(dbInvitationRow?.id);
+      if (!personId) return;
+      setFooterUpdatingStatus();
+      try {
+        const result = await sendRuntimeMessage("DB_UNLINK_PERSON_CAMPAIGN", {
+          payload: { person_id: personId, campaign_id: campaignId },
+        });
+        if (!result.ok) {
+          throw new Error(getErrorMessage(result.error));
+        }
+        await refreshPersonCampaignLinks();
+        setFooterStatus("Campaign link removed.");
+      } catch (e) {
+        setFooterStatus(`${UI_TEXT.dbErrorPrefix} ${getErrorMessage(e)}`);
+      } finally {
+        setFooterReady();
+      }
     });
-    if (!result.ok) {
-      setFooterStatus(
-        `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(result.error)}`,
-      );
-      return;
-    }
-    dbInvitationRow = { ...dbInvitationRow, campaign: normalizedCampaign };
+    chipEl.appendChild(removeBtn);
+    linkedCampaignsListEl.appendChild(chipEl);
+  }
+}
+
+async function refreshPersonCampaignLinks() {
+  linkedPersonCampaignRows = [];
+  if (!dbInvitationRow?.id) {
+    renderLinkedCampaignChips();
     return;
   }
+  const result = await sendRuntimeMessage("DB_LIST_PERSON_CAMPAIGNS", {
+    payload: { person_id: dbInvitationRow.id },
+  });
+  const resp = result.data || {};
+  if (!result.ok || !Array.isArray(resp?.rows)) {
+    renderLinkedCampaignChips();
+    return;
+  }
+  linkedPersonCampaignRows = resp.rows;
+  renderLinkedCampaignChips();
+}
 
-  const full_name = getFullNameFromContext(currentProfileContext);
-  const result = await sendRuntimeMessage("DB_UPSERT_CAMPAIGN_MINIMAL", {
-    payload: { linkedin_url, full_name, campaign: normalizedCampaign },
+async function linkCampaignToCurrentPerson(campaignId) {
+  const normalizedCampaignId = String(campaignId || "").trim();
+  if (!normalizedCampaignId) return;
+  if (!dbInvitationRow?.id) {
+    setFooterStatus("Person must exist/generated first.");
+    return;
+  }
+  const result = await sendRuntimeMessage("DB_LINK_PERSON_CAMPAIGN", {
+    payload: {
+      person_id: dbInvitationRow.id,
+      campaign_id: normalizedCampaignId,
+    },
   });
   if (!result.ok) {
-    setFooterStatus(
-      `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(result.error)}`,
-    );
-    return;
+    throw new Error(getErrorMessage(result.error));
   }
-  dbInvitationRow = {
-    ...(dbInvitationRow || {}),
-    linkedin_url,
-    full_name: full_name || dbInvitationRow?.full_name || null,
-    campaign: normalizedCampaign,
-  };
-  renderDetailHeader();
+  await refreshPersonCampaignLinks();
 }
 
-async function handleCampaignSelection(campaignValue) {
-  const normalizedCampaign = normalizeCampaignValue(campaignValue);
-  await saveLastActiveCampaign(normalizedCampaign);
-  await persistCampaignForCurrentProfile(normalizedCampaign);
+async function handleCampaignSelection(campaignId) {
+  const normalizedCampaignId = String(campaignId || "").trim();
+  await saveLastActiveCampaign(normalizedCampaignId);
+  if (!normalizedCampaignId) return;
+  await linkCampaignToCurrentPerson(normalizedCampaignId);
+  setFooterStatus("Campaign linked.");
 }
 
 function isPostSendMode() {
@@ -1112,8 +1243,19 @@ function updateExistingCompanyLinkUi(statusText) {
   }
 }
 
+function isActiveCompanyOptionRow(row) {
+  if (!row || typeof row !== "object") return false;
+  const raw = row?.archived;
+  if (raw == null || raw === "") return true;
+  if (raw === true || raw === 1) return false;
+  const normalized = String(raw).trim().toLowerCase();
+  return normalized !== "1" && normalized !== "true";
+}
+
 function setCompanyExistingLinkOptions(rows) {
-  companyExistingLinkResults = Array.isArray(rows) ? rows : [];
+  companyExistingLinkResults = (Array.isArray(rows) ? rows : []).filter(
+    isActiveCompanyOptionRow,
+  );
   if (!companyExistingLinkOptionsEl) return;
   companyExistingLinkOptionsEl.innerHTML = "";
   for (const row of companyExistingLinkResults) {
@@ -1539,7 +1681,9 @@ async function refreshCompanySuggestionUiForCurrentInvitation() {
 }
 
 function setCompanyLinkSearchOptions(rows) {
-  companyLinkSearchResults = Array.isArray(rows) ? rows : [];
+  companyLinkSearchResults = (Array.isArray(rows) ? rows : []).filter(
+    isActiveCompanyOptionRow,
+  );
   if (!companyLinkSearchOptionsEl) return;
   companyLinkSearchOptionsEl.innerHTML = "";
   for (const row of companyLinkSearchResults) {
@@ -1605,7 +1749,11 @@ async function prepareCompanyDropdownForEdit() {
       payload: { company_id: savedCompanyId },
     });
     const companyRow = result.ok ? result.data?.company || null : null;
-    if (companyRow?.company_id && safeTrim(companyRow?.company_name)) {
+    if (
+      isActiveCompanyOptionRow(companyRow) &&
+      companyRow?.company_id &&
+      safeTrim(companyRow?.company_name)
+    ) {
       setCompanyDropdownSelected(companyRow);
       setCompanyLinkSearchOptions([companyRow]);
     }
@@ -2041,10 +2189,14 @@ function formatLocalDateTime(isoString) {
 }
 
 function buildOverviewQueryState() {
+  const selectedCampaignOption =
+    filterCampaignEl?.options?.[filterCampaignEl.selectedIndex] || null;
+  const selectedCampaignName =
+    String(selectedCampaignOption?.dataset?.campaignName || "").trim();
   const campaignFilterValue =
     overviewFilters.campaign === "__no_campaign__"
       ? ""
-      : overviewFilters.campaign || "";
+      : selectedCampaignName || "";
   return {
     page: overviewPage,
     pageSize: overviewPageSize,
@@ -2168,104 +2320,276 @@ function renderOverviewPagination() {
   overviewNextBtnEl.disabled = totalKnown
     ? overviewPage * overviewPageSize >= overviewTotal
     : false;
+  personGridState.total = overviewTotal;
+}
+
+function setActiveListTab(which) {
+  const next = which === "companies" ? "companies" : "persons";
+  activeListTab = next;
+  if (listPersonsTabBtnEl) {
+    listPersonsTabBtnEl.classList.toggle("active", next === "persons");
+  }
+  if (listCompaniesTabBtnEl) {
+    listCompaniesTabBtnEl.classList.toggle("active", next === "companies");
+  }
+  if (personsListPanelEl) {
+    personsListPanelEl.hidden = next !== "persons";
+  }
+  if (companiesListPanelEl) {
+    companiesListPanelEl.hidden = next !== "companies";
+  }
+  if (next === "persons") {
+    fetchOverviewPage();
+  } else {
+    fetchCompaniesOverviewPage();
+  }
 }
 
 function renderOverviewTable(rows) {
   const safeRows = applyOverviewClientFilters(rows);
-  overviewTbodyEl.innerHTML = "";
-  if (!safeRows.length) {
-    const tr = document.createElement("tr");
-    const td = document.createElement("td");
-    td.colSpan = 7;
-    td.textContent = "No rows.";
-    tr.appendChild(td);
-    overviewTbodyEl.appendChild(tr);
-    scheduleOverviewAutoSize();
-    return;
-  }
-
-  for (const row of safeRows) {
-    const tr = document.createElement("tr");
-
-    const actionsTd = document.createElement("td");
-    const actionsWrap = document.createElement("div");
-    actionsWrap.className = "overview-actions-inline";
-    const openBtn = createOverviewIconButton({
-      title: "Open",
-      ariaLabel: "Open",
-      pathD:
-        "M10 2h4v4h-1.8V4.9L7.5 9.6 6.4 8.5 11.1 3.8H10V2ZM3 4h4v1.5H4.5v6h6V9H12v4H3V4Z",
-    });
-    openBtn.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      openLinkedIn(row?.url || "");
-    });
-    actionsWrap.appendChild(openBtn);
-
-    const isArchived = isOverviewRowArchived(row);
-    const archiveBtn = isArchived
-      ? createOverviewIconButton({
-          title: "Restore",
-          ariaLabel: "Restore",
-          className: "icon-green",
-          pathD:
-            "M8 1.8a6.2 6.2 0 1 0 4.4 10.6l-1.1-1.1A4.7 4.7 0 1 1 12.7 8H10l2.7 2.6L15.3 8h-2A6.2 6.2 0 0 0 8 1.8Z",
-        })
-      : createOverviewIconButton({
-          title: "Archive",
-          ariaLabel: "Archive",
-          className: "icon-red",
-          pathD:
-            "M2 3.5 3.2 2h9.6L14 3.5V5H2V3.5Zm1 2.5h10v7.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6Zm2 2v1.5h6V8H5Z",
-        });
-    archiveBtn.addEventListener("click", async (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      await setArchivedRow(row?.url || "", !isArchived);
-    });
-    actionsWrap.appendChild(archiveBtn);
-    actionsTd.appendChild(actionsWrap);
-    tr.appendChild(actionsTd);
-
-    const nameTd = document.createElement("td");
-    nameTd.className = "overview-cell-text";
-    nameTd.textContent = row?.name || "";
-    tr.appendChild(nameTd);
-
-    const companyTd = document.createElement("td");
-    companyTd.className = "overview-cell-text";
-    companyTd.textContent = row?.company || "";
-    tr.appendChild(companyTd);
-
-    const statusTd = document.createElement("td");
-    statusTd.className = "overview-cell-text";
-    statusTd.textContent = row?.status || "";
-    tr.appendChild(statusTd);
-
-    const dateTd = document.createElement("td");
-    dateTd.className = "overview-cell-text";
-    dateTd.textContent = formatLocalDateTime(getOverviewLastRelevantDate(row));
-    tr.appendChild(dateTd);
-
-    const campaignTd = document.createElement("td");
-    campaignTd.className = "overview-cell-text overview-cell-campaign";
-    campaignTd.textContent = row?.campaign || "";
-    tr.appendChild(campaignTd);
-
-    const archivedTd = document.createElement("td");
-    archivedTd.className = "overview-cell-text";
-    archivedTd.textContent = row?.archived != null ? String(row.archived) : "";
-    tr.appendChild(archivedTd);
-
-    overviewTbodyEl.appendChild(tr);
-  }
+  if (!LEF_GRID) return;
+  LEF_GRID.renderGridRows({
+    tbodyEl: overviewTbodyEl,
+    rows: safeRows,
+    emptyColSpan: 7,
+    actions: [
+      {
+        createButton: (row) => {
+          const openBtn = createOverviewIconButton({
+            title: "Open",
+            ariaLabel: "Open",
+            pathD:
+              "M10 2h4v4h-1.8V4.9L7.5 9.6 6.4 8.5 11.1 3.8H10V2ZM3 4h4v1.5H4.5v6h6V9H12v4H3V4Z",
+          });
+          openBtn.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            openLinkedIn(row?.url || "");
+          });
+          return openBtn;
+        },
+      },
+      {
+        createButton: (row) => {
+          const isArchived = isOverviewRowArchived(row);
+          const archiveBtn = isArchived
+            ? createOverviewIconButton({
+                title: "Restore",
+                ariaLabel: "Restore",
+                className: "icon-green",
+                pathD:
+                  "M8 1.8a6.2 6.2 0 1 0 4.4 10.6l-1.1-1.1A4.7 4.7 0 1 1 12.7 8H10l2.7 2.6L15.3 8h-2A6.2 6.2 0 0 0 8 1.8Z",
+              })
+            : createOverviewIconButton({
+                title: "Archive",
+                ariaLabel: "Archive",
+                className: "icon-red",
+                pathD:
+                  "M2 3.5 3.2 2h9.6L14 3.5V5H2V3.5Zm1 2.5h10v7.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6Zm2 2v1.5h6V8H5Z",
+              });
+          archiveBtn.addEventListener("click", async (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            await setArchivedRow(row?.url || "", !isArchived);
+          });
+          return archiveBtn;
+        },
+      },
+    ],
+    columns: [
+      { className: "overview-cell-text", value: (row) => row?.name || "" },
+      { className: "overview-cell-text", value: (row) => row?.company || "" },
+      { className: "overview-cell-text", value: (row) => row?.status || "" },
+      {
+        className: "overview-cell-text",
+        value: (row) => formatLocalDateTime(getOverviewLastRelevantDate(row)),
+      },
+      {
+        className: "overview-cell-text overview-cell-campaign",
+        value: (row) => row?.campaign || "",
+      },
+      {
+        className: "overview-cell-text",
+        value: (row) => (row?.archived != null ? String(row.archived) : ""),
+      },
+    ],
+  });
   scheduleOverviewAutoSize();
 }
 
-function getOverviewColumnBounds(index) {
-  // Column index map: 0 Actions, 1 Name, 2 Company,
-  // 3 Status, 4 Most relevant date, 5 Campaign, 6 Archived.
+function isCompanyRowArchived(row) {
+  if (row?.archived === true || row?.archived === 1) return true;
+  const normalized = String(row?.archived ?? "")
+    .trim()
+    .toLowerCase();
+  return normalized === "1" || normalized === "true";
+}
+
+function renderCompanyOverviewSortIndicators() {
+  const indicators = document.querySelectorAll("[data-company-sort-indicator]");
+  indicators.forEach((el) => {
+    const field = el.getAttribute("data-company-sort-indicator");
+    el.textContent =
+      field === companyOverviewSortField
+        ? companyOverviewSortDir === "asc"
+          ? "▲"
+          : "▼"
+        : "";
+  });
+}
+
+function renderCompanyOverviewPagination() {
+  const totalKnown = Number.isFinite(companyOverviewTotal);
+  const start =
+    companyOverviewTotal === 0
+      ? 0
+      : (companyOverviewPage - 1) * companyOverviewPageSize + 1;
+  const end = totalKnown
+    ? Math.min(companyOverviewPage * companyOverviewPageSize, companyOverviewTotal)
+    : companyOverviewPage * companyOverviewPageSize;
+  if (companyOverviewCountLabelEl) {
+    companyOverviewCountLabelEl.textContent = totalKnown
+      ? `${start}-${end} of ${companyOverviewTotal}`
+      : "Total: ?";
+  }
+  if (companyOverviewPrevBtnEl) {
+    companyOverviewPrevBtnEl.disabled = companyOverviewPage <= 1;
+  }
+  if (companyOverviewNextBtnEl) {
+    companyOverviewNextBtnEl.disabled = totalKnown
+      ? companyOverviewPage * companyOverviewPageSize >= companyOverviewTotal
+      : false;
+  }
+  companyGridState.total = companyOverviewTotal;
+}
+
+function renderCompanyOverviewTable(rows) {
+  if (!LEF_GRID) return;
+  LEF_GRID.renderGridRows({
+    tbodyEl: companyOverviewTbodyEl,
+    rows,
+    emptyColSpan: 5,
+    actions: [
+      {
+        visible: (row) => isLinkedInProfileLikeUrl(row?.linkedin_url || ""),
+        createButton: (row) => {
+          const openBtn = createOverviewIconButton({
+            title: "Open",
+            ariaLabel: "Open",
+            pathD:
+              "M10 2h4v4h-1.8V4.9L7.5 9.6 6.4 8.5 11.1 3.8H10V2ZM3 4h4v1.5H4.5v6h6V9H12v4H3V4Z",
+          });
+          openBtn.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            openLinkedIn(row?.linkedin_url || "");
+          });
+          return openBtn;
+        },
+      },
+      {
+        createButton: (row) => {
+          const isArchived = isCompanyRowArchived(row);
+          const archiveBtn = isArchived
+            ? createOverviewIconButton({
+                title: "Restore",
+                ariaLabel: "Restore",
+                className: "icon-green",
+                pathD:
+                  "M8 1.8a6.2 6.2 0 1 0 4.4 10.6l-1.1-1.1A4.7 4.7 0 1 1 12.7 8H10l2.7 2.6L15.3 8h-2A6.2 6.2 0 0 0 8 1.8Z",
+              })
+            : createOverviewIconButton({
+                title: "Archive",
+                ariaLabel: "Archive",
+                className: "icon-red",
+                pathD:
+                  "M2 3.5 3.2 2h9.6L14 3.5V5H2V3.5Zm1 2.5h10v7.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6Zm2 2v1.5h6V8H5Z",
+              });
+          archiveBtn.addEventListener("click", async (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            await setArchivedCompanyRow(row?.company_id, !isArchived);
+          });
+          return archiveBtn;
+        },
+      },
+    ],
+    columns: [
+      {
+        className: "overview-cell-text",
+        value: (row) => row?.company_name || "",
+      },
+      { className: "overview-cell-text", value: (row) => row?.sector || "" },
+      {
+        className: "overview-cell-text",
+        value: (row) => row?.linked_person_count ?? 0,
+      },
+      {
+        className: "overview-cell-text",
+        value: (row) => (row?.archived != null ? String(row.archived) : "0"),
+      },
+    ],
+  });
+  scheduleCompanyOverviewAutoSize();
+}
+
+async function fetchCompaniesOverviewPage() {
+  if (!companyOverviewTbodyEl) return;
+  try {
+    const result = await sendRuntimeMessage("DB_LIST_COMPANIES", {
+      payload: {
+        page: companyOverviewPage,
+        pageSize: companyOverviewPageSize,
+        sortField: companyOverviewSortField,
+        sortDir: companyOverviewSortDir,
+        filters: companyOverviewFilters,
+        search: companyOverviewSearch,
+      },
+    });
+    const resp = result.data || {};
+    if (!result.ok) {
+      LEF_GRID?.renderGridRows({
+        tbodyEl: companyOverviewTbodyEl,
+        rows: [],
+        emptyColSpan: 5,
+        emptyText: getErrorMessage(result.error),
+      });
+      companyOverviewTotal = null;
+      renderCompanyOverviewPagination();
+      scheduleCompanyOverviewAutoSize();
+      return;
+    }
+    companyOverviewRows = Array.isArray(resp?.rows) ? resp.rows : [];
+    companyOverviewTotal = Number.isFinite(resp?.total)
+      ? resp.total
+      : companyOverviewRows.length;
+    renderCompanyOverviewTable(companyOverviewRows);
+    renderCompanyOverviewSortIndicators();
+    renderCompanyOverviewPagination();
+  } catch (e) {
+    LEF_GRID?.renderGridRows({
+      tbodyEl: companyOverviewTbodyEl,
+      rows: [],
+      emptyColSpan: 5,
+      emptyText: getErrorMessage(e),
+    });
+    companyOverviewTotal = null;
+    renderCompanyOverviewPagination();
+    scheduleCompanyOverviewAutoSize();
+  }
+}
+
+function getGridColumnBounds(kind, index) {
+  if (kind === "companies") {
+    const bounds = [
+      { min: 72, max: 220 },
+      { min: 120, max: 320 },
+      { min: 100, max: 260 },
+      { min: 90, max: 160 },
+      { min: 70, max: 120 },
+    ];
+    return bounds[index] || { min: 70, max: 420 };
+  }
   const bounds = [
     { min: 72, max: 220 },
     { min: 90, max: 260 },
@@ -2278,29 +2602,39 @@ function getOverviewColumnBounds(index) {
   return bounds[index] || { min: 70, max: 420 };
 }
 
-function getOverviewColumnKey(index) {
+function getGridColumnKey(kind, index) {
+  if (kind === "companies") {
+    const keys = [
+      "companies_actions",
+      "companies_company_name",
+      "companies_sector",
+      "companies_linked_person_count",
+      "companies_archived",
+    ];
+    return keys[index] || `companies_col_${index}`;
+  }
   const keys = [
-    "actions",
-    "name",
-    "company",
-    "status",
-    "most_relevant_date",
-    "campaign",
-    "archived",
+    "persons_actions",
+    "persons_name",
+    "persons_company",
+    "persons_status",
+    "persons_most_relevant_date",
+    "persons_campaign",
+    "persons_archived",
   ];
-  return keys[index] || `col_${index}`;
+  return keys[index] || `persons_col_${index}`;
 }
 
 function clampNumber(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
-function ensureOverviewColgroup(columnCount) {
-  if (!overviewTableEl) return null;
-  let colgroupEl = overviewTableEl.querySelector("colgroup");
+function ensureGridColgroup(tableEl, columnCount) {
+  if (!tableEl) return null;
+  let colgroupEl = tableEl.querySelector("colgroup");
   if (!colgroupEl) {
     colgroupEl = document.createElement("colgroup");
-    overviewTableEl.insertBefore(colgroupEl, overviewTableEl.firstChild);
+    tableEl.insertBefore(colgroupEl, tableEl.firstChild);
   }
   while (colgroupEl.children.length < columnCount) {
     colgroupEl.appendChild(document.createElement("col"));
@@ -2309,11 +2643,11 @@ function ensureOverviewColgroup(columnCount) {
 }
 
 function schedulePersistOverviewColumnPrefs() {
-  if (overviewColumnPersistTimer) {
-    clearTimeout(overviewColumnPersistTimer);
+  if (gridColumnPersistTimer) {
+    clearTimeout(gridColumnPersistTimer);
   }
-  overviewColumnPersistTimer = setTimeout(async () => {
-    overviewColumnPersistTimer = null;
+  gridColumnPersistTimer = setTimeout(async () => {
+    gridColumnPersistTimer = null;
     await chrome.storage.local.set({
       [STORAGE_KEY_LIST_COLUMN_WIDTHS]: {
         version: 1,
@@ -2341,12 +2675,12 @@ async function loadOverviewColumnPrefs() {
       : {};
 }
 
-function ensureOverviewResizeHandles() {
-  if (!overviewTableEl) return;
-  const headerRow = overviewTableEl.tHead?.rows?.[0] || null;
+function ensureGridResizeHandles(tableEl, kind) {
+  if (!tableEl) return;
+  const headerRow = tableEl.tHead?.rows?.[0] || null;
   if (!headerRow) return;
   Array.from(headerRow.cells || []).forEach((thEl, index) => {
-    thEl.dataset.colKey = getOverviewColumnKey(index);
+    thEl.dataset.colKey = getGridColumnKey(kind, index);
     let handleEl = thEl.querySelector(".col-resize-handle");
     if (!handleEl) {
       handleEl = document.createElement("div");
@@ -2354,15 +2688,15 @@ function ensureOverviewResizeHandles() {
       thEl.appendChild(handleEl);
     }
     handleEl.dataset.colIndex = String(index);
-    handleEl.dataset.colKey = getOverviewColumnKey(index);
+    handleEl.dataset.colKey = getGridColumnKey(kind, index);
   });
 }
 
-function bindOverviewResizeEvents() {
-  if (!overviewTableEl) return;
-  if (overviewTableEl.dataset.resizeBound === "1") return;
-  overviewTableEl.dataset.resizeBound = "1";
-  overviewTableEl.addEventListener("pointerdown", (event) => {
+function bindGridResizeEvents(tableEl, kind) {
+  if (!tableEl) return;
+  if (tableEl.dataset.resizeBound === "1") return;
+  tableEl.dataset.resizeBound = "1";
+  tableEl.addEventListener("pointerdown", (event) => {
     const targetEl =
       event.target instanceof Element
         ? event.target.closest(".col-resize-handle")
@@ -2370,11 +2704,11 @@ function bindOverviewResizeEvents() {
     if (!targetEl) return;
     const colIndex = Number(targetEl.dataset.colIndex || -1);
     if (!Number.isFinite(colIndex) || colIndex < 0) return;
-    const colKey = getOverviewColumnKey(colIndex);
-    const headerRow = overviewTableEl.tHead?.rows?.[0] || null;
+    const colKey = getGridColumnKey(kind, colIndex);
+    const headerRow = tableEl.tHead?.rows?.[0] || null;
     if (!headerRow) return;
     const columnCount = headerRow.cells.length;
-    const colgroupEl = ensureOverviewColgroup(columnCount);
+    const colgroupEl = ensureGridColgroup(tableEl, columnCount);
     if (!colgroupEl) return;
     const colEl = colgroupEl.children[colIndex];
     const headerCell = headerRow.cells[colIndex];
@@ -2383,7 +2717,7 @@ function bindOverviewResizeEvents() {
     event.preventDefault();
     event.stopPropagation();
 
-    const { min, max } = getOverviewColumnBounds(colIndex);
+    const { min, max } = getGridColumnBounds(kind, colIndex);
     const currentWidth = parseFloat(colEl.style.width);
     const initialWidth =
       Number.isFinite(currentWidth) && currentWidth > 0
@@ -2412,30 +2746,30 @@ function bindOverviewResizeEvents() {
   });
 }
 
-function autoSizeOverviewColumns() {
-  if (!overviewTableEl) return;
+function autoSizeGridColumns(tableEl, tbodyEl, kind) {
+  if (!tableEl) return;
   if (document.body.classList.contains("is-col-resizing")) return;
-  const headerRow = overviewTableEl.tHead?.rows?.[0] || null;
+  const headerRow = tableEl.tHead?.rows?.[0] || null;
   if (!headerRow) return;
 
-  ensureOverviewResizeHandles();
-  bindOverviewResizeEvents();
+  ensureGridResizeHandles(tableEl, kind);
+  bindGridResizeEvents(tableEl, kind);
 
-  const bodyRows = Array.from(overviewTbodyEl?.rows || []).filter(
+  const bodyRows = Array.from(tbodyEl?.rows || []).filter(
     (row) => row && row.offsetParent !== null,
   );
   const paddingBuffer = 20;
   const columnCount = headerRow.cells.length;
-  const colgroupEl = ensureOverviewColgroup(columnCount);
+  const colgroupEl = ensureGridColgroup(tableEl, columnCount);
   if (!colgroupEl) return;
 
   for (let index = 0; index < columnCount; index += 1) {
-    const colKey = getOverviewColumnKey(index);
+    const colKey = getGridColumnKey(kind, index);
     const headerCell = headerRow.cells[index];
     const colEl = colgroupEl.children[index];
     if (!colEl) continue;
     if (overviewColumnOverridden[colKey]) {
-      const { min, max } = getOverviewColumnBounds(index);
+      const { min, max } = getGridColumnBounds(kind, index);
       const savedWidth = Number(overviewColumnWidths[colKey]);
       if (Number.isFinite(savedWidth) && savedWidth > 0) {
         colEl.style.width = `${clampNumber(savedWidth, min, max)}px`;
@@ -2450,25 +2784,33 @@ function autoSizeOverviewColumns() {
       widest = Math.max(widest, cell.scrollWidth);
     }
 
-    const { min, max } = getOverviewColumnBounds(index);
+    const { min, max } = getGridColumnBounds(kind, index);
     const width = clampNumber(widest + paddingBuffer, min, max);
     colEl.style.width = `${width}px`;
     overviewColumnWidths[colKey] = Math.round(width);
   }
 }
 
-function scheduleOverviewAutoSize() {
-  if (overviewAutoSizeTimer) {
-    clearTimeout(overviewAutoSizeTimer);
+function scheduleGridAutoSize(kind, tableEl, tbodyEl) {
+  if (gridAutoSizeTimers[kind]) {
+    clearTimeout(gridAutoSizeTimers[kind]);
   }
-  overviewAutoSizeTimer = setTimeout(() => {
-    overviewAutoSizeTimer = null;
+  gridAutoSizeTimers[kind] = setTimeout(() => {
+    gridAutoSizeTimers[kind] = null;
     if (document.body.classList.contains("is-col-resizing")) {
-      scheduleOverviewAutoSize();
+      scheduleGridAutoSize(kind, tableEl, tbodyEl);
       return;
     }
-    autoSizeOverviewColumns();
+    autoSizeGridColumns(tableEl, tbodyEl, kind);
   }, 180);
+}
+
+function scheduleOverviewAutoSize() {
+  scheduleGridAutoSize("persons", overviewTableEl, overviewTbodyEl);
+}
+
+function scheduleCompanyOverviewAutoSize() {
+  scheduleGridAutoSize("companies", companyOverviewTableEl, companyOverviewTbodyEl);
 }
 
 async function fetchOverviewPage() {
@@ -2661,6 +3003,29 @@ async function setArchivedRow(url, archived) {
   }
 }
 
+async function setArchivedCompanyRow(companyId, archived) {
+  setFooterDbStatus();
+  const target = String(companyId || "").trim();
+  if (!target) {
+    setFooterReady();
+    return;
+  }
+  try {
+    const result = await sendRuntimeMessage("DB_ARCHIVE_COMPANY", {
+      payload: { company_id: target, archived: Boolean(archived) },
+    });
+    if (!result.ok) {
+      setFooterStatus(
+        `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(result.error)}`,
+      );
+      return;
+    }
+    await fetchCompaniesOverviewPage();
+  } finally {
+    setFooterReady();
+  }
+}
+
 function wireOverviewEvents() {
   if (!OVERVIEW_ENABLED) return;
   document.querySelectorAll("[data-overview-sort]").forEach((btn) => {
@@ -2673,38 +3038,49 @@ function wireOverviewEvents() {
         overviewSortField = field;
         overviewSortDir = "asc";
       }
+      personGridState.sortField = overviewSortField;
+      personGridState.sortDir = overviewSortDir;
       persistOverviewFiltersToStorage().catch(() => null);
       overviewPage = 1;
+      personGridState.page = overviewPage;
       fetchOverviewPage();
     });
   });
 
   filterCampaignEl?.addEventListener("change", () => {
     overviewFilters.campaign = normalizeCampaignValue(filterCampaignEl.value);
+    personGridState.filters.campaign = overviewFilters.campaign;
     updateOverviewCampaignFilterTitle();
     persistOverviewFiltersToStorage().catch(() => null);
     overviewPage = 1;
+    personGridState.page = overviewPage;
     fetchOverviewPage();
   });
 
   overviewArchivedFilterEl?.addEventListener("change", () => {
     overviewFilters.archived = overviewArchivedFilterEl.value;
+    personGridState.filters.archived = overviewFilters.archived;
     persistOverviewFiltersToStorage().catch(() => null);
     overviewPage = 1;
+    personGridState.page = overviewPage;
     fetchOverviewPage();
   });
 
   overviewStatusFilterEl?.addEventListener("change", () => {
     overviewFilters.status = overviewStatusFilterEl.value;
+    personGridState.filters.status = overviewFilters.status;
     persistOverviewFiltersToStorage().catch(() => null);
     overviewPage = 1;
+    personGridState.page = overviewPage;
     fetchOverviewPage();
   });
 
   filterAcceptedEl?.addEventListener("change", () => {
     overviewFilters.accepted = filterAcceptedEl.value || "";
+    personGridState.filters.accepted = overviewFilters.accepted;
     persistOverviewFiltersToStorage().catch(() => null);
     overviewPage = 1;
+    personGridState.page = overviewPage;
     fetchOverviewPage();
   });
 
@@ -2713,7 +3089,9 @@ function wireOverviewEvents() {
     if (overviewSearchDebounceTimer) clearTimeout(overviewSearchDebounceTimer);
     overviewSearchDebounceTimer = setTimeout(() => {
       overviewSearch = overviewSearchEl.value.trim();
+      personGridState.search = overviewSearch;
       overviewPage = 1;
+      personGridState.page = overviewPage;
       fetchOverviewPage();
     }, 250);
   });
@@ -2721,13 +3099,16 @@ function wireOverviewEvents() {
   overviewPageSizeEl?.addEventListener("change", () => {
     const nextSize = Number(overviewPageSizeEl.value);
     overviewPageSize = Number.isFinite(nextSize) ? nextSize : 25;
+    personGridState.pageSize = overviewPageSize;
     overviewPage = 1;
+    personGridState.page = overviewPage;
     fetchOverviewPage();
   });
 
   overviewPrevBtnEl?.addEventListener("click", () => {
     if (overviewPage <= 1) return;
     overviewPage -= 1;
+    personGridState.page = overviewPage;
     fetchOverviewPage();
   });
 
@@ -2739,7 +3120,82 @@ function wireOverviewEvents() {
       return;
     }
     overviewPage += 1;
+    personGridState.page = overviewPage;
     fetchOverviewPage();
+  });
+
+  document.querySelectorAll("[data-company-sort]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const field = btn.getAttribute("data-company-sort");
+      if (!field) return;
+      if (companyOverviewSortField === field) {
+        companyOverviewSortDir = companyOverviewSortDir === "asc" ? "desc" : "asc";
+      } else {
+        companyOverviewSortField = field;
+        companyOverviewSortDir = "asc";
+      }
+      companyGridState.sortField = companyOverviewSortField;
+      companyGridState.sortDir = companyOverviewSortDir;
+      companyOverviewPage = 1;
+      companyGridState.page = companyOverviewPage;
+      fetchCompaniesOverviewPage();
+    });
+  });
+
+  companyArchivedFilterEl?.addEventListener("change", () => {
+    companyOverviewFilters.archived = companyArchivedFilterEl.value || "";
+    companyGridState.filters.archived = companyOverviewFilters.archived;
+    companyOverviewPage = 1;
+    companyGridState.page = companyOverviewPage;
+    fetchCompaniesOverviewPage();
+  });
+
+  companySearchEl?.addEventListener("input", () => {
+    if (companyOverviewSearchDebounceTimer) {
+      clearTimeout(companyOverviewSearchDebounceTimer);
+    }
+    companyOverviewSearchDebounceTimer = setTimeout(() => {
+      companyOverviewSearch = (companySearchEl.value || "").trim();
+      companyGridState.search = companyOverviewSearch;
+      companyOverviewPage = 1;
+      companyGridState.page = companyOverviewPage;
+      fetchCompaniesOverviewPage();
+    }, 250);
+  });
+
+  companyOverviewPageSizeEl?.addEventListener("change", () => {
+    const nextSize = Number(companyOverviewPageSizeEl.value);
+    companyOverviewPageSize = Number.isFinite(nextSize) ? nextSize : 25;
+    companyGridState.pageSize = companyOverviewPageSize;
+    companyOverviewPage = 1;
+    companyGridState.page = companyOverviewPage;
+    fetchCompaniesOverviewPage();
+  });
+
+  companyOverviewPrevBtnEl?.addEventListener("click", () => {
+    if (companyOverviewPage <= 1) return;
+    companyOverviewPage -= 1;
+    companyGridState.page = companyOverviewPage;
+    fetchCompaniesOverviewPage();
+  });
+
+  companyOverviewNextBtnEl?.addEventListener("click", () => {
+    if (
+      Number.isFinite(companyOverviewTotal) &&
+      companyOverviewPage * companyOverviewPageSize >= companyOverviewTotal
+    ) {
+      return;
+    }
+    companyOverviewPage += 1;
+    companyGridState.page = companyOverviewPage;
+    fetchCompaniesOverviewPage();
+  });
+
+  listPersonsTabBtnEl?.addEventListener("click", () => {
+    setActiveListTab("persons");
+  });
+  listCompaniesTabBtnEl?.addEventListener("click", () => {
+    setActiveListTab("companies");
   });
 }
 
@@ -3170,6 +3626,8 @@ function applyProfileExtractionFailureState(statusText) {
   dbCompanyRow = null;
   companyPeopleRows = [];
   selectedExistingCompanyForLink = null;
+  linkedPersonCampaignRows = [];
+  renderLinkedCampaignChips();
   setCampaignSelectValue("");
   if (previewEl) previewEl.textContent = "";
   if (firstMessagePreviewEl) firstMessagePreviewEl.textContent = "";
@@ -3219,6 +3677,8 @@ async function refreshAll() {
     dbCompanyRow = null;
     companyPeopleRows = [];
     selectedExistingCompanyForLink = null;
+    linkedPersonCampaignRows = [];
+    renderLinkedCampaignChips();
     setCampaignSelectValue("");
     clearFreePromptPreview();
     updateMessageTabControls();
@@ -3780,19 +4240,28 @@ function runPopupInit() {
     loadOverviewColumnPrefs()
       .then(() => {
         scheduleOverviewAutoSize();
+        scheduleCompanyOverviewAutoSize();
       })
       .catch(() => {
         scheduleOverviewAutoSize();
+        scheduleCompanyOverviewAutoSize();
       });
     if (document.documentElement.dataset.overviewResizeBound !== "1") {
       document.documentElement.dataset.overviewResizeBound = "1";
       window.addEventListener("resize", () => {
         scheduleOverviewAutoSize();
+        scheduleCompanyOverviewAutoSize();
       });
     }
     overviewPageSize = Number(overviewPageSizeEl?.value || 25);
+    personGridState.pageSize = overviewPageSize;
     renderOverviewSortIndicators();
     renderOverviewPagination();
+    companyOverviewPageSize = Number(companyOverviewPageSizeEl?.value || 25);
+    companyGridState.pageSize = companyOverviewPageSize;
+    renderCompanyOverviewSortIndicators();
+    renderCompanyOverviewPagination();
+    setActiveListTab("persons");
   }
   setFooterReady();
   setCommunicationStatus("Ready");
@@ -3818,7 +4287,12 @@ function runPopupInit() {
         .then(() => {
           if (tabOverview?.classList.contains("active")) {
             overviewPage = 1;
-            fetchOverviewPage();
+            personGridState.page = overviewPage;
+            if (activeListTab === "companies") {
+              fetchCompaniesOverviewPage();
+            } else {
+              fetchOverviewPage();
+            }
           }
         })
         .catch(() => null);
@@ -3865,7 +4339,15 @@ function runPopupInit() {
 
   campaignSelectEl?.addEventListener("change", async () => {
     updateDetailCampaignSelectTitle();
-    await handleCampaignSelection(campaignSelectEl.value);
+    if (!campaignSelectEl.value) return;
+    setFooterUpdatingStatus();
+    try {
+      await handleCampaignSelection(campaignSelectEl.value);
+    } catch (e) {
+      setFooterStatus(`${UI_TEXT.dbErrorPrefix} ${getErrorMessage(e)}`);
+    } finally {
+      setFooterReady();
+    }
   });
 
   toggleNewCampaignBtnEl?.addEventListener("click", () => {
@@ -3874,15 +4356,35 @@ function runPopupInit() {
   });
 
   addCampaignBtnEl?.addEventListener("click", async () => {
-    const newCampaignValue = normalizeCampaignValue(
+    const campaignName = normalizeCampaignValue(
       newCampaignNameEl?.value || "",
     );
-    if (!newCampaignValue) return;
-    setCampaignSelectValue(newCampaignValue);
-    await handleCampaignSelection(newCampaignValue);
-    await loadCampaignOptions({ keepSelected: true });
-    setCampaignSelectValue(newCampaignValue);
-    setNewCampaignRowVisible(false);
+    if (!campaignName) return;
+    setFooterUpdatingStatus();
+    try {
+      const createResult = await sendRuntimeMessage("DB_CREATE_CAMPAIGN", {
+        payload: { campaign_name: campaignName },
+      });
+      const createResp = createResult.data || {};
+      if (!createResult.ok || !createResp?.campaign?.campaign_id) {
+        throw new Error(getErrorMessage(createResult.error || createResp?.error));
+      }
+      const createdCampaignId = String(
+        createResp.campaign.campaign_id || "",
+      ).trim();
+      await loadCampaignOptions({ keepSelected: true });
+      setCampaignSelectValue(createdCampaignId);
+      if (dbInvitationRow?.id) {
+        await handleCampaignSelection(createdCampaignId);
+      } else {
+        setFooterStatus("Person must exist/generated first.");
+      }
+      setNewCampaignRowVisible(false);
+    } catch (e) {
+      setFooterStatus(`${UI_TEXT.dbErrorPrefix} ${getErrorMessage(e)}`);
+    } finally {
+      setFooterReady();
+    }
   });
 
   cancelNewCampaignBtnEl?.addEventListener("click", () => {

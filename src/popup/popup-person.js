@@ -163,6 +163,7 @@ async function refreshInvitationRowFromDb({ preserveTabs = false } = {}) {
     renderMessageTab(outreachMessageStatus);
     updateMessageTabControls();
     renderDetailHeader();
+    await refreshPersonCampaignLinks();
     await refreshCompanySuggestionUiForCurrentInvitation();
     updatePhaseButtons();
   } finally {
@@ -284,8 +285,7 @@ async function onStepRegisterClick() {
         headline: extracted.headline || null,
         language: extracted.language || getLanguage(),
         status: "registered",
-        campaign:
-          normalizeCampaignValue(campaignSelectEl?.value || "") || null,
+        campaign: null,
       },
     });
     const resp = result.data || {};
