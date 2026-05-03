@@ -3059,6 +3059,7 @@ function renderCompanyOverviewTable(rows) {
     ],
   });
   bindCompanyLinkedPersonsActions(rows);
+  bindCompanyNameDetailsActions(rows);
   scheduleCompanyOverviewAutoSize();
 }
 
@@ -3082,6 +3083,52 @@ function bindCompanyLinkedPersonsActions(rows) {
         overviewSearchEl.dispatchEvent(new Event("input", { bubbles: true }));
       }
       setActiveListTab("persons");
+    });
+  });
+}
+
+function bindCompanyNameDetailsActions(rows) {
+  if (!companyOverviewTbodyEl || !Array.isArray(rows)) return;
+  const bodyRows = Array.from(companyOverviewTbodyEl.querySelectorAll("tr"));
+  bodyRows.forEach((tr, index) => {
+    const row = rows[index];
+    if (!row) return;
+    const companyId = safeTrim(row?.company_id);
+    if (!companyId) return;
+    const companyNameCell = tr.children[2];
+    if (!companyNameCell) return;
+    companyNameCell.classList.add("overview-company-name-clickable");
+    companyNameCell.title = "Open company details";
+    companyNameCell.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setFooterFetchingStatus();
+      try {
+        const result = await sendRuntimeMessage("DB_GET_COMPANY_BY_ID", {
+          payload: { company_id: companyId },
+        });
+        const companyRow = result.ok ? result.data?.company || null : null;
+        if (!companyRow) {
+          throw new Error(getErrorMessage(result.error) || "Company not found.");
+        }
+        dbCompanyRow = companyRow;
+        const linkedinId = safeTrim(companyRow?.linkedin_id || row?.linkedin_url || "");
+        currentProfileContext = {
+          url: linkedinId,
+          linkedin_id: linkedinId,
+          is_company_profile: true,
+          company_name: safeTrim(companyRow?.company_name),
+        };
+        setNoProfileStateVisible(false);
+        renderDetailHeader({ force: true });
+        await refreshCompanyPeopleList();
+        setActiveTab("detail", { userInitiated: true });
+        setFooterStatus("Company details loaded.");
+      } catch (e) {
+        setFooterStatus(`${UI_TEXT.dbErrorPrefix} ${getErrorMessage(e)}`);
+      } finally {
+        setFooterReady();
+      }
     });
   });
 }

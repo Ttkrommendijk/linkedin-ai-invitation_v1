@@ -625,6 +625,12 @@ pre {
     text-decoration: underline;
     text-decoration-style: dotted;
 }
+
+.overview-company-name-clickable {
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+}
 .invite-preview-block {
     background: #f6f6f6;
     border-radius: 8px;
