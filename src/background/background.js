@@ -2409,6 +2409,7 @@ function toOverviewSortField(value) {
   const allowed = new Set([
     "name",
     "company",
+    "headline",
     "status",
     "most_relevant_date",
     "campaign",
@@ -2461,7 +2462,7 @@ async function supabaseListInvitationsOverview({
   const params = new URLSearchParams();
   params.set(
     "select",
-    "url,name,company,most_relevant_date,archived,campaign,status,accepted",
+    "url,name,company,headline,most_relevant_date,archived,campaign,status,accepted",
   );
   params.set("limit", String(safePageSize));
   params.set("offset", String(offset));

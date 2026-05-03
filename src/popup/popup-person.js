@@ -266,6 +266,7 @@ async function onStepRegisterClick() {
   const activeTabsBeforeRegister = captureActiveTabState();
   let footerHandled = false;
   setFooterLlmStatus();
+  const campaignIdForRegister = safeTrim(campaignSelectEl?.value || "");
   try {
     const activeTab = await getActiveTabForProfileCheck().catch(() => null);
     const pageInfo = detectLinkedInPageType(activeTab?.url || "");
@@ -296,6 +297,19 @@ async function onStepRegisterClick() {
     );
     if (resp?.ok) {
       await refreshInvitationRowFromDb({ preserveTabs: true });
+      const personId = safeTrim(dbInvitationRow?.id);
+      if (campaignIdForRegister && personId) {
+        const linkResult = await sendRuntimeMessage("DB_LINK_PERSON_CAMPAIGN", {
+          payload: {
+            person_id: personId,
+            campaign_id: campaignIdForRegister,
+          },
+        });
+        if (!linkResult.ok) {
+          throw new Error(getErrorMessage(linkResult.error));
+        }
+        await refreshPersonCampaignLinks();
+      }
       setFooterStatus("Successfully set status registered");
       footerHandled = true;
     } else {

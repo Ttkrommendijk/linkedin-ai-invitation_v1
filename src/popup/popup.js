@@ -1186,6 +1186,7 @@ async function restoreOverviewFiltersFromStorage() {
     "name",
     "full_name",
     "company",
+    "headline",
     "status",
     "most_relevant_date",
     "campaign",
@@ -2962,6 +2963,7 @@ function renderOverviewTable(rows) {
     columns: [
       { className: "overview-cell-text", value: (row) => row?.name || "" },
       { className: "overview-cell-text", value: (row) => row?.company || "" },
+      { className: "overview-cell-text", value: (row) => row?.headline || "" },
       { className: "overview-cell-text", value: (row) => row?.status || "" },
       {
         className: "overview-cell-text",
@@ -2970,10 +2972,6 @@ function renderOverviewTable(rows) {
       {
         className: "overview-cell-text overview-cell-campaign",
         value: (row) => row?.campaign || "",
-      },
-      {
-        className: "overview-cell-text",
-        value: (row) => (row?.archived != null ? String(row.archived) : ""),
       },
     ],
   });
@@ -3233,10 +3231,10 @@ function getGridColumnBounds(kind, index) {
     { min: 72, max: 220 },
     { min: 90, max: 260 },
     { min: 90, max: 260 },
+    { min: 90, max: 260 },
     { min: 80, max: 180 },
     { min: 110, max: 180 },
     { min: 100, max: 240 },
-    { min: 70, max: 120 },
   ];
   return bounds[index] || { min: 70, max: 420 };
 }
@@ -3257,10 +3255,10 @@ function getGridColumnKey(kind, index) {
     "persons_actions",
     "persons_name",
     "persons_company",
+    "persons_headline",
     "persons_status",
     "persons_most_relevant_date",
     "persons_campaign",
-    "persons_archived",
   ];
   return keys[index] || `persons_col_${index}`;
 }
