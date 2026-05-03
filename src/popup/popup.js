@@ -1111,6 +1111,10 @@ async function loadCampaignOptions({ keepSelected = true } = {}) {
 
 async function applyCampaignSelectionFromProfile() {
   if (!campaignSelectEl) return;
+  if (dbInvitationRow) {
+    setCampaignSelectValue("");
+    return;
+  }
   const lastActiveCampaignId = await loadLastActiveCampaign();
   if (!lastActiveCampaignId) {
     setCampaignSelectValue("");
