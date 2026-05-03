@@ -356,6 +356,7 @@ const listCompaniesTabBtnEl = document.getElementById("listCompaniesTabBtn");
 const personsListPanelEl = document.getElementById("personsListPanel");
 const companiesListPanelEl = document.getElementById("companiesListPanel");
 const companyArchivedFilterEl = document.getElementById("companyArchivedFilter");
+const companyCampaignFilterEl = document.getElementById("companyCampaignFilter");
 const companySearchEl = document.getElementById("companySearch");
 const companyOverviewTbodyEl = document.getElementById("companyOverviewTbody");
 const companyOverviewPageSizeEl = document.getElementById(
@@ -417,7 +418,7 @@ let companyOverviewTotal = null;
 let companyOverviewSortField = "company_name";
 let companyOverviewSortDir = "asc";
 let companyOverviewSearch = "";
-let companyOverviewFilters = { archived: "" };
+let companyOverviewFilters = { archived: "", campaign: "" };
 let companyOverviewSearchDebounceTimer = null;
 let companyOverviewRows = [];
 let activeListTab = "persons";
@@ -441,7 +442,7 @@ const companyGridState = {
   total: null,
   sortField: "company_name",
   sortDir: "asc",
-  filters: { archived: "" },
+  filters: { archived: "", campaign: "" },
   search: "",
 };
 let chatExtractSeq = 0;
@@ -798,6 +799,44 @@ function rebuildOverviewCampaignFilterOptions(campaignRows) {
   updateOverviewCampaignFilterTitle();
 }
 
+function rebuildCompanyCampaignFilterOptions(campaignRows) {
+  if (!companyCampaignFilterEl) return;
+  const selectedBefore = String(companyCampaignFilterEl.value || "").trim();
+  while (companyCampaignFilterEl.firstChild) {
+    companyCampaignFilterEl.removeChild(companyCampaignFilterEl.firstChild);
+  }
+  const allOptionEl = document.createElement("option");
+  allOptionEl.value = "";
+  allOptionEl.textContent = "All campaigns";
+  companyCampaignFilterEl.appendChild(allOptionEl);
+
+  const uniqueRows = Array.from(
+    new Map(
+      (campaignRows || [])
+        .map((row) => ({
+          campaign_id: String(row?.campaign_id || "").trim(),
+          campaign_name: normalizeCampaignValue(row?.campaign_name || ""),
+        }))
+        .filter((row) => row.campaign_id && row.campaign_name)
+        .map((row) => [row.campaign_id, row]),
+    ).values(),
+  );
+  uniqueRows.forEach((row) => {
+    const optionEl = buildCampaignOptionElement(row);
+    if (!optionEl) return;
+    companyCampaignFilterEl.appendChild(optionEl);
+  });
+  if (
+    selectedBefore &&
+    uniqueRows.some((row) => row.campaign_id === selectedBefore)
+  ) {
+    companyCampaignFilterEl.value = selectedBefore;
+  } else {
+    companyCampaignFilterEl.value = "";
+    companyOverviewFilters.campaign = "";
+  }
+}
+
 function updateOverviewCampaignFilterTitle() {
   if (!filterCampaignEl) return;
   const selectedOption =
@@ -942,6 +981,7 @@ async function loadCampaignOptions({ keepSelected = true } = {}) {
     rebuildCampaignSelectOptions(knownCampaignRows);
   }
   rebuildOverviewCampaignFilterOptions(knownCampaignRows);
+  rebuildCompanyCampaignFilterOptions(knownCampaignRows);
   if (campaignSelectEl) {
     setCampaignSelectValue(selectedBefore);
   }
@@ -2519,7 +2559,7 @@ function renderCompanyOverviewTable(rows) {
         className: "overview-cell-text",
         value: (row) => row?.company_name || "",
       },
-      { className: "overview-cell-text", value: (row) => row?.sector || "" },
+      { className: "overview-cell-text", value: (row) => row?.campaigns || "" },
       {
         className: "overview-cell-text",
         value: (row) => row?.linked_person_count ?? 0,
@@ -2607,7 +2647,7 @@ function getGridColumnKey(kind, index) {
     const keys = [
       "companies_actions",
       "companies_company_name",
-      "companies_sector",
+      "companies_campaigns",
       "companies_linked_person_count",
       "companies_archived",
     ];
@@ -3145,6 +3185,17 @@ function wireOverviewEvents() {
   companyArchivedFilterEl?.addEventListener("change", () => {
     companyOverviewFilters.archived = companyArchivedFilterEl.value || "";
     companyGridState.filters.archived = companyOverviewFilters.archived;
+    companyOverviewPage = 1;
+    companyGridState.page = companyOverviewPage;
+    fetchCompaniesOverviewPage();
+  });
+
+  companyCampaignFilterEl?.addEventListener("change", () => {
+    const selectedOption =
+      companyCampaignFilterEl.options[companyCampaignFilterEl.selectedIndex];
+    const campaignName = String(selectedOption?.dataset?.campaignName || "").trim();
+    companyOverviewFilters.campaign = campaignName;
+    companyGridState.filters.campaign = campaignName;
     companyOverviewPage = 1;
     companyGridState.page = companyOverviewPage;
     fetchCompaniesOverviewPage();

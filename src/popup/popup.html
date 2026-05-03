@@ -772,6 +772,14 @@
                     <div id="companiesListPanel" class="detail-inner-panel" hidden>
                     <div class="overview-filters list-filters row">
                         <div class="filter-field">
+                            <label for="companyCampaignFilter"
+                                ><small>Campaign</small></label
+                            >
+                            <select id="companyCampaignFilter" class="campaign-select">
+                                <option value="">All campaigns</option>
+                            </select>
+                        </div>
+                        <div class="filter-field">
                             <label for="companyArchivedFilter"
                                 ><small>Archived</small></label
                             >
@@ -787,7 +795,7 @@
                             >
                             <input
                                 id="companySearch"
-                                placeholder="Search company/sector"
+                                placeholder="Search company/campaign"
                             />
                         </div>
                     </div>
@@ -813,12 +821,12 @@
                                         <button
                                             type="button"
                                             class="sort-btn"
-                                            data-company-sort="sector"
+                                            data-company-sort="campaigns"
                                         >
-                                            Sector
+                                            Campaigns
                                             <span
                                                 class="sort-indicator"
-                                                data-company-sort-indicator="sector"
+                                                data-company-sort-indicator="campaigns"
                                             ></span>
                                         </button>
                                     </th>

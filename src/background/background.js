@@ -2336,8 +2336,8 @@ function toOverviewSortField(value) {
 function toCompanyOverviewSortField(value) {
   const allowed = new Set([
     "company_name",
-    "sector",
     "linked_person_count",
+    "campaigns",
     "archived",
   ]);
   const field = String(value || "");
@@ -2506,28 +2506,30 @@ async function supabaseListCompaniesOverview({
   const safeSortField = toCompanyOverviewSortField(sortField);
   const safeSortDir = toOverviewSortDir(sortDir);
   const offset = (safePage - 1) * safePageSize;
-  const paginateOnServer = safeSortField !== "linked_person_count";
 
   const params = new URLSearchParams();
-  params.set("select", "company_id,company_name,sector,linkedin_id,archived");
-  if (paginateOnServer) {
-    params.set("limit", String(safePageSize));
-    params.set("offset", String(offset));
-  }
-  if (safeSortField !== "linked_person_count") {
-    params.set("order", `${safeSortField}.${safeSortDir}`);
-  } else {
-    params.set("order", `company_name.asc`);
-  }
+  params.set(
+    "select",
+    "company_id,company_name,linkedin_id,archived,linked_person_count,campaigns",
+  );
+  params.set("limit", String(safePageSize));
+  params.set("offset", String(offset));
+  params.set("order", `${safeSortField}.${safeSortDir}`);
   if (filters?.archived === "0" || filters?.archived === "1") {
     params.set("archived", `eq.${filters.archived}`);
   }
+  if (filters?.campaign) {
+    const campaignName = String(filters.campaign).trim().replace(/\*/g, "");
+    if (campaignName) {
+      params.set("campaigns", `ilike.*${campaignName}*`);
+    }
+  }
   if (search && String(search).trim()) {
     const q = String(search).trim().replace(/\*/g, "");
-    params.set("or", `(company_name.ilike.*${q}*,sector.ilike.*${q}*)`);
+    params.set("or", `(company_name.ilike.*${q}*,campaigns.ilike.*${q}*)`);
   }
 
-  const url = `${supabaseUrl}/rest/v1/company?${params.toString()}`;
+  const url = `${supabaseUrl}/rest/v1/vw_company_overview?${params.toString()}`;
   const res = await fetchWithTimeout(
     url,
     {
@@ -2552,59 +2554,15 @@ async function supabaseListCompaniesOverview({
   const totalMatch = contentRange.match(/\/(\d+|\*)$/);
   const total =
     totalMatch && totalMatch[1] !== "*" ? Number(totalMatch[1]) : null;
-
-  const rows = Array.isArray(companies) ? companies : [];
-  const withCounts = await Promise.all(
-    rows.map(async (row) => {
-      const companyId = normalizeProfileField(row?.company_id);
-      let linked_person_count = 0;
-      if (companyId) {
-        const countUrl = `${supabaseUrl}/rest/v1/linkedin_invitations?select=linkedin_url&company_id=eq.${encodeURIComponent(companyId)}`;
-        const countRes = await fetchWithTimeout(
-          countUrl,
-          {
-            method: "GET",
-            headers: {
-              apikey: supabaseAnonKey,
-              Authorization: `Bearer ${accessToken}`,
-              "Content-Type": "application/json",
-              Prefer: "count=exact,head=true",
-            },
-          },
-          15000,
-          "Supabase request",
-        );
-        if (countRes.ok) {
-          const countRange = countRes.headers.get("content-range") || "";
-          const countMatch = countRange.match(/\/(\d+|\*)$/);
-          linked_person_count =
-            countMatch && countMatch[1] !== "*" ? Number(countMatch[1]) : 0;
-        }
-      }
-      return {
-        company_id: row?.company_id,
-        company_name: normalizeProfileField(row?.company_name),
-        sector: normalizeProfileField(row?.sector),
-        linkedin_url: normalizeLinkedinCompanyUrl(row?.linkedin_id),
-        archived: row?.archived ?? 0,
-        linked_person_count: Number.isFinite(linked_person_count)
-          ? linked_person_count
-          : 0,
-      };
-    }),
-  );
-
-  let orderedRows = withCounts;
-  if (safeSortField === "linked_person_count") {
-    withCounts.sort((a, b) => {
-      const diff =
-        Number(a?.linked_person_count || 0) - Number(b?.linked_person_count || 0);
-      return safeSortDir === "desc" ? -diff : diff;
-    });
-    orderedRows = withCounts.slice(offset, offset + safePageSize);
-  }
-
-  return { rows: orderedRows, total };
+  const rows = (Array.isArray(companies) ? companies : []).map((row) => ({
+    company_id: normalizeProfileField(row?.company_id),
+    company_name: normalizeProfileField(row?.company_name),
+    linkedin_url: normalizeLinkedinCompanyUrl(row?.linkedin_id),
+    archived: row?.archived ?? 0,
+    linked_person_count: Number(row?.linked_person_count || 0),
+    campaigns: normalizeProfileField(row?.campaigns),
+  }));
+  return { rows, total };
 }
 
 async function supabaseArchiveCompany({ company_id, archived }) {
