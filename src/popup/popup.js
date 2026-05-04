@@ -3897,17 +3897,7 @@ function isCompanyProfileMode(profileContext = currentProfileContext) {
 function normalizeCompanyLinkedinId(profileContext = currentProfileContext) {
   const raw =
     profileContext?.linkedin_id || getLinkedinUrlFromContext(profileContext) || "";
-  const input = String(raw || "").trim();
-  if (!input) return "";
-  try {
-    const parsed = new URL(input);
-    const pathname = (parsed.pathname || "").replace(/\/+$/, "");
-    return `https://www.linkedin.com${pathname}`;
-  } catch (_e) {
-    const noHash = input.split("#")[0];
-    const noQuery = noHash.split("?")[0];
-    return noQuery.replace(/\/+$/, "");
-  }
+  return canonicalizeLinkedInUrl(raw);
 }
 
 function getLinkedinUrlFromContext(profileContext) {
@@ -3935,12 +3925,27 @@ function canonicalizeLinkedInUrl(rawUrl) {
   if (!input) return "";
   try {
     const parsed = new URL(input);
+    const parts = (parsed.pathname || "")
+      .split("/")
+      .filter(Boolean);
+    if (
+      parts.length >= 2 &&
+      /^(company|school)$/i.test(parts[0])
+    ) {
+      return `https://www.linkedin.com/${parts[0].toLowerCase()}/${parts[1]}/`;
+    }
     const pathname = (parsed.pathname || "").replace(/\/+$/, "") || "/";
     if (pathname === "/") return "https://www.linkedin.com/";
     return `https://www.linkedin.com${pathname}/`;
   } catch (_e) {
     const noHash = input.split("#")[0];
     const noQuery = noHash.split("?")[0];
+    const match = noQuery.match(
+      /^https:\/\/www\.linkedin\.com\/(company|school)\/([^/?#\/]+)/i,
+    );
+    if (match) {
+      return `https://www.linkedin.com/${match[1].toLowerCase()}/${match[2]}/`;
+    }
     const noTrailing = noQuery.replace(/\/+$/, "");
     if (!noTrailing) return "";
     return noTrailing.endsWith("/") ? noTrailing : `${noTrailing}/`;
