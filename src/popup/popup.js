@@ -264,6 +264,7 @@ const companyCancelNewCampaignBtnEl = document.getElementById("companyCancelNewC
 const enrichProfileBtnEl = document.getElementById("enrichProfileBtn");
 const editProfileBtnEl = document.getElementById("editProfileBtn");
 const saveProfileFieldsBtnEl = document.getElementById("saveProfileFieldsBtn");
+const cancelProfileEditBtnEl = document.getElementById("cancelProfileEditBtn");
 const acceptCompanySuggestionBtnEl = document.getElementById(
   "acceptCompanySuggestionBtn",
 );
@@ -1540,9 +1541,13 @@ function autoResizeCommentsField() {
 
 function renderProfileEditControls() {
   const isCompany = isCompanyProfileMode();
+  if (enrichProfileBtnEl) {
+    enrichProfileBtnEl.hidden = isProfileEditMode;
+    enrichProfileBtnEl.disabled = isProfileEditMode;
+  }
   if (editProfileBtnEl) {
     editProfileBtnEl.hidden = isProfileEditMode;
-    editProfileBtnEl.textContent = isCompany && !dbCompanyRow ? "Create" : "Edit";
+    editProfileBtnEl.textContent = isCompany && !dbCompanyRow ? "Create" : "\u270E";
     editProfileBtnEl.title =
       isCompany && !dbCompanyRow ? "Create company" : "Edit";
     editProfileBtnEl.setAttribute(
@@ -1553,6 +1558,10 @@ function renderProfileEditControls() {
   if (saveProfileFieldsBtnEl) {
     saveProfileFieldsBtnEl.hidden = !isProfileEditMode;
     saveProfileFieldsBtnEl.disabled = isProfileSaveInFlight;
+  }
+  if (cancelProfileEditBtnEl) {
+    cancelProfileEditBtnEl.hidden = !isProfileEditMode;
+    cancelProfileEditBtnEl.disabled = isProfileSaveInFlight;
   }
   for (const fieldEl of [
     detailPersonNameEl,
@@ -5538,6 +5547,12 @@ if (!enrichProfileBtnEl) {
 function bindProfileEditControls() {
   editProfileBtnEl?.addEventListener("click", () => {
     setProfileEditMode(true);
+  });
+
+  cancelProfileEditBtnEl?.addEventListener("click", () => {
+    if (isProfileSaveInFlight) return;
+    selectedCompanyForSave = null;
+    setProfileEditMode(false);
   });
 
   saveProfileFieldsBtnEl?.addEventListener("click", async () => {

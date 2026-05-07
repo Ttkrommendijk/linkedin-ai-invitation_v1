@@ -373,6 +373,9 @@ button:disabled {
     border: 1px solid #d1d5db;
     color: #374151;
 }
+.btn-enrich[hidden] {
+    display: none !important;
+}
 .btn-enrich svg {
     display: block;
 }
@@ -721,6 +724,26 @@ pre {
 .detail-save-icon {
     padding: 0 6px;
     min-width: 28px;
+}
+.detail-cancel-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    min-width: 28px;
+    min-height: 28px;
+    border: 1px solid var(--line);
+    background: #ffffff;
+    color: #6b7280;
+    font-size: 18px;
+    line-height: 1;
+}
+.detail-cancel-icon[hidden] {
+    display: none !important;
+}
+.detail-cancel-icon:hover {
+    background: #f9fafb;
+    color: #111827;
 }
 
 .tabs {
