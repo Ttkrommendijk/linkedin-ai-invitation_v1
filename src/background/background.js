@@ -2425,6 +2425,7 @@ function toCompanyOverviewSortField(value) {
   const allowed = new Set([
     "customer_potential_score",
     "company_name",
+    "employee_number",
     "linked_person_count",
     "sector",
     "campaigns",
@@ -2600,7 +2601,7 @@ async function supabaseListCompaniesOverview({
   const params = new URLSearchParams();
   params.set(
     "select",
-    "company_id,company_name,linkedin_id,archived,linked_person_count,customer_potential_score,sector,campaigns",
+    "company_id,company_name,linkedin_id,archived,employee_number,linked_person_count,customer_potential_score,sector,campaigns",
   );
   params.set("limit", String(safePageSize));
   params.set("offset", String(offset));
@@ -2618,7 +2619,7 @@ async function supabaseListCompaniesOverview({
     const q = String(search).trim().replace(/\*/g, "");
     params.set(
       "or",
-      `(company_name.ilike.*${q}*,sector.ilike.*${q}*,campaigns.ilike.*${q}*)`,
+      `(company_name.ilike.*${q}*,employee_number.ilike.*${q}*,sector.ilike.*${q}*,campaigns.ilike.*${q}*)`,
     );
   }
 
@@ -2652,6 +2653,7 @@ async function supabaseListCompaniesOverview({
     company_name: normalizeProfileField(row?.company_name),
     linkedin_url: normalizeLinkedinCompanyUrl(row?.linkedin_id),
     archived: row?.archived ?? 0,
+    employee_number: normalizeProfileField(row?.employee_number),
     linked_person_count: Number(row?.linked_person_count || 0),
     customer_potential_score: Number(row?.customer_potential_score || 0),
     sector: normalizeProfileField(row?.sector),

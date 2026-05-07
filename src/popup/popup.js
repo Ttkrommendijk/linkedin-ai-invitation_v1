@@ -1252,6 +1252,7 @@ async function restoreOverviewFiltersFromStorage() {
       "company_name",
       "linked_person_count",
       "customer_potential_score",
+      "employee_number",
       "sector",
       "campaigns",
       "archived",
@@ -3032,7 +3033,7 @@ function renderCompanyOverviewTable(rows) {
   LEF_GRID.renderGridRows({
     tbodyEl: companyOverviewTbodyEl,
     rows,
-    emptyColSpan: 6,
+    emptyColSpan: 7,
     actions: [
       {
         visible: (row) => isLinkedInProfileLikeUrl(row?.linkedin_url || ""),
@@ -3090,6 +3091,10 @@ function renderCompanyOverviewTable(rows) {
       {
         className: "overview-cell-text",
         value: (row) => row?.linked_person_count ?? 0,
+      },
+      {
+        className: "overview-cell-text",
+        value: (row) => row?.employee_number || "0",
       },
       { className: "overview-cell-text", value: (row) => row?.sector || "" },
       { className: "overview-cell-text", value: (row) => row?.campaigns || "" },
@@ -3190,7 +3195,7 @@ async function fetchCompaniesOverviewPage() {
       LEF_GRID?.renderGridRows({
         tbodyEl: companyOverviewTbodyEl,
         rows: [],
-        emptyColSpan: 6,
+        emptyColSpan: 7,
         emptyText: getErrorMessage(result.error),
       });
       companyOverviewTotal = null;
@@ -3209,7 +3214,7 @@ async function fetchCompaniesOverviewPage() {
     LEF_GRID?.renderGridRows({
       tbodyEl: companyOverviewTbodyEl,
       rows: [],
-      emptyColSpan: 6,
+      emptyColSpan: 7,
       emptyText: getErrorMessage(e),
     });
     companyOverviewTotal = null;
@@ -3224,6 +3229,7 @@ function getGridColumnBounds(kind, index) {
       { min: 72, max: 220 },
       { min: 80, max: 140 },
       { min: 120, max: 320 },
+      { min: 90, max: 180 },
       { min: 90, max: 180 },
       { min: 100, max: 260 },
       { min: 100, max: 260 },
@@ -3249,6 +3255,7 @@ function getGridColumnKey(kind, index) {
       "companies_customer_potential_score",
       "companies_company_name",
       "companies_linked_person_count",
+      "companies_employee_number",
       "companies_sector",
       "companies_campaigns",
     ];
