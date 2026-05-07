@@ -2996,7 +2996,13 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       try {
         const targetUrl = normalizeProfileField(msg?.payload?.url);
+        const openInNewTab = Boolean(msg?.payload?.new_tab);
         if (!isLinkedInProfileLikeUrl(targetUrl)) {
+          sendResponse({ ok: true });
+          return;
+        }
+        if (openInNewTab) {
+          await chrome.tabs.create({ url: targetUrl, active: true });
           sendResponse({ ok: true });
           return;
         }

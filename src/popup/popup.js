@@ -3001,7 +3001,7 @@ function renderOverviewTable(rows) {
           openBtn.addEventListener("click", (event) => {
             event.preventDefault();
             event.stopPropagation();
-            openLinkedIn(row?.url || "");
+            openLinkedIn(row?.url || "", { newTab: shouldOpenInNewTab(event) });
           });
           return openBtn;
         },
@@ -3176,7 +3176,9 @@ function renderCompanyOverviewTable(rows) {
           openBtn.addEventListener("click", (event) => {
             event.preventDefault();
             event.stopPropagation();
-            openLinkedIn(row?.linkedin_url || "");
+            openLinkedIn(row?.linkedin_url || "", {
+              newTab: shouldOpenInNewTab(event),
+            });
           });
           return openBtn;
         },
@@ -3720,7 +3722,11 @@ async function refreshOverviewListContextSnapshot() {
   } catch (_e) {}
 }
 
-async function openLinkedIn(url) {
+function shouldOpenInNewTab(event) {
+  return Boolean(event?.ctrlKey || event?.metaKey);
+}
+
+async function openLinkedIn(url, { newTab = false } = {}) {
   const targetUrl = String(url || "").trim();
   if (!targetUrl) return;
   const isLinkedInTarget =
@@ -3749,7 +3755,7 @@ async function openLinkedIn(url) {
     lef_nav_session_anchor: canonicalTargetUrl,
   });
   await sendRuntimeMessage("OPEN_LINKEDIN_URL", {
-    payload: { url: targetUrl },
+    payload: { url: targetUrl, new_tab: Boolean(newTab) },
   });
 }
 
@@ -5890,11 +5896,11 @@ companyLinkSearchInputEl?.addEventListener("change", () => {
   syncSelectedCompanyFromDropdownInput();
 });
 
-detailPersonNameEl?.addEventListener("click", async () => {
+detailPersonNameEl?.addEventListener("click", async (event) => {
   if (isProfileEditMode) return;
   const targetUrl = getDetailNameLinkedinUrl();
   if (!isLinkedInProfileLikeUrl(targetUrl)) return;
-  await openLinkedIn(targetUrl);
+  await openLinkedIn(targetUrl, { newTab: shouldOpenInNewTab(event) });
 });
 
 detailPersonNameEl?.addEventListener("keydown", async (event) => {
@@ -5903,14 +5909,14 @@ detailPersonNameEl?.addEventListener("keydown", async (event) => {
   const targetUrl = getDetailNameLinkedinUrl();
   if (!isLinkedInProfileLikeUrl(targetUrl)) return;
   event.preventDefault();
-  await openLinkedIn(targetUrl);
+  await openLinkedIn(targetUrl, { newTab: shouldOpenInNewTab(event) });
 });
 
-companyLinkedNameEl?.addEventListener("click", async () => {
+companyLinkedNameEl?.addEventListener("click", async (event) => {
   if (isProfileEditMode || isCompanyProfileMode()) return;
   const companyUrl = safeTrim(companyLinkedNameEl.dataset.companyUrl || "");
   if (!companyUrl) return;
-  await openLinkedIn(companyUrl);
+  await openLinkedIn(companyUrl, { newTab: shouldOpenInNewTab(event) });
 });
 
 companyLinkedNameEl?.addEventListener("keydown", async (event) => {
@@ -5919,7 +5925,7 @@ companyLinkedNameEl?.addEventListener("keydown", async (event) => {
   const companyUrl = safeTrim(companyLinkedNameEl.dataset.companyUrl || "");
   if (!companyUrl) return;
   event.preventDefault();
-  await openLinkedIn(companyUrl);
+  await openLinkedIn(companyUrl, { newTab: shouldOpenInNewTab(event) });
 });
 
 companyExistingLinkInputEl?.addEventListener("input", () => {
@@ -5951,10 +5957,10 @@ companyExistingLinkButtonEl?.addEventListener("click", async () => {
   }
 });
 
-companyUrlMismatchBannerEl?.addEventListener("click", async () => {
+companyUrlMismatchBannerEl?.addEventListener("click", async (event) => {
   const targetUrl = safeTrim(selectedCompanyFromListLinkedinUrl);
   if (!targetUrl) return;
-  await openLinkedIn(targetUrl);
+  await openLinkedIn(targetUrl, { newTab: shouldOpenInNewTab(event) });
 });
 
 companyPeopleListEl?.addEventListener("click", async (event) => {
@@ -5965,7 +5971,7 @@ companyPeopleListEl?.addEventListener("click", async (event) => {
   if (!target) return;
   const linkedinUrl = safeTrim(target.dataset.linkedinUrl || "");
   if (!linkedinUrl) return;
-  await openLinkedIn(linkedinUrl);
+  await openLinkedIn(linkedinUrl, { newTab: shouldOpenInNewTab(event) });
 });
 
 companyPeopleListEl?.addEventListener("keydown", async (event) => {
@@ -5978,7 +5984,7 @@ companyPeopleListEl?.addEventListener("keydown", async (event) => {
   const linkedinUrl = safeTrim(target.dataset.linkedinUrl || "");
   if (!linkedinUrl) return;
   event.preventDefault();
-  await openLinkedIn(linkedinUrl);
+  await openLinkedIn(linkedinUrl, { newTab: shouldOpenInNewTab(event) });
 });
 
 detailCommentsEl?.addEventListener("input", () => {
