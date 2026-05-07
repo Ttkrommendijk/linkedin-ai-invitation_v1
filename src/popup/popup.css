@@ -146,6 +146,7 @@ button:disabled {
 .company-suggestion-row {
     display: inline-flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 6px;
     margin-top: 4px;
     font-size: 12px;
@@ -161,6 +162,12 @@ button:disabled {
     cursor: pointer;
     text-decoration: underline;
     text-underline-offset: 2px;
+}
+.company-linked-employee-number {
+    flex-basis: 100%;
+    width: 100%;
+    color: #4b5563;
+    white-space: nowrap;
 }
 .company-link-search {
     min-height: 26px;

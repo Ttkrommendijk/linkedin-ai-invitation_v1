@@ -269,6 +269,9 @@ const acceptCompanySuggestionBtnEl = document.getElementById(
 );
 const companyLinkedRowEl = document.getElementById("companyLinkedRow");
 const companyLinkedNameEl = document.getElementById("companyLinkedName");
+const companyLinkedEmployeeNumberEl = document.getElementById(
+  "companyLinkedEmployeeNumber",
+);
 const companyLinkSearchInputEl = document.getElementById(
   "companyLinkSearchInput",
 );
@@ -1569,6 +1572,12 @@ function renderProfileEditControls() {
   if (companyLinkedNameEl) {
     companyLinkedNameEl.hidden = isProfileEditMode;
   }
+  if (companyLinkedEmployeeNumberEl) {
+    companyLinkedEmployeeNumberEl.hidden =
+      isCompany ||
+      !safeTrim(dbInvitationRow?.company_id) ||
+      !safeTrim(companyLinkedEmployeeNumberEl.textContent);
+  }
   if (acceptCompanySuggestionBtnEl && isProfileEditMode) {
     acceptCompanySuggestionBtnEl.hidden = true;
   }
@@ -1584,6 +1593,7 @@ function renderProfileEditControls() {
     if (companyLinkedRowEl) companyLinkedRowEl.hidden = true;
     if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = true;
     if (companyLinkedNameEl) companyLinkedNameEl.hidden = true;
+    if (companyLinkedEmployeeNumberEl) companyLinkedEmployeeNumberEl.hidden = true;
     if (companyLinkSearchInputEl) companyLinkSearchInputEl.hidden = true;
     if (companyLinkedIndicatorEl) {
       companyLinkedIndicatorEl.hidden = true;
@@ -1699,6 +1709,7 @@ function applyProfileModeUi() {
   if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.hidden = true;
   if (isCompany) {
     if (companyLinkedNameEl) companyLinkedNameEl.hidden = true;
+    if (companyLinkedEmployeeNumberEl) companyLinkedEmployeeNumberEl.hidden = true;
     if (companyLinkSearchInputEl) companyLinkSearchInputEl.hidden = true;
     if (companyLinkSearchOptionsEl) companyLinkSearchOptionsEl.innerHTML = "";
   }
@@ -2164,6 +2175,10 @@ function hideCompanySuggestionUi() {
     companyLinkedNameEl.textContent = "-";
     companyLinkedNameEl.classList.remove("is-linked", "is-unlinked");
   }
+  if (companyLinkedEmployeeNumberEl) {
+    companyLinkedEmployeeNumberEl.hidden = true;
+    companyLinkedEmployeeNumberEl.textContent = "";
+  }
   if (companyLinkedIndicatorEl) {
     companyLinkedIndicatorEl.hidden = true;
     companyLinkedIndicatorEl.style.display = "none";
@@ -2179,7 +2194,7 @@ function hideCompanySuggestionUi() {
   }
 }
 
-function renderLinkedCompanyName(companyName, companyUrl = "") {
+function renderLinkedCompanyName(companyName, companyUrl = "", employeeNumber = "") {
   if (companyLinkedNameEl) {
     companyLinkedNameEl.hidden = isProfileEditMode;
     companyLinkedNameEl.textContent = safeTrim(companyName) || "-";
@@ -2200,6 +2215,13 @@ function renderLinkedCompanyName(companyName, companyUrl = "") {
       companyLinkedNameEl.removeAttribute("title");
     }
   }
+  if (companyLinkedEmployeeNumberEl) {
+    const employeeText = safeTrim(employeeNumber);
+    companyLinkedEmployeeNumberEl.textContent = employeeText
+      ? `(${employeeText})`
+      : "";
+    companyLinkedEmployeeNumberEl.hidden = !employeeText;
+  }
   if (companyLinkedRowEl) companyLinkedRowEl.hidden = false;
   if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = true;
   if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.hidden = true;
@@ -2212,6 +2234,10 @@ function renderCompanySuggestionFound(companyRow) {
     companyLinkedNameEl.textContent = safeTrim(companyRow?.company_name) || "-";
     companyLinkedNameEl.classList.add("is-unlinked");
     companyLinkedNameEl.classList.remove("is-linked");
+  }
+  if (companyLinkedEmployeeNumberEl) {
+    companyLinkedEmployeeNumberEl.hidden = true;
+    companyLinkedEmployeeNumberEl.textContent = "";
   }
   if (companyLinkedRowEl) companyLinkedRowEl.hidden = false;
   if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = true;
@@ -2242,6 +2268,7 @@ async function refreshCompanySuggestionUiForCurrentInvitation() {
     renderLinkedCompanyName(
       safeTrim(companyRow?.company_name) || savedCompany,
       safeTrim(companyRow?.linkedin_id),
+      safeTrim(companyRow?.employee_number),
     );
     return;
   }
