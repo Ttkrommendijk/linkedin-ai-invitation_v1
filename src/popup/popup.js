@@ -1561,6 +1561,9 @@ function autoResizeCommentsField() {
 
 function renderProfileEditControls() {
   const isCompany = isCompanyProfileMode();
+  const detailNameUrl = getDetailNameLinkedinUrl();
+  const isDetailNameLinkable =
+    !isProfileEditMode && isLinkedInProfileLikeUrl(detailNameUrl);
   if (enrichProfileBtnEl) {
     enrichProfileBtnEl.hidden = isProfileEditMode;
     enrichProfileBtnEl.disabled = isProfileEditMode;
@@ -1594,6 +1597,16 @@ function renderProfileEditControls() {
   ]) {
     if (!fieldEl) continue;
     fieldEl.readOnly = !isProfileEditMode;
+  }
+  if (detailPersonNameEl) {
+    detailPersonNameEl.classList.toggle("is-linkable", isDetailNameLinkable);
+    if (isDetailNameLinkable) {
+      detailPersonNameEl.title = isCompany
+        ? "Open company page"
+        : "Open person profile";
+    } else {
+      detailPersonNameEl.removeAttribute("title");
+    }
   }
   if (companyLinkSearchInputEl) {
     companyLinkSearchInputEl.hidden = !isProfileEditMode;
@@ -3035,11 +3048,44 @@ function renderOverviewTable(rows) {
       },
     ],
   });
-  bindOverviewNameOpenActions(safeRows);
+  bindOverviewNameDetailActions(safeRows);
   scheduleOverviewAutoSize();
 }
 
-function bindOverviewNameOpenActions(rows) {
+async function openPersonDetailsFromOverviewRow(row) {
+  const linkedinUrl = canonicalizeLinkedInUrl(row?.url || "");
+  if (!isLinkedInProfileLikeUrl(linkedinUrl)) return;
+  setFooterFetchingStatus();
+  try {
+    selectedCompanyFromListLinkedinUrl = "";
+    setCompanyUrlMismatchBannerVisible(false);
+    dbCompanyRow = null;
+    companyPeopleRows = [];
+    selectedExistingCompanyForLink = null;
+    lastProfileContextEnriched = null;
+    currentProfileContext = {
+      url: linkedinUrl,
+      linkedin_url: linkedinUrl,
+      name: safeTrim(row?.name),
+      full_name: safeTrim(row?.name),
+      company: safeTrim(row?.company),
+      headline: safeTrim(row?.headline),
+    };
+    lastProfileContextSent = currentProfileContext;
+    await refreshInvitationRowFromDb({ preserveTabs: true });
+    setNoProfileStateVisible(false);
+    renderDetailHeader({ force: true });
+    updatePhaseButtons();
+    setActiveTab("detail", { userInitiated: true });
+    setFooterStatus("Profile details loaded.");
+  } catch (e) {
+    setFooterStatus(`${UI_TEXT.dbErrorPrefix} ${getErrorMessage(e)}`);
+  } finally {
+    setFooterReady();
+  }
+}
+
+function bindOverviewNameDetailActions(rows) {
   if (!overviewTbodyEl || !Array.isArray(rows)) return;
   const bodyRows = Array.from(overviewTbodyEl.querySelectorAll("tr"));
   bodyRows.forEach((tr, index) => {
@@ -3049,13 +3095,13 @@ function bindOverviewNameOpenActions(rows) {
     const nameCell = tr.children[1];
     if (!nameCell) return;
     nameCell.classList.add("overview-person-name-clickable");
-    nameCell.title = "Open person profile";
+    nameCell.title = "Open profile details";
     nameCell.setAttribute("role", "button");
     nameCell.setAttribute("tabindex", "0");
     const openProfile = async (event) => {
       event.preventDefault();
       event.stopPropagation();
-      await openLinkedIn(linkedinUrl);
+      await openPersonDetailsFromOverviewRow(row);
     };
     nameCell.addEventListener("click", openProfile);
     nameCell.addEventListener("keydown", async (event) => {
@@ -4006,6 +4052,18 @@ function getLinkedinUrlFromContext(profileContext) {
     profileContext?.profile_url ||
     profileContext?.linkedin_url ||
     null
+  );
+}
+
+function getDetailNameLinkedinUrl() {
+  if (isCompanyProfileMode()) {
+    return (
+      safeTrim(dbCompanyRow?.linkedin_id) ||
+      normalizeCompanyLinkedinId(currentProfileContext)
+    );
+  }
+  return safeTrim(
+    dbInvitationRow?.linkedin_url || getLinkedinUrlFromContext(currentProfileContext),
   );
 }
 
@@ -5830,6 +5888,22 @@ companyLinkSearchInputEl?.addEventListener("input", () => {
 
 companyLinkSearchInputEl?.addEventListener("change", () => {
   syncSelectedCompanyFromDropdownInput();
+});
+
+detailPersonNameEl?.addEventListener("click", async () => {
+  if (isProfileEditMode) return;
+  const targetUrl = getDetailNameLinkedinUrl();
+  if (!isLinkedInProfileLikeUrl(targetUrl)) return;
+  await openLinkedIn(targetUrl);
+});
+
+detailPersonNameEl?.addEventListener("keydown", async (event) => {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  if (isProfileEditMode) return;
+  const targetUrl = getDetailNameLinkedinUrl();
+  if (!isLinkedInProfileLikeUrl(targetUrl)) return;
+  event.preventDefault();
+  await openLinkedIn(targetUrl);
 });
 
 companyLinkedNameEl?.addEventListener("click", async () => {

@@ -132,6 +132,15 @@ button:disabled {
     margin: 0;
     color: #1f1f1f;
 }
+.detail-person-name.is-linkable {
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 2px;
+}
+.detail-person-name.is-linkable:hover {
+    cursor: pointer;
+}
 .detail-person-company {
     font-size: 13px;
     font-weight: 600;
