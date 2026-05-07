@@ -369,6 +369,7 @@ const overviewArchivedFilterEl = document.getElementById(
 const overviewStatusFilterEl = document.getElementById("overviewStatusFilter");
 const filterAcceptedEl = document.getElementById("filterAccepted");
 const overviewSearchEl = document.getElementById("overviewSearch");
+const overviewSearchClearBtnEl = document.getElementById("overviewSearchClear");
 const overviewTbodyEl = document.getElementById("overviewTbody");
 const overviewPageSizeEl = document.getElementById("overviewPageSize");
 const overviewPrevBtnEl = document.getElementById("overviewPrevBtn");
@@ -383,6 +384,7 @@ const companiesListPanelEl = document.getElementById("companiesListPanel");
 const companyArchivedFilterEl = document.getElementById("companyArchivedFilter");
 const companyCampaignFilterEl = document.getElementById("companyCampaignFilter");
 const companySearchEl = document.getElementById("companySearch");
+const companySearchClearBtnEl = document.getElementById("companySearchClear");
 const companyOverviewTbodyEl = document.getElementById("companyOverviewTbody");
 const companyOverviewPageSizeEl = document.getElementById(
   "companyOverviewPageSize",
@@ -1133,6 +1135,19 @@ function updateDetailCampaignSelectTitle() {
   campaignSelectEl.title = selectedValue || selectedOption.text || "";
 }
 
+function updateFilterClearButton(inputEl, clearBtnEl) {
+  if (!clearBtnEl) return;
+  clearBtnEl.hidden = !safeTrim(inputEl?.value);
+}
+
+function clearFilterInput(inputEl, clearBtnEl) {
+  if (!inputEl) return;
+  inputEl.value = "";
+  updateFilterClearButton(inputEl, clearBtnEl);
+  inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+  inputEl.focus();
+}
+
 function collectOverviewFilterUiState() {
   return {
     campaign: filterCampaignEl?.value || "",
@@ -1170,6 +1185,8 @@ async function restoreOverviewFiltersFromStorage() {
   const saved = data?.[STORAGE_KEY_LIST_FILTERS];
   if (!saved || typeof saved !== "object") {
     updateOverviewCampaignFilterTitle();
+    updateFilterClearButton(overviewSearchEl, overviewSearchClearBtnEl);
+    updateFilterClearButton(companySearchEl, companySearchClearBtnEl);
     return;
   }
 
@@ -1239,6 +1256,7 @@ async function restoreOverviewFiltersFromStorage() {
   overviewFilters.status = overviewStatusFilterEl?.value || "";
   overviewFilters.accepted = filterAcceptedEl?.value || "";
   overviewSearch = overviewSearchEl?.value || "";
+  updateFilterClearButton(overviewSearchEl, overviewSearchClearBtnEl);
   personGridState.sortField = overviewSortField;
   personGridState.sortDir = overviewSortDir;
   personGridState.filters = { ...overviewFilters };
@@ -1299,6 +1317,7 @@ async function restoreOverviewFiltersFromStorage() {
       ? String(companyCampaignFilterEl.selectedOptions[0].dataset?.campaignName || "")
       : "";
     companyOverviewSearch = companySearchEl?.value || "";
+    updateFilterClearButton(companySearchEl, companySearchClearBtnEl);
     companyOverviewPageSize = Number(companyOverviewPageSizeEl?.value || 25);
     companyGridState.sortField = companyOverviewSortField;
     companyGridState.sortDir = companyOverviewSortDir;
@@ -1306,6 +1325,7 @@ async function restoreOverviewFiltersFromStorage() {
     companyGridState.search = companyOverviewSearch;
     companyGridState.pageSize = companyOverviewPageSize;
   }
+  updateFilterClearButton(companySearchEl, companySearchClearBtnEl);
 }
 
 async function loadCampaignOptions({ keepSelected = true } = {}) {
@@ -3015,7 +3035,34 @@ function renderOverviewTable(rows) {
       },
     ],
   });
+  bindOverviewNameOpenActions(safeRows);
   scheduleOverviewAutoSize();
+}
+
+function bindOverviewNameOpenActions(rows) {
+  if (!overviewTbodyEl || !Array.isArray(rows)) return;
+  const bodyRows = Array.from(overviewTbodyEl.querySelectorAll("tr"));
+  bodyRows.forEach((tr, index) => {
+    const row = rows[index];
+    const linkedinUrl = safeTrim(row?.url);
+    if (!isLinkedInProfileLikeUrl(linkedinUrl)) return;
+    const nameCell = tr.children[1];
+    if (!nameCell) return;
+    nameCell.classList.add("overview-person-name-clickable");
+    nameCell.title = "Open person profile";
+    nameCell.setAttribute("role", "button");
+    nameCell.setAttribute("tabindex", "0");
+    const openProfile = async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      await openLinkedIn(linkedinUrl);
+    };
+    nameCell.addEventListener("click", openProfile);
+    nameCell.addEventListener("keydown", async (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      await openProfile(event);
+    });
+  });
 }
 
 function isCompanyRowArchived(row) {
@@ -3769,6 +3816,7 @@ function wireOverviewEvents() {
   });
 
   overviewSearchEl?.addEventListener("input", () => {
+    updateFilterClearButton(overviewSearchEl, overviewSearchClearBtnEl);
     persistOverviewFiltersToStorage().catch(() => null);
     if (overviewSearchDebounceTimer) clearTimeout(overviewSearchDebounceTimer);
     overviewSearchDebounceTimer = setTimeout(() => {
@@ -3778,6 +3826,10 @@ function wireOverviewEvents() {
       personGridState.page = overviewPage;
       fetchOverviewPage();
     }, 250);
+  });
+
+  overviewSearchClearBtnEl?.addEventListener("click", () => {
+    clearFilterInput(overviewSearchEl, overviewSearchClearBtnEl);
   });
 
   overviewPageSizeEl?.addEventListener("change", () => {
@@ -3850,6 +3902,7 @@ function wireOverviewEvents() {
   });
 
   companySearchEl?.addEventListener("input", () => {
+    updateFilterClearButton(companySearchEl, companySearchClearBtnEl);
     persistOverviewFiltersToStorage().catch(() => null);
     if (companyOverviewSearchDebounceTimer) {
       clearTimeout(companyOverviewSearchDebounceTimer);
@@ -3861,6 +3914,10 @@ function wireOverviewEvents() {
       companyGridState.page = companyOverviewPage;
       fetchCompaniesOverviewPage();
     }, 250);
+  });
+
+  companySearchClearBtnEl?.addEventListener("click", () => {
+    clearFilterInput(companySearchEl, companySearchClearBtnEl);
   });
 
   companyOverviewPageSizeEl?.addEventListener("change", () => {

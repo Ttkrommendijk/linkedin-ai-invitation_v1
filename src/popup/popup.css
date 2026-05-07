@@ -641,6 +641,11 @@ pre {
     text-decoration: underline;
     text-decoration-style: dotted;
 }
+.overview-person-name-clickable {
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+}
 .invite-preview-block {
     background: #f6f6f6;
     border-radius: 8px;
@@ -1102,6 +1107,39 @@ pre {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+.filter-input-wrap {
+    position: relative;
+    min-width: 0;
+}
+.overview-filters.list-filters .filter-input-wrap input {
+    padding-right: 28px;
+}
+.filter-clear-btn {
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    min-width: 18px;
+    min-height: 18px;
+    height: 18px;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: #6b7280;
+    font-size: 16px;
+    line-height: 1;
+}
+.filter-clear-btn:hover {
+    color: #111827;
+}
+.filter-clear-btn[hidden] {
+    display: none !important;
 }
 .campaign-select {
     width: 100%;
