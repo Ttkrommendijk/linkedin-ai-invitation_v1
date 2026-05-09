@@ -1,14 +1,74 @@
 const LEF_UTILS = globalThis.LEFUtils || {};
+
 const debugLog =
   typeof LEF_UTILS.debugLog === "function" ? LEF_UTILS.debugLog : () => {};
+
 const safeTrim =
   typeof LEF_UTILS.safeTrim === "function"
     ? LEF_UTILS.safeTrim
     : (value) => (value == null ? "" : String(value).trim());
+
 const normalizeWhitespace =
   typeof LEF_UTILS.normalizeWhitespace === "function"
     ? LEF_UTILS.normalizeWhitespace
     : (value) => safeTrim(value).replace(/\s+/g, " ");
+
+const cleanText =
+  typeof LEF_UTILS.cleanText === "function"
+    ? LEF_UTILS.cleanText
+    : (value) =>
+        normalizeWhitespace(String(value || "").replace(/\u00A0/g, " "));
+
+const sanitizeExcerpt =
+  typeof LEF_UTILS.sanitizeExcerpt === "function"
+    ? LEF_UTILS.sanitizeExcerpt
+    : (text, maxChars = 800) => {
+        if (!text) return "";
+        let cleaned = String(text);
+        cleaned = cleaned.replace(
+          /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,
+          "[redacted-email]",
+        );
+        cleaned = cleaned.replace(
+          /(?:\+?\d[\d\s().-]{7,}\d)/g,
+          "[redacted-phone]",
+        );
+        cleaned = normalizeWhitespace(cleaned);
+        if (cleaned.length > maxChars) {
+          cleaned = cleaned.slice(0, maxChars).trim();
+        }
+        return cleaned;
+      };
+
+const canonicalizeLinkedinUrl =
+  typeof LEF_UTILS.canonicalizeLinkedInUrl === "function"
+    ? LEF_UTILS.canonicalizeLinkedInUrl
+    : (rawUrl) => {
+        const input = cleanText(rawUrl);
+        if (!input) return "";
+        try {
+          const parsed = new URL(input);
+          const parts = (parsed.pathname || "").split("/").filter(Boolean);
+          if (parts.length >= 2 && /^(company|school)$/i.test(parts[0])) {
+            return `https://www.linkedin.com/${parts[0].toLowerCase()}/${parts[1]}/`;
+          }
+          const pathname = (parsed.pathname || "").replace(/\/+$/, "") || "/";
+          if (pathname === "/") return "https://www.linkedin.com/";
+          return `https://www.linkedin.com${pathname}/`;
+        } catch (_e) {
+          const noHash = input.split("#")[0];
+          const noQuery = noHash.split("?")[0];
+          const match = noQuery.match(
+            /^https:\/\/www\.linkedin\.com\/(company|school)\/([^/?#\/]+)/i,
+          );
+          if (match) {
+            return `https://www.linkedin.com/${match[1].toLowerCase()}/${match[2]}/`;
+          }
+          const noTrailing = noQuery.replace(/\/+$/, "");
+          if (!noTrailing) return "";
+          return noTrailing.endsWith("/") ? noTrailing : `${noTrailing}/`;
+        }
+      };
 
 function timingLog(eventName, details = {}) {
   console.log("[LEF][timing]", eventName, {
@@ -16,23 +76,6 @@ function timingLog(eventName, details = {}) {
     url: window.location.href,
     ...details,
   });
-}
-
-function cleanText(s) {
-  return normalizeWhitespace(String(s || "").replace(/\u00A0/g, " "));
-}
-
-function sanitizeExcerpt(text, maxChars = 800) {
-  if (!text) return "";
-  let cleaned = String(text);
-  cleaned = cleaned.replace(
-    /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,
-    "[redacted-email]",
-  );
-  cleaned = cleaned.replace(/(?:\+?\d[\d\s().-]{7,}\d)/g, "[redacted-phone]");
-  cleaned = cleaned.replace(/\s+/g, " ").trim();
-  if (cleaned.length > maxChars) cleaned = cleaned.slice(0, maxChars).trim();
-  return cleaned;
 }
 
 function hasPersonLikeContent(text) {
@@ -84,7 +127,8 @@ function buildCompanyPageExcerpt(companyName, rawMainText, rawBodyText = "") {
   const filtered = lines.filter((line) => {
     const lower = line.toLowerCase();
     if (hasPersonLikeContent(line)) return false;
-    if (cleanedCompany && lower.includes(cleanedCompany.toLowerCase())) return true;
+    if (cleanedCompany && lower.includes(cleanedCompany.toLowerCase()))
+      return true;
     return contextKeywords.some((keyword) => lower.includes(keyword));
   });
 
@@ -112,7 +156,9 @@ function buildCompanyPageExcerpt(companyName, rawMainText, rawBodyText = "") {
       .split(/\r?\n+/)
       .map((line) => cleanText(line))
       .filter(Boolean);
-    const safeBodyFallback = bodyLines.filter((line) => !hasPersonLikeContent(line));
+    const safeBodyFallback = bodyLines.filter(
+      (line) => !hasPersonLikeContent(line),
+    );
     excerptSource = safeBodyFallback.slice(0, 28).join(" ");
   }
   if (!excerptSource) return "";
@@ -121,38 +167,6 @@ function buildCompanyPageExcerpt(companyName, rawMainText, rawBodyText = "") {
 
 const COMPANY_PROFILE_URL_RE = /linkedin\.com\/(company|school)\//i;
 let mainContainerReadyLogged = false;
-
-function canonicalizeLinkedinUrl(rawUrl) {
-  const input = cleanText(rawUrl);
-  if (!input) return "";
-  try {
-    const parsed = new URL(input);
-    const parts = (parsed.pathname || "")
-      .split("/")
-      .filter(Boolean);
-    if (
-      parts.length >= 2 &&
-      /^(company|school)$/i.test(parts[0])
-    ) {
-      return `https://www.linkedin.com/${parts[0].toLowerCase()}/${parts[1]}/`;
-    }
-    const pathname = (parsed.pathname || "").replace(/\/+$/, "") || "/";
-    if (pathname === "/") return "https://www.linkedin.com/";
-    return `https://www.linkedin.com${pathname}/`;
-  } catch (_e) {
-    const noHash = input.split("#")[0];
-    const noQuery = noHash.split("?")[0];
-    const match = noQuery.match(
-      /^https:\/\/www\.linkedin\.com\/(company|school)\/([^/?#\/]+)/i,
-    );
-    if (match) {
-      return `https://www.linkedin.com/${match[1].toLowerCase()}/${match[2]}/`;
-    }
-    const noTrailing = noQuery.replace(/\/+$/, "");
-    if (!noTrailing) return "";
-    return noTrailing.endsWith("/") ? noTrailing : `${noTrailing}/`;
-  }
-}
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -214,7 +228,11 @@ function detectLinkedInPageType(rawUrl = window.location.href) {
     result.page_type = "person";
     return result;
   }
-  if (/^https:\/\/www\.linkedin\.com\/(company|school)\/[^/?#]+/i.test(linkedin_id)) {
+  if (
+    /^https:\/\/www\.linkedin\.com\/(company|school)\/[^/?#]+/i.test(
+      linkedin_id,
+    )
+  ) {
     result.page_type = "company";
     return result;
   }
@@ -352,10 +370,10 @@ function isPersonPageReadyForExtraction() {
   if (hasCompanyDomMarkers()) return false;
   return Boolean(
     cleanText(document.querySelector("main h1")?.innerText || "") ||
-      cleanText(
-        document.querySelector('[data-anonymize="person-name"]')?.innerText || "",
-      ) ||
-      nameFromTitle(),
+    cleanText(
+      document.querySelector('[data-anonymize="person-name"]')?.innerText || "",
+    ) ||
+    nameFromTitle(),
   );
 }
 

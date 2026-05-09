@@ -3,17 +3,189 @@ try {
 } catch (_e) {
   // Optional shared helper; background keeps local fallbacks.
 }
+
 try {
   importScripts("../prompts.js");
 } catch (_e) {
   // Optional shared helper; background keeps local fallbacks.
 }
 
+try {
+  importScripts("./navigation-watcher.js");
+} catch (_e) {
+  // Optional background helper; background keeps working without it.
+}
+
+try {
+  importScripts("./openai-service.js");
+} catch (e) {
+  console.error("[LEF] failed to import openai-service.js", e);
+}
+
+try {
+  importScripts("./supabase-service.js");
+  importScripts("./supabase-invitations.js");
+  importScripts("./supabase-company.js");
+  importScripts("./supabase-prompts.js");
+  importScripts("./supabase-campaigns.js");
+  importScripts("./supabase-overview.js");
+} catch (e) {
+  console.error("[LEF] failed to import supabase modules", e);
+}
+
+if (globalThis.LEFNavigationWatcher?.initNavigationWatcher) {
+  globalThis.LEFNavigationWatcher.initNavigationWatcher();
+}
+
 const LEF_UTILS = globalThis.LEFUtils || {};
 const LEF_PROMPTS = globalThis.LEFPrompts || {};
-const safeTrim = LEF_UTILS.safeTrim;
-const normalizeWhitespace = LEF_UTILS.normalizeWhitespace;
-const sanitizeHeadlineJobTitle = LEF_UTILS.sanitizeHeadlineJobTitle;
+
+const LEF_OPENAI = globalThis.LEFOpenAIService || {};
+
+const LEF_SUPABASE = globalThis.LEFSupabaseService || {};
+const LEF_SUPABASE_INVITATIONS = globalThis.LEFSupabaseInvitations || {};
+const LEF_SUPABASE_COMPANY = globalThis.LEFSupabaseCompany || {};
+const LEF_SUPABASE_PROMPTS = globalThis.LEFSupabasePrompts || {};
+const LEF_SUPABASE_CAMPAIGNS = globalThis.LEFSupabaseCampaigns || {};
+const LEF_SUPABASE_OVERVIEW = globalThis.LEFSupabaseOverview || {};
+
+const fetchWithTimeout = LEF_OPENAI.fetchWithTimeout;
+const fetchOpenAIWithRetry = LEF_OPENAI.fetchOpenAIWithRetry;
+const createProviderHttpError = LEF_OPENAI.createProviderHttpError;
+const extractRawModelText = LEF_OPENAI.extractRawModelText;
+
+const callOpenAIFreePrompt = LEF_OPENAI.callOpenAIFreePrompt;
+
+const buildFirstMessageUserInput = LEF_PROMPTS.buildFirstMessageUserInput;
+
+const getSupabaseConfig = LEF_SUPABASE.getSupabaseConfig;
+
+const normalizeSupabaseSession = LEF_SUPABASE.normalizeSupabaseSession;
+
+const readSupabaseSessionFromStorage =
+  LEF_SUPABASE.readSupabaseSessionFromStorage;
+
+const persistSupabaseSession = LEF_SUPABASE.persistSupabaseSession;
+
+const clearSupabaseSession = LEF_SUPABASE.clearSupabaseSession;
+
+const isSupabaseSessionExpired = LEF_SUPABASE.isSupabaseSessionExpired;
+
+const fetchSupabaseAuthUser = LEF_SUPABASE.fetchSupabaseAuthUser;
+
+const refreshSupabaseSession = LEF_SUPABASE.refreshSupabaseSession;
+
+const ensureSupabaseSession = LEF_SUPABASE.ensureSupabaseSession;
+
+const getSupabaseRequestContext = LEF_SUPABASE.getSupabaseRequestContext;
+
+const safeTrim =
+  typeof LEF_UTILS.safeTrim === "function"
+    ? LEF_UTILS.safeTrim
+    : (value) => (value == null ? "" : String(value).trim());
+
+const normalizeWhitespace =
+  typeof LEF_UTILS.normalizeWhitespace === "function"
+    ? LEF_UTILS.normalizeWhitespace
+    : (value) => safeTrim(value).replace(/\s+/g, " ");
+
+const sanitizeHeadlineJobTitle =
+  typeof LEF_UTILS.sanitizeHeadlineJobTitle === "function"
+    ? LEF_UTILS.sanitizeHeadlineJobTitle
+    : (value) => normalizeWhitespace(value);
+
+const normalizeError =
+  typeof LEF_UTILS.normalizeError === "function"
+    ? LEF_UTILS.normalizeError
+    : (err, code = "UNKNOWN_ERROR", details) => {
+        const message =
+          err instanceof Error ? err.message : String(err || "unknown error");
+        const out = { code, message };
+        const errDetails =
+          details ||
+          (err && typeof err === "object" && "details" in err
+            ? err.details
+            : undefined);
+        if (errDetails) out.details = errDetails;
+        return out;
+      };
+
+const normalizeProfileField =
+  typeof LEF_UTILS.normalizeProfileField === "function"
+    ? LEF_UTILS.normalizeProfileField
+    : (value) => {
+        if (value == null) return "";
+        if (typeof value === "string") return value.trim();
+        if (Array.isArray(value)) {
+          return value
+            .map(normalizeProfileField)
+            .filter(Boolean)
+            .join(" | ")
+            .trim();
+        }
+        if (typeof value === "object") {
+          return Object.values(value)
+            .map(normalizeProfileField)
+            .filter(Boolean)
+            .join(" | ")
+            .trim();
+        }
+        return String(value).trim();
+      };
+
+const clampText =
+  typeof LEF_UTILS.clampText === "function"
+    ? LEF_UTILS.clampText
+    : (text, maxChars) => {
+        let out = safeTrim(text || "");
+        out = out
+          .replace(/\r\n/g, "\n")
+          .replace(/\n+/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+        if (out.length > maxChars) {
+          out = out.slice(0, maxChars - 3).trim() + "...";
+        }
+        return out;
+      };
+
+const isLinkedInProfileLikeUrl =
+  typeof LEF_UTILS.isLinkedInProfileLikeUrl === "function"
+    ? LEF_UTILS.isLinkedInProfileLikeUrl
+    : (url) =>
+        /^https:\/\/www\.linkedin\.com\/(in|company|school)\/[^/?#]+/i.test(
+          safeTrim(url),
+        );
+
+const canonicalizeLinkedInUrl =
+  typeof LEF_UTILS.canonicalizeLinkedInUrl === "function"
+    ? LEF_UTILS.canonicalizeLinkedInUrl
+    : (rawUrl) => {
+        const input = safeTrim(rawUrl);
+        if (!input) return "";
+        try {
+          const parsed = new URL(input);
+          const parts = (parsed.pathname || "").split("/").filter(Boolean);
+          if (parts.length >= 2 && /^(company|school)$/i.test(parts[0])) {
+            return `https://www.linkedin.com/${parts[0].toLowerCase()}/${parts[1]}/`;
+          }
+          const pathname = (parsed.pathname || "").replace(/\/+$/, "") || "/";
+          if (pathname === "/") return "https://www.linkedin.com/";
+          return `https://www.linkedin.com${pathname}/`;
+        } catch (_e) {
+          const noHash = input.split("#")[0];
+          const noQuery = noHash.split("?")[0];
+          const match = noQuery.match(
+            /^https:\/\/www\.linkedin\.com\/(company|school)\/([^/?#\/]+)/i,
+          );
+          if (match) {
+            return `https://www.linkedin.com/${match[1].toLowerCase()}/${match[2]}/`;
+          }
+          const noTrailing = noQuery.replace(/\/+$/, "");
+          if (!noTrailing) return "";
+          return noTrailing.endsWith("/") ? noTrailing : `${noTrailing}/`;
+        }
+      };
 
 const DEBUG = false;
 const STORAGE_KEY_SUPABASE_SESSION = "lef_supabase_session_v1";
@@ -22,207 +194,6 @@ const DEFAULT_SUPABASE_URL = "https://nkhujuqjnbzsfqyqfndc.supabase.co";
 
 function debug(...args) {
   if (DEBUG) console.log(...args);
-}
-
-function normalizeError(err, code = "UNKNOWN_ERROR", details) {
-  const message =
-    err instanceof Error ? err.message : String(err || "unknown error");
-  const out = { code, message };
-  const errDetails =
-    details ||
-    (err && typeof err === "object" && "details" in err
-      ? err.details
-      : undefined);
-  if (errDetails) out.details = errDetails;
-  return out;
-}
-
-function createProviderHttpError(provider, status, body) {
-  const providerLabel = provider === "openai" ? "OpenAI" : "Supabase";
-  const err = new Error(`${providerLabel} request failed (${status}).`);
-  err.details = {
-    provider,
-    http_status: status,
-    body: String(body || "").slice(0, 1000),
-  };
-  return err;
-}
-
-async function fetchWithTimeout(
-  url,
-  options,
-  timeoutMs = 15000,
-  label = "Request",
-) {
-  const controller = new AbortController();
-  const externalSignal = options?.signal;
-  let timeoutId;
-
-  const forwardExternalAbort = () => {
-    controller.abort(externalSignal?.reason);
-  };
-
-  if (externalSignal) {
-    if (externalSignal.aborted) {
-      forwardExternalAbort();
-    } else {
-      externalSignal.addEventListener("abort", forwardExternalAbort, {
-        once: true,
-      });
-    }
-  }
-
-  timeoutId = setTimeout(() => {
-    controller.abort("__timeout__");
-  }, timeoutMs);
-
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } catch (err) {
-    if (
-      controller.signal.aborted &&
-      controller.signal.reason === "__timeout__"
-    ) {
-      throw new Error(`${label} timed out.`);
-    }
-    throw err;
-  } finally {
-    clearTimeout(timeoutId);
-    if (externalSignal) {
-      externalSignal.removeEventListener("abort", forwardExternalAbort);
-    }
-  }
-}
-
-async function fetchOpenAIWithRetry(url, options) {
-  let attempt = 0;
-  while (attempt < 2) {
-    try {
-      const res = await fetchWithTimeout(url, options, 15000, "OpenAI request");
-      if (res.status >= 500 && res.status <= 599 && attempt === 0) {
-        attempt += 1;
-        continue;
-      }
-      return res;
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e || "");
-      const isTimeout = message === "OpenAI request timed out.";
-      const isAbort = e && typeof e === "object" && e.name === "AbortError";
-      const isNetwork =
-        e instanceof TypeError || /failed to fetch|network/i.test(message);
-
-      if (!isTimeout && !isAbort && isNetwork && attempt === 0) {
-        attempt += 1;
-        continue;
-      }
-      throw e;
-    }
-  }
-}
-
-function normalizeProfileField(value) {
-  if (value == null) return "";
-  if (typeof value === "string") {
-    return typeof safeTrim === "function" ? safeTrim(value) : String(value);
-  }
-  if (Array.isArray(value)) {
-    return normalizeProfileField(
-      value.map(normalizeProfileField).filter(Boolean).join(" | "),
-    );
-  }
-  if (typeof value === "object") {
-    return normalizeProfileField(
-      Object.values(value)
-        .map(normalizeProfileField)
-        .filter(Boolean)
-        .join(" | "),
-    );
-  }
-  return typeof safeTrim === "function" ? safeTrim(value) : String(value);
-}
-
-function clampText(text, maxChars) {
-  let out =
-    typeof safeTrim === "function"
-      ? safeTrim(text || "")
-      : String(text || "").trim();
-  out = out.replace(/\r\n/g, "\n").replace(/\n+/g, " ").trim();
-  out =
-    typeof normalizeWhitespace === "function"
-      ? normalizeWhitespace(out)
-      : out.replace(/\s+/g, " ").trim();
-  if (out.length > maxChars) {
-    out = out.slice(0, maxChars - 3).trim() + "...";
-  }
-  return out;
-}
-
-function characterLimitInstruction(maxChars) {
-  void maxChars;
-  return LEF_PROMPTS.buildInviteTextPrompt({
-    language: "Portuguese",
-    additionalPrompt: "",
-  });
-}
-
-function firstMessageInstruction(
-  maxChars,
-  language = "auto",
-  additionalPrompt = "",
-) {
-  void maxChars;
-  return LEF_PROMPTS.buildFirstMessageTextPrompt({
-    language,
-    additionalPrompt,
-  });
-}
-
-function followupMessageInstruction(
-  language = "auto",
-  objective = "",
-  includeStrategy = false,
-  strategyText = "",
-  chatHistory = "",
-) {
-  return LEF_PROMPTS.buildFollowupPrompt({
-    language,
-    objective,
-    includeStrategy,
-    strategyText,
-    chatHistory,
-  });
-}
-
-function parseInviteGenerationJson(rawText) {
-  let parsed;
-  try {
-    parsed = JSON.parse(rawText);
-  } catch (_e) {
-    const err = new Error("Model returned invalid JSON.");
-    err.details = { reason: "invalid_json" };
-    throw err;
-  }
-
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    const err = new Error("Model returned invalid JSON object.");
-    err.details = { reason: "invalid_json" };
-    throw err;
-  }
-
-  const allowedKeys = new Set(["invite_text"]);
-  const keys = Object.keys(parsed);
-  const hasInvalidKeys = keys.some((k) => !allowedKeys.has(k));
-  const hasRequiredKeys = "invite_text" in parsed;
-
-  if (hasInvalidKeys || !hasRequiredKeys) {
-    const err = new Error("Model returned unexpected JSON schema.");
-    err.details = { reason: "invalid_json" };
-    throw err;
-  }
-
-  return {
-    invite_text: clampText(normalizeProfileField(parsed.invite_text), 300),
-  };
 }
 
 function parseProfileExtractionJson(rawText) {
@@ -297,80 +268,6 @@ function parseCompanyExtractionJson(rawText) {
   };
 }
 
-function extractRawModelText(data) {
-  const direct = normalizeProfileField(data?.output_text || "");
-  if (direct) return direct;
-
-  const contentText =
-    data?.output?.[0]?.content?.find((c) => c.type === "output_text")?.text ||
-    data?.output?.[0]?.content?.find((c) => c.type === "text")?.text ||
-    "";
-  return normalizeProfileField(contentText);
-}
-
-function parseInviteGenerationFromResponseData(data) {
-  const primaryText = normalizeProfileField(
-    data?.output?.[0]?.content?.[0]?.text || "",
-  );
-  if (primaryText) {
-    try {
-      const parsed = JSON.parse(primaryText);
-      return {
-        parsed: parseInviteGenerationJson(JSON.stringify(parsed)),
-        rawText: primaryText,
-        usedOutputParsed: false,
-      };
-    } catch (e) {
-      const err = new Error("Model returned invalid JSON.");
-      err.details = {
-        reason: "invalid_json",
-        source: "output.0.content.0.text",
-      };
-      throw err;
-    }
-  }
-
-  // Preferred path for structured outputs.
-  if (data?.output_parsed && typeof data.output_parsed === "object") {
-    const parsed = {
-      invite_text: data.output_parsed.invite_text,
-    };
-    return {
-      parsed: parseInviteGenerationJson(JSON.stringify(parsed)),
-      rawText: extractRawModelText(data),
-      usedOutputParsed: true,
-    };
-  }
-
-  const rawText = extractRawModelText(data);
-  if (!rawText) {
-    const err = new Error("Model returned empty output.");
-    err.details = { reason: "empty_output" };
-    throw err;
-  }
-
-  try {
-    return {
-      parsed: parseInviteGenerationJson(rawText),
-      rawText,
-      usedOutputParsed: false,
-    };
-  } catch (_directErr) {
-    // Fallback: parse the first JSON object slice if model returned extra text.
-    const firstBrace = rawText.indexOf("{");
-    const lastBrace = rawText.lastIndexOf("}");
-    if (firstBrace >= 0 && lastBrace > firstBrace) {
-      const jsonSlice = rawText.slice(firstBrace, lastBrace + 1);
-      return {
-        parsed: parseInviteGenerationJson(jsonSlice),
-        rawText,
-        usedOutputParsed: false,
-      };
-    }
-    throw _directErr;
-  }
-}
-
 function parseProfileExtractionFromResponseData(data) {
   const primaryText = normalizeProfileField(
     data?.output?.[0]?.content?.[0]?.text || "",
@@ -434,155 +331,11 @@ function parseProfileExtractionFromResponseData(data) {
   }
 }
 
-function profileContextBlock(profile) {
-  return LEF_PROMPTS.buildFirstMessageUserInput({ profile });
-}
-
-function buildInviteUserInput({ positioning, profile, strategyCore }) {
-  return LEF_PROMPTS.buildInviteUserInput({
-    positioning,
-    profile,
-    strategyCore,
-  });
-}
-
 function buildStandardInvitePrompt(focus) {
   return LEF_PROMPTS.buildInviteTextPrompt({
     language: "Portuguese",
     additionalPrompt: normalizeProfileField(focus),
   });
-}
-
-function buildFirstMessageUserInput({ profile }) {
-  return LEF_PROMPTS.buildFirstMessageUserInput({ profile });
-}
-
-function buildFollowupUserInput({
-  objective,
-  strategy,
-  includeStrategy,
-  contextLast10,
-  chatHistory,
-  profileContext,
-}) {
-  return LEF_PROMPTS.buildFollowupUserInput({
-    objective,
-    strategy,
-    includeStrategy,
-    contextLast10,
-    chatHistory,
-    profileContext,
-  });
-}
-
-async function callOpenAIInviteGeneration({
-  apiKey,
-  model,
-  positioning,
-  focus,
-  strategyCore,
-  profile,
-  language,
-}) {
-  const res = await fetchOpenAIWithRetry(
-    "https://api.openai.com/v1/responses",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        max_output_tokens: 120,
-        text: {
-          format: {
-            type: "json_schema",
-            name: "invite_generation",
-            strict: true,
-            schema: {
-              type: "object",
-              additionalProperties: false,
-              properties: {
-                invite_text: { type: "string" },
-              },
-              required: ["invite_text"],
-            },
-          },
-        },
-        input: [
-          {
-            role: "system",
-            content: [
-              // prompt: buildInviteTextPrompt (Generate invite)
-              {
-                type: "input_text",
-                text: LEF_PROMPTS.buildInviteTextPrompt({
-                  language: normalizeProfileField(language) || "Portuguese",
-                  additionalPrompt: normalizeProfileField(focus),
-                }),
-              },
-            ],
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "input_text",
-                text: buildInviteUserInput({
-                  positioning,
-                  profile,
-                  strategyCore,
-                }),
-              },
-            ],
-          },
-        ],
-      }),
-    },
-  );
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("openai", res.status, txt || res.statusText);
-  }
-
-  debug("GENERATE_INVITE profile summary:", {
-    url:
-      normalizeProfileField(profile?.url) ||
-      normalizeProfileField(profile?.profile_url) ||
-      normalizeProfileField(profile?.linkedin_url),
-    name:
-      normalizeProfileField(profile?.name) ||
-      normalizeProfileField(profile?.full_name),
-    first_name: normalizeProfileField(profile?.first_name),
-    company: normalizeProfileField(profile?.company),
-    headline: normalizeProfileField(profile?.headline),
-    excerpt_fallback_length: normalizeProfileField(profile?.excerpt_fallback)
-      .length,
-  });
-
-  const data = await res.json();
-  const rawModelTextLength = extractRawModelText(data).length;
-  debug("GENERATE_INVITE raw model text length:", rawModelTextLength);
-
-  let parsedPayload;
-  let parseSucceeded = false;
-  try {
-    const result = parseInviteGenerationFromResponseData(data);
-    parsedPayload = result.parsed;
-    parseSucceeded = true;
-    debug("GENERATE_INVITE parse succeeded:", {
-      used_output_parsed: result.usedOutputParsed,
-      keys: Object.keys(parsedPayload || {}),
-    });
-  } catch (e) {
-    debug("GENERATE_INVITE parse succeeded:", false);
-    throw e;
-  }
-
-  debug("GENERATE_INVITE parse succeeded:", parseSucceeded);
-  return parsedPayload;
 }
 
 async function callOpenAIProfileExtraction({ apiKey, model, profile }) {
@@ -726,1229 +479,7 @@ function normalizeLinkedinInvitationUrl(value) {
   return canonicalizeLinkedInUrl(normalizeProfileField(value));
 }
 
-async function callOpenAIFirstMessage({
-  apiKey,
-  model,
-  profile,
-  language,
-  additionalPrompt,
-}) {
-  const res = await fetchOpenAIWithRetry(
-    "https://api.openai.com/v1/responses",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        max_output_tokens: 220,
-        input: [
-          {
-            role: "system",
-            content: [
-              {
-                type: "input_text",
-                // prompt: buildFirstMessageTextPrompt (Generate first message action)
-                text: firstMessageInstruction(
-                  600,
-                  language || "Portuguese",
-                  additionalPrompt || "",
-                ),
-              },
-            ],
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "input_text",
-                text: buildFirstMessageUserInput({ profile }),
-              },
-            ],
-          },
-        ],
-      }),
-    },
-  );
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("openai", res.status, txt || res.statusText);
-  }
-
-  const data = await res.json();
-  const text =
-    (data.output_text || "").trim() ||
-    (
-      data.output?.[0]?.content?.find((c) => c.type === "output_text")?.text ||
-      ""
-    ).trim();
-
-  return clampText(text, 600);
-}
-
-async function callOpenAIFollowupMessage({
-  apiKey,
-  model,
-  objective,
-  strategy,
-  includeStrategy,
-  chat_history,
-  contextLast10,
-  profile_context,
-  profileContext,
-  language,
-}) {
-  const res = await fetchOpenAIWithRetry(
-    "https://api.openai.com/v1/responses",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        max_output_tokens: 260,
-        input: [
-          {
-            role: "system",
-            content: [
-              {
-                type: "input_text",
-                // prompt: buildFollowupPrompt (Generate follow-up action)
-                text: followupMessageInstruction(
-                  language || "Portuguese",
-                  objective || "",
-                  Boolean(includeStrategy),
-                  strategy || "",
-                  chat_history || "",
-                ),
-              },
-            ],
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "input_text",
-                text: buildFollowupUserInput({
-                  objective,
-                  strategy,
-                  includeStrategy,
-                  contextLast10,
-                  chatHistory: chat_history,
-                  profileContext: profile_context || profileContext,
-                }),
-              },
-            ],
-          },
-        ],
-      }),
-    },
-  );
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("openai", res.status, txt || res.statusText);
-  }
-
-  const data = await res.json();
-  const text =
-    (data.output_text || "").trim() ||
-    (
-      data.output?.[0]?.content?.find((c) => c.type === "output_text")?.text ||
-      ""
-    ).trim();
-
-  return clampText(text, 1000);
-}
-
-async function callOpenAIFreePrompt({
-  apiKey,
-  model,
-  prompt,
-  language,
-  profile,
-  strategyCore,
-  includeProfile,
-  includeStrategy,
-  include_profile,
-  include_strategy,
-}) {
-  const userInstruction = normalizeProfileField(prompt);
-  if (!userInstruction) {
-    throw new Error("Prompt is required.");
-  }
-  const requestedLanguage = normalizeProfileField(language) || "Portuguese";
-  const includeProfileFlag =
-    typeof include_profile === "boolean"
-      ? include_profile
-      : Boolean(includeProfile);
-  const includeStrategyFlag =
-    typeof include_strategy === "boolean"
-      ? include_strategy
-      : Boolean(includeStrategy);
-  const includeProfileContext = Boolean(includeProfileFlag && profile);
-  const includeStrategyContext = Boolean(includeStrategyFlag);
-  const strategyText = normalizeProfileField(strategyCore) || "(none)";
-
-  const contextBlocks = [];
-  if (includeProfileContext) {
-    contextBlocks.push(`profile_context:\n${profileContextBlock(profile)}`);
-  }
-  if (includeStrategyContext) {
-    contextBlocks.push(`strategy_core:\n${strategyText}`);
-  }
-
-  const userSections = [
-    `User instruction:\n${userInstruction}`,
-    `Language:\n${requestedLanguage}`,
-    "Context rules:\n- The instruction above is the task.\n- The following blocks are only context.",
-  ];
-  if (contextBlocks.length) {
-    userSections.push(contextBlocks.join("\n\n"));
-  }
-  userSections.push("Return the assistant response text only.");
-
-  const res = await fetchOpenAIWithRetry(
-    "https://api.openai.com/v1/responses",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        max_output_tokens: 500,
-        input: [
-          {
-            role: "system",
-            content: [
-              {
-                type: "input_text",
-                text: [
-                  "Write the best possible response to the user's instruction.",
-                  "The user's instruction is authoritative.",
-                  "Directly answer the user's instruction; do not summarize context unless asked.",
-                  "Any provided context is optional supporting material only.",
-                  "If context conflicts with instruction, follow the instruction.",
-                  "If profile context is included, do not invent facts beyond it.",
-                  "Use the requested language.",
-                  "Output plain text only.",
-                ].join("\n"),
-              },
-            ],
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "input_text",
-                text: userSections.join("\n\n"),
-              },
-            ],
-          },
-        ],
-      }),
-    },
-  );
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("openai", res.status, txt || res.statusText);
-  }
-
-  const data = await res.json();
-  const text = extractRawModelText(data);
-  if (!text) {
-    throw new Error("Model returned empty output.");
-  }
-
-  return clampText(text, 1200);
-}
-
-async function getSupabaseConfig() {
-  const [
-    { webhookSecret, [STORAGE_KEY_SUPABASE_URL]: supabaseUrlLocal },
-    { webhookBaseUrl },
-  ] = await Promise.all([
-    chrome.storage.local.get(["webhookSecret", STORAGE_KEY_SUPABASE_URL]),
-    chrome.storage.sync.get(["webhookBaseUrl"]),
-  ]);
-
-  const supabaseUrl = String(
-    supabaseUrlLocal || webhookBaseUrl || DEFAULT_SUPABASE_URL,
-  )
-    .trim()
-    .replace(/\/+$/, "");
-
-  if (!supabaseUrl || !webhookSecret) {
-    throw new Error(
-      "Missing config. Set Supabase URL and Supabase publishable key.",
-    );
-  }
-
-  return {
-    supabaseUrl,
-    supabaseAnonKey: webhookSecret,
-  };
-}
-
 let cachedSupabaseSession = null;
-
-function normalizeSupabaseSession(rawSession) {
-  const session =
-    rawSession && typeof rawSession === "object" ? rawSession : null;
-  if (!session) return null;
-  const accessToken = normalizeProfileField(session.access_token);
-  const refreshToken = normalizeProfileField(session.refresh_token);
-  if (!accessToken || !refreshToken) return null;
-  const expiresAt = Number(session.expires_at);
-  return {
-    access_token: accessToken,
-    refresh_token: refreshToken,
-    token_type: normalizeProfileField(session.token_type) || "bearer",
-    expires_in: Number(session.expires_in) || 0,
-    expires_at: Number.isFinite(expiresAt) ? expiresAt : 0,
-    user:
-      session.user && typeof session.user === "object" ? session.user : null,
-  };
-}
-
-async function readSupabaseSessionFromStorage() {
-  if (cachedSupabaseSession) return cachedSupabaseSession;
-  const data = await chrome.storage.local.get([STORAGE_KEY_SUPABASE_SESSION]);
-  cachedSupabaseSession = normalizeSupabaseSession(
-    data?.[STORAGE_KEY_SUPABASE_SESSION] || null,
-  );
-  return cachedSupabaseSession;
-}
-
-async function persistSupabaseSession(session) {
-  const normalized = normalizeSupabaseSession(session);
-  cachedSupabaseSession = normalized;
-  await chrome.storage.local.set({
-    [STORAGE_KEY_SUPABASE_SESSION]: normalized,
-  });
-}
-
-async function clearSupabaseSession() {
-  cachedSupabaseSession = null;
-  await chrome.storage.local.remove([STORAGE_KEY_SUPABASE_SESSION]);
-}
-
-function isSupabaseSessionExpired(session) {
-  const expiresAt = Number(session?.expires_at || 0);
-  if (!expiresAt) return false;
-  return expiresAt - 45 <= Math.floor(Date.now() / 1000);
-}
-
-async function fetchSupabaseAuthUser({
-  supabaseUrl,
-  supabaseAnonKey,
-  accessToken,
-}) {
-  const url = `${supabaseUrl}/auth/v1/user`;
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "GET",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-    },
-    15000,
-    "Supabase auth",
-  );
-  if (!res.ok) return null;
-  return await res.json().catch(() => null);
-}
-
-async function refreshSupabaseSession(session) {
-  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
-  const url = `${supabaseUrl}/auth/v1/token?grant_type=refresh_token`;
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "POST",
-      headers: {
-        apikey: supabaseAnonKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        refresh_token: session?.refresh_token || "",
-      }),
-    },
-    15000,
-    "Supabase auth",
-  );
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-  const payload = await res.json();
-  const normalized = normalizeSupabaseSession(payload);
-  if (!normalized) {
-    throw new Error("Session expired, please login");
-  }
-  if (!normalized.user) {
-    normalized.user = await fetchSupabaseAuthUser({
-      supabaseUrl,
-      supabaseAnonKey,
-      accessToken: normalized.access_token,
-    });
-  }
-  await persistSupabaseSession(normalized);
-  return normalized;
-}
-
-async function ensureSupabaseSession() {
-  let session = await readSupabaseSessionFromStorage();
-  if (!session) {
-    throw new Error("Please login to Supabase");
-  }
-  if (isSupabaseSessionExpired(session)) {
-    try {
-      session = await refreshSupabaseSession(session);
-    } catch (_e) {
-      await clearSupabaseSession();
-      throw new Error("Session expired, please login");
-    }
-  }
-  return session;
-}
-
-async function getSupabaseRequestContext() {
-  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
-  const session = await ensureSupabaseSession();
-  return {
-    supabaseUrl,
-    supabaseAnonKey,
-    accessToken: session.access_token,
-    userId: normalizeProfileField(session?.user?.id),
-    session,
-  };
-}
-
-async function callSupabaseAuthSignup({ name, email, password }) {
-  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
-  const url = `${supabaseUrl}/auth/v1/signup`;
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "POST",
-      headers: {
-        apikey: supabaseAnonKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email: normalizeProfileField(email),
-        password: String(password || ""),
-        data: {
-          name: normalizeProfileField(name) || null,
-        },
-      }),
-    },
-    15000,
-    "Supabase auth",
-  );
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const errMsg = data?.msg || data?.error_description || data?.error;
-    throw new Error(normalizeProfileField(errMsg) || "Signup failed.");
-  }
-  const session = normalizeSupabaseSession(data);
-  if (session) {
-    if (!session.user) {
-      session.user = await fetchSupabaseAuthUser({
-        supabaseUrl,
-        supabaseAnonKey,
-        accessToken: session.access_token,
-      });
-    }
-    await persistSupabaseSession(session);
-  }
-  const requiresEmailConfirmation = !session;
-  return {
-    session,
-    message: requiresEmailConfirmation
-      ? "Signup successful. Check your email to confirm your account."
-      : "Signup successful.",
-  };
-}
-
-async function callSupabaseAuthLogin({ email, password }) {
-  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
-  const url = `${supabaseUrl}/auth/v1/token?grant_type=password`;
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "POST",
-      headers: {
-        apikey: supabaseAnonKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email: normalizeProfileField(email),
-        password: String(password || ""),
-      }),
-    },
-    15000,
-    "Supabase auth",
-  );
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const errMsg = data?.msg || data?.error_description || data?.error;
-    throw new Error(normalizeProfileField(errMsg) || "Login failed.");
-  }
-  const session = normalizeSupabaseSession(data);
-  if (!session) {
-    throw new Error("Login failed.");
-  }
-  if (!session.user) {
-    session.user = await fetchSupabaseAuthUser({
-      supabaseUrl,
-      supabaseAnonKey,
-      accessToken: session.access_token,
-    });
-  }
-  await persistSupabaseSession(session);
-  return session;
-}
-
-async function callSupabaseAuthResetPassword({ email }) {
-  const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
-  const url = `${supabaseUrl}/auth/v1/recover`;
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "POST",
-      headers: {
-        apikey: supabaseAnonKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email: normalizeProfileField(email),
-      }),
-    },
-    15000,
-    "Supabase auth",
-  );
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const errMsg = data?.msg || data?.error_description || data?.error;
-    throw new Error(normalizeProfileField(errMsg) || "Reset password failed.");
-  }
-}
-
-async function callSupabaseAuthLogout() {
-  const session = await readSupabaseSessionFromStorage();
-  if (session?.access_token) {
-    const { supabaseUrl, supabaseAnonKey } = await getSupabaseConfig();
-    const url = `${supabaseUrl}/auth/v1/logout`;
-    await fetchWithTimeout(
-      url,
-      {
-        method: "POST",
-        headers: {
-          apikey: supabaseAnonKey,
-          Authorization: `Bearer ${session.access_token}`,
-          "Content-Type": "application/json",
-        },
-      },
-      15000,
-      "Supabase auth",
-    ).catch(() => null);
-  }
-  await clearSupabaseSession();
-}
-
-async function supabaseUpsertInvitation(row) {
-  const { supabaseUrl, supabaseAnonKey, accessToken, userId } =
-    await getSupabaseRequestContext();
-  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?on_conflict=linkedin_url`;
-  const payload = {
-    ...row,
-    linkedin_url: normalizeLinkedinInvitationUrl(row?.linkedin_url),
-    uuid: normalizeProfileField(row?.uuid) || userId || null,
-  };
-
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "POST",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        Prefer: "resolution=merge-duplicates,return=minimal",
-      },
-      body: JSON.stringify(payload),
-    },
-    15000,
-    "Supabase request",
-  );
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-}
-
-async function supabaseUpdateFirstMessage({
-  linkedin_url,
-  first_message,
-  first_message_generated_at,
-}) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
-  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
-  const patch = {
-    first_message,
-    first_message_generated_at,
-  };
-
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "PATCH",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        Prefer: "return=minimal",
-      },
-      body: JSON.stringify(patch),
-    },
-    15000,
-    "Supabase request",
-  );
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-}
-
-async function supabaseMarkStatus({ linkedin_url, status }) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
-
-  const patch = { status };
-  const nowIso = new Date().toISOString();
-  if (status === "invited") patch.invited_at = nowIso;
-  if (status === "accepted") patch.accepted_at = nowIso;
-  if (status === "first message sent") patch.first_message_sent_at = nowIso;
-
-  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
-
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "PATCH",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        Prefer: "return=minimal",
-      },
-      body: JSON.stringify(patch),
-    },
-    15000,
-    "Supabase request",
-  );
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-}
-
-async function supabaseMarkFirstMessageSent({ linkedin_url }) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
-  if (!targetUrl) {
-    throw new Error("Missing linkedin_url.");
-  }
-  const patch = {
-    status: "first message sent",
-    first_message_sent_at: new Date().toISOString(),
-    message_count: 1,
-  };
-  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "PATCH",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        Prefer: "return=minimal",
-      },
-      body: JSON.stringify(patch),
-    },
-    15000,
-    "Supabase request",
-  );
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-}
-
-async function supabaseSetStatusOnly({ linkedin_url, status }) {
-  const { supabaseUrl, supabaseAnonKey, accessToken, userId } =
-    await getSupabaseRequestContext();
-  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?on_conflict=linkedin_url`;
-  const row = {
-    linkedin_url: normalizeLinkedinInvitationUrl(linkedin_url),
-    status,
-    uuid: userId || null,
-  };
-
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "POST",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        Prefer: "resolution=merge-duplicates,return=minimal",
-      },
-      body: JSON.stringify(row),
-    },
-    15000,
-    "Supabase request",
-  );
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-}
-
-async function supabaseSetAcceptedAtNow({ linkedin_url }) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
-  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
-  const patch = {
-    accepted: true,
-    accepted_at: new Date().toISOString(),
-    status: "accepted",
-  };
-
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "PATCH",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        Prefer: "return=minimal",
-      },
-      body: JSON.stringify(patch),
-    },
-    15000,
-    "Supabase request",
-  );
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-}
-
-async function supabaseClearAcceptedAt({ linkedin_url }) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
-  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
-  const patch = {
-    accepted: false,
-    accepted_at: null,
-    status: "invited",
-  };
-
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "PATCH",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        Prefer: "return=minimal",
-      },
-      body: JSON.stringify(patch),
-    },
-    15000,
-    "Supabase request",
-  );
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-}
-
-async function supabaseUpdateProfileDetailsOnly({
-  linkedin_url,
-  company,
-  headline,
-  language,
-}) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
-  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
-  const patch = {};
-  const safeCompany = normalizeProfileField(company);
-  const safeHeadline = sanitizeHeadlineJobTitle(headline);
-  const safeLanguage = normalizeProfileField(language);
-  if (safeCompany) patch.company = safeCompany;
-  if (safeHeadline) patch.headline = safeHeadline;
-  if (safeLanguage) patch.language = safeLanguage;
-  if (!Object.keys(patch).length) return;
-
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "PATCH",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        Prefer: "return=minimal",
-      },
-      body: JSON.stringify(patch),
-    },
-    15000,
-    "Supabase request",
-  );
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-}
-
-async function supabaseUpdateProfileFields({
-  linkedin_url,
-  full_name,
-  company,
-  company_id,
-  headline,
-  comments,
-}) {
-  const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
-  if (!targetUrl) {
-    throw new Error("Missing linkedin_url.");
-  }
-
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
-  const patch = {
-    full_name: normalizeProfileField(full_name),
-    company: normalizeProfileField(company),
-    headline: sanitizeHeadlineJobTitle(headline),
-    comments: normalizeProfileField(comments),
-  };
-  const safeCompanyId = normalizeProfileField(company_id);
-  if (safeCompanyId) patch.company_id = safeCompanyId;
-
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "PATCH",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        Prefer: "return=minimal",
-      },
-      body: JSON.stringify(patch),
-    },
-    15000,
-    "Supabase request",
-  );
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-}
-
-async function supabaseGetInvitationByLinkedinUrl(linkedin_url) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
-  if (!targetUrl) return null;
-  const targetUrlWithSlash = targetUrl.endsWith("/") ? targetUrl : `${targetUrl}/`;
-  const urlFilter =
-    targetUrl === targetUrlWithSlash
-      ? `linkedin_url.eq.${encodeURIComponent(targetUrl)}`
-      : `linkedin_url.eq.${encodeURIComponent(targetUrl)},linkedin_url.eq.${encodeURIComponent(targetUrlWithSlash)}`;
-  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?or=(${urlFilter})&select=id,linkedin_url,status,message,generated_at,invited_at,accepted,accepted_at,first_message,first_message_generated_at,first_message_sent_at,message_count,company,company_id,headline,comments,language,full_name,campaign&limit=1`;
-
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "GET",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        Prefer: "count=exact",
-      },
-    },
-    15000,
-    "Supabase request",
-  );
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-
-  const rows = await res.json();
-  if (!Array.isArray(rows) || rows.length === 0) return null;
-  return rows[0] || null;
-}
-
-async function supabaseFindCompanyByName({ company_name }) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const normalizedName = normalizeProfileField(company_name);
-  if (!normalizedName) return null;
-  const headers = {
-    apikey: supabaseAnonKey,
-    Authorization: `Bearer ${accessToken}`,
-    "Content-Type": "application/json",
-  };
-
-  const queries = [
-    `company_name=eq.${encodeURIComponent(normalizedName)}&archived=eq.0`,
-    `company_name=ilike.${encodeURIComponent(normalizedName)}&archived=eq.0`,
-  ];
-
-  for (const query of queries) {
-    const url = `${supabaseUrl}/rest/v1/company?select=company_id,company_name,archived&${query}&limit=1`;
-    const res = await fetchWithTimeout(
-      url,
-      {
-        method: "GET",
-        headers,
-      },
-      15000,
-      "Supabase request",
-    );
-    if (!res.ok) {
-      const txt = await res.text().catch(() => "");
-      throw createProviderHttpError("supabase", res.status, txt);
-    }
-    const rows = await res.json();
-    if (Array.isArray(rows) && rows.length > 0) {
-      return rows[0] || null;
-    }
-  }
-
-  return null;
-}
-
-async function supabaseGetCompanyById({ company_id }) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const normalizedCompanyId = normalizeProfileField(company_id);
-  if (!normalizedCompanyId) return null;
-  const url = `${supabaseUrl}/rest/v1/company?select=company_id,company_name,linkedin_id,archived,employee_number,it_members,sector,city&company_id=eq.${encodeURIComponent(normalizedCompanyId)}&limit=1`;
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "GET",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-    },
-    15000,
-    "Supabase request",
-  );
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-  const rows = await res.json();
-  if (!Array.isArray(rows) || rows.length === 0) return null;
-  return rows[0] || null;
-}
-
-async function supabaseSearchCompanies({ term, limit }) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const normalizedTerm = normalizeProfileField(term);
-  if (!normalizedTerm) return [];
-  const parsedLimit = Number(limit);
-  const safeLimit =
-    Number.isFinite(parsedLimit) && parsedLimit > 0
-      ? Math.min(50, Math.floor(parsedLimit))
-      : 10;
-  const url = `${supabaseUrl}/rest/v1/company?select=company_id,company_name,archived&company_name=ilike.${encodeURIComponent(`*${normalizedTerm}*`)}&archived=eq.0&order=company_name.asc&limit=${safeLimit}`;
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "GET",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-    },
-    15000,
-    "Supabase request",
-  );
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-  const rows = await res.json();
-  return Array.isArray(rows) ? rows : [];
-}
-
-async function supabaseSearchUnlinkedCompanies({ term, limit }) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const normalizedTerm = normalizeProfileField(term);
-  if (!normalizedTerm) return [];
-  const parsedLimit = Number(limit);
-  const safeLimit =
-    Number.isFinite(parsedLimit) && parsedLimit > 0
-      ? Math.min(50, Math.floor(parsedLimit))
-      : 10;
-  const params = new URLSearchParams();
-  params.set(
-    "select",
-    "company_id,linkedin_id,company_name,employee_number,it_members,sector,city",
-  );
-  params.set("company_name", `ilike.*${normalizedTerm}*`);
-  params.set("or", "(linkedin_id.is.null,linkedin_id.eq.)");
-  params.set("archived", "eq.0");
-  params.set("order", "company_name.asc");
-  params.set("limit", String(safeLimit));
-  const url = `${supabaseUrl}/rest/v1/company?${params.toString()}`;
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "GET",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-    },
-    15000,
-    "Supabase request",
-  );
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-  const rows = await res.json();
-  return Array.isArray(rows) ? rows : [];
-}
-
-async function supabaseConfirmCompanyLink({
-  linkedin_url,
-  company_id,
-  company_name,
-}) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
-  if (!targetUrl) throw new Error("Missing linkedin_url.");
-  const normalizedCompanyId = normalizeProfileField(company_id);
-  const normalizedCompanyName = normalizeProfileField(company_name);
-  if (!normalizedCompanyId) throw new Error("Missing company_id.");
-  if (!normalizedCompanyName) throw new Error("Missing company_name.");
-  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "PATCH",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        Prefer: "return=minimal",
-      },
-      body: JSON.stringify({
-        company_id: normalizedCompanyId,
-        company: normalizedCompanyName,
-      }),
-    },
-    15000,
-    "Supabase request",
-  );
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-}
-
-async function supabaseGetCompanyByLinkedinId({ linkedin_id }) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const normalizedLinkedinId = normalizeLinkedinCompanyUrl(linkedin_id);
-  if (!normalizedLinkedinId) return null;
-  const url = `${supabaseUrl}/rest/v1/company?select=company_id,linkedin_id,company_name,employee_number,it_members,sector,city&linkedin_id=eq.${encodeURIComponent(normalizedLinkedinId)}&limit=1`;
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "GET",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-    },
-    15000,
-    "Supabase request",
-  );
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-  const rows = await res.json();
-  return Array.isArray(rows) && rows.length ? rows[0] : null;
-}
-
-async function supabaseListInvitationsByCompany({ company_id }) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const normalizedCompanyId = normalizeProfileField(company_id);
-  if (!normalizedCompanyId) return [];
-
-  const params = new URLSearchParams();
-  params.set(
-    "select",
-    "id,linkedin_url,full_name,headline,company,company_id,accepted",
-  );
-  params.set("order", "full_name.asc.nullslast");
-  params.set("limit", "50");
-  params.set("company_id", `eq.${normalizedCompanyId}`);
-  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?${params.toString()}`;
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "GET",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-    },
-    15000,
-    "Supabase request",
-  );
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-  const rows = await res.json();
-  return Array.isArray(rows) ? rows : [];
-}
-
-async function supabaseUpsertCompanyProfile(payload) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const linkedin_id = normalizeLinkedinCompanyUrl(payload?.linkedin_id);
-  if (!linkedin_id) throw new Error("Missing linkedin_id.");
-  const companyPatch = {
-    linkedin_id,
-    company_name: normalizeProfileField(payload?.company_name),
-    employee_number: normalizeProfileField(payload?.employee_number),
-    it_members: normalizeProfileField(payload?.it_members),
-    sector: normalizeProfileField(payload?.sector),
-    city: normalizeProfileField(payload?.city),
-  };
-  const url = `${supabaseUrl}/rest/v1/company?on_conflict=linkedin_id`;
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "POST",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        Prefer: "resolution=merge-duplicates,return=representation",
-      },
-      body: JSON.stringify([companyPatch]),
-    },
-    15000,
-    "Supabase request",
-  );
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-  const rows = await res.json().catch(() => []);
-  return Array.isArray(rows) && rows.length ? rows[0] : null;
-}
-
-async function supabaseUpdateCompanyById(payload) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const company_id = normalizeProfileField(payload?.company_id);
-  if (!company_id) throw new Error("Missing company_id.");
-  const patch = {
-    linkedin_id: normalizeLinkedinCompanyUrl(payload?.linkedin_id),
-    company_name: normalizeProfileField(payload?.company_name),
-    employee_number: normalizeProfileField(payload?.employee_number),
-    it_members: normalizeProfileField(payload?.it_members),
-    sector: normalizeProfileField(payload?.sector),
-    city: normalizeProfileField(payload?.city),
-  };
-  for (const key of Object.keys(patch)) {
-    if (patch[key] === "") delete patch[key];
-  }
-  if (!Object.keys(patch).length) return null;
-  const url = `${supabaseUrl}/rest/v1/company?company_id=eq.${encodeURIComponent(company_id)}`;
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "PATCH",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        Prefer: "return=representation",
-      },
-      body: JSON.stringify(patch),
-    },
-    15000,
-    "Supabase request",
-  );
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-  const rows = await res.json().catch(() => []);
-  return Array.isArray(rows) && rows.length ? rows[0] : null;
-}
 
 async function supabaseIncrementMessageCount({ linkedin_url, delta }) {
   const { supabaseUrl, supabaseAnonKey, accessToken } =
@@ -2038,389 +569,6 @@ async function supabaseSetMessageCount({ linkedin_url, message_count }) {
   }
 }
 
-async function supabaseListCampaigns() {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const url = `${supabaseUrl}/rest/v1/campaign?select=campaign_id,campaign_name&order=campaign_name.asc`;
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "GET",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-    },
-    15000,
-    "Supabase request",
-  );
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-
-  const rows = await res.json();
-  return Array.isArray(rows) ? rows : [];
-}
-
-async function supabaseCreateCampaign({ campaign_name }) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const normalizedName = normalizeProfileField(campaign_name);
-  if (!normalizedName) {
-    throw new Error("Campaign name is required.");
-  }
-  const url = `${supabaseUrl}/rest/v1/campaign`;
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "POST",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        Prefer: "return=representation",
-      },
-      body: JSON.stringify([{ campaign_name: normalizedName }]),
-    },
-    15000,
-    "Supabase request",
-  );
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-  const rows = await res.json();
-  return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
-}
-
-async function supabaseUpdateCampaign({ campaign_id, campaign_name, color }) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const targetId = normalizeProfileField(campaign_id);
-  const normalizedName = normalizeProfileField(campaign_name);
-  const normalizedColor = normalizeProfileField(color);
-  if (!targetId) {
-    throw new Error("Campaign id is required.");
-  }
-  const payload = {};
-  if (normalizedName) {
-    payload.campaign_name = normalizedName;
-  }
-  if (normalizedColor) {
-    payload.color = normalizedColor;
-  }
-  if (Object.keys(payload).length === 0) {
-    throw new Error("Nothing to update.");
-  }
-  const url = `${supabaseUrl}/rest/v1/campaign?campaign_id=eq.${encodeURIComponent(targetId)}`;
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "PATCH",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        Prefer: "return=representation",
-      },
-      body: JSON.stringify(payload),
-    },
-    15000,
-    "Supabase request",
-  );
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-  const rows = await res.json();
-  return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
-}
-
-async function supabaseListPersonCampaigns({ person_id }) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const normalizedPersonId = normalizeProfileField(person_id);
-  if (!normalizedPersonId) return [];
-  const url = `${supabaseUrl}/rest/v1/person_campaign?select=campaign_id,campaign:campaign(campaign_id,campaign_name,color)&person_id=eq.${encodeURIComponent(normalizedPersonId)}&order=campaign_id.asc`;
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "GET",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-    },
-    15000,
-    "Supabase request",
-  );
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-  const rows = await res.json();
-  return (Array.isArray(rows) ? rows : [])
-    .map((row) => {
-      const campaignObj = Array.isArray(row?.campaign)
-        ? row.campaign[0]
-        : row?.campaign || {};
-      return {
-        campaign_id: normalizeProfileField(row?.campaign_id || campaignObj?.campaign_id),
-        campaign_name: normalizeProfileField(campaignObj?.campaign_name),
-        color: normalizeProfileField(campaignObj?.color),
-      };
-    })
-    .filter((row) => row.campaign_id && row.campaign_name);
-}
-
-async function supabaseLinkPersonCampaign({ person_id, campaign_id }) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const normalizedPersonId = normalizeProfileField(person_id);
-  const normalizedCampaignId = normalizeProfileField(campaign_id);
-  if (!normalizedPersonId || !normalizedCampaignId) {
-    throw new Error("Missing person_id or campaign_id.");
-  }
-  const existingUrl = `${supabaseUrl}/rest/v1/person_campaign?select=person_id,campaign_id&person_id=eq.${encodeURIComponent(normalizedPersonId)}&campaign_id=eq.${encodeURIComponent(normalizedCampaignId)}&limit=1`;
-  const existingRes = await fetchWithTimeout(
-    existingUrl,
-    {
-      method: "GET",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-    },
-    15000,
-    "Supabase request",
-  );
-  if (!existingRes.ok) {
-    const txt = await existingRes.text().catch(() => "");
-    throw createProviderHttpError("supabase", existingRes.status, txt);
-  }
-  const existingRows = await existingRes.json();
-  if (Array.isArray(existingRows) && existingRows.length > 0) {
-    return;
-  }
-  const insertUrl = `${supabaseUrl}/rest/v1/person_campaign`;
-  const insertRes = await fetchWithTimeout(
-    insertUrl,
-    {
-      method: "POST",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        Prefer: "return=minimal",
-      },
-      body: JSON.stringify([
-        { person_id: normalizedPersonId, campaign_id: normalizedCampaignId },
-      ]),
-    },
-    15000,
-    "Supabase request",
-  );
-  if (!insertRes.ok) {
-    const txt = await insertRes.text().catch(() => "");
-    throw createProviderHttpError("supabase", insertRes.status, txt);
-  }
-}
-
-async function supabaseUnlinkPersonCampaign({ person_id, campaign_id }) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const normalizedPersonId = normalizeProfileField(person_id);
-  const normalizedCampaignId = normalizeProfileField(campaign_id);
-  if (!normalizedPersonId || !normalizedCampaignId) {
-    throw new Error("Missing person_id or campaign_id.");
-  }
-  const url = `${supabaseUrl}/rest/v1/person_campaign?person_id=eq.${encodeURIComponent(normalizedPersonId)}&campaign_id=eq.${encodeURIComponent(normalizedCampaignId)}`;
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "DELETE",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        Prefer: "return=minimal",
-      },
-    },
-    15000,
-    "Supabase request",
-  );
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-}
-
-async function supabaseGetPrompts() {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const url = `${supabaseUrl}/rest/v1/prompt?select=prompt_id,prompt_name,prompt_text&order=prompt_name.asc.nullslast`;
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "GET",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-    },
-    15000,
-    "Supabase request",
-  );
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-  const rows = await res.json();
-  return Array.isArray(rows) ? rows : [];
-}
-
-async function supabaseCreatePrompt({ name, prompt }) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const normalizedName = normalizeProfileField(name);
-  if (!normalizedName) {
-    throw new Error("Prompt name is required.");
-  }
-  const url = `${supabaseUrl}/rest/v1/prompt`;
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "POST",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        Prefer: "return=representation",
-      },
-      body: JSON.stringify([
-        {
-          prompt_name: normalizedName,
-          prompt_text: normalizeProfileField(prompt),
-        },
-      ]),
-    },
-    15000,
-    "Supabase request",
-  );
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-  const rows = await res.json();
-  return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
-}
-
-async function supabaseUpdatePrompt({ id, prompt }) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const targetId = normalizeProfileField(id);
-  if (!targetId) {
-    throw new Error("Prompt id is required.");
-  }
-  const url = `${supabaseUrl}/rest/v1/prompt?prompt_id=eq.${encodeURIComponent(targetId)}`;
-  const payload = {};
-  if (prompt !== undefined) {
-    payload.prompt_text = normalizeProfileField(prompt);
-  }
-  if (Object.keys(payload).length === 0) {
-    throw new Error("Nothing to update.");
-  }
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "PATCH",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        Prefer: "return=representation",
-      },
-      body: JSON.stringify(payload),
-    },
-    15000,
-    "Supabase request",
-  );
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-  const rows = await res.json();
-  return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
-}
-
-async function supabaseUpdatePromptName({ id, name }) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const targetId = normalizeProfileField(id);
-  const normalizedName = normalizeProfileField(name);
-  if (!targetId) {
-    throw new Error("Prompt id is required.");
-  }
-  if (!normalizedName) {
-    throw new Error("Prompt name is required.");
-  }
-  const url = `${supabaseUrl}/rest/v1/prompt?prompt_id=eq.${encodeURIComponent(targetId)}`;
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "PATCH",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        Prefer: "return=representation",
-      },
-      body: JSON.stringify({
-        prompt_name: normalizedName,
-      }),
-    },
-    15000,
-    "Supabase request",
-  );
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-  const rows = await res.json();
-  return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
-}
-
-function toOverviewInt(value, fallback) {
-  const n = Number(value);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
-}
-
-function toOverviewSortDir(value) {
-  return String(value || "").toLowerCase() === "asc" ? "asc" : "desc";
-}
-
-function toOverviewSortField(value) {
-  const allowed = new Set([
-    "name",
-    "company",
-    "headline",
-    "status",
-    "most_relevant_date",
-    "campaigns",
-    "archived",
-  ]);
-  const field = String(value || "");
-  if (field === "full_name") return "name";
-  if (field === "campaign") return "campaigns";
-  return allowed.has(field) ? field : "most_relevant_date";
-}
-
 function toCompanyOverviewSortField(value) {
   const allowed = new Set([
     "customer_potential_score",
@@ -2434,435 +582,6 @@ function toCompanyOverviewSortField(value) {
   const field = String(value || "");
   return allowed.has(field) ? field : "company_name";
 }
-
-function toOverviewStatusFilterValue(value) {
-  const normalized = normalizeProfileField(value).toLowerCase();
-  if (!normalized) return "";
-  if (normalized === "registered") return "registered";
-  if (normalized === "invited") return "invited";
-  if (normalized === "first message sent") return "first message sent";
-  if (normalized === "message responded") return "message responded";
-  return "";
-}
-
-async function supabaseListInvitationsOverview({
-  page,
-  pageSize,
-  sortField,
-  sortDir,
-  filters,
-  search,
-}) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const safePage = toOverviewInt(page, 1);
-  const safePageSize = toOverviewInt(pageSize, 25);
-  const safeSortField = toOverviewSortField(sortField);
-  const safeSortDir = toOverviewSortDir(sortDir);
-  const offset = (safePage - 1) * safePageSize;
-
-  const params = new URLSearchParams();
-  params.set(
-    "select",
-    "url,name,company,headline,most_relevant_date,archived,campaigns,status,accepted",
-  );
-  params.set("limit", String(safePageSize));
-  params.set("offset", String(offset));
-  params.set("order", `${safeSortField}.${safeSortDir}`);
-
-  if (filters?.campaign) {
-    const campaignName = String(filters.campaign).trim().replace(/\*/g, "");
-    if (campaignName) {
-      params.set("campaigns", `ilike.*${campaignName}*`);
-    }
-  }
-  if (filters?.archived === "0" || filters?.archived === "1") {
-    params.set("archived", `eq.${filters.archived}`);
-  }
-  const statusFilter = toOverviewStatusFilterValue(filters?.status);
-  if (statusFilter === "registered") {
-    params.set("status", "in.(registered,generated)");
-  } else if (statusFilter) {
-    params.set("status", `eq.${statusFilter}`);
-  }
-  if (filters?.accepted === "true" || filters?.accepted === "false") {
-    params.set("accepted", `eq.${filters.accepted}`);
-  }
-  if (search && String(search).trim()) {
-    const q = String(search).trim().replace(/\*/g, "");
-    params.set("or", `(name.ilike.*${q}*,company.ilike.*${q}*)`);
-  }
-
-  const url = `${supabaseUrl}/rest/v1/vw_linkedin_invitations_overview?${params.toString()}`;
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "GET",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        Prefer: "count=exact",
-      },
-    },
-    15000,
-    "Supabase request",
-  );
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-
-  const rows = await res.json();
-  const contentRange = res.headers.get("content-range") || "";
-  const totalMatch = contentRange.match(/\/(\d+|\*)$/);
-  const total =
-    totalMatch && totalMatch[1] !== "*" ? Number(totalMatch[1]) : null;
-
-  return { rows: Array.isArray(rows) ? rows : [], total };
-}
-
-async function supabaseArchiveInvitation({ url }) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const targetUrl = normalizeLinkedinInvitationUrl(url);
-  const endpoint = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
-
-  const res = await fetchWithTimeout(
-    endpoint,
-    {
-      method: "PATCH",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        Prefer: "return=minimal",
-      },
-      body: JSON.stringify({ archived: 1 }),
-    },
-    15000,
-    "Supabase request",
-  );
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-}
-
-async function supabaseSetArchived({ linkedin_url, archived }) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
-  if (!targetUrl) {
-    throw new Error("Missing linkedin_url.");
-  }
-  const endpoint = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
-
-  const res = await fetchWithTimeout(
-    endpoint,
-    {
-      method: "PATCH",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        Prefer: "return=minimal",
-      },
-      body: JSON.stringify({ archived: archived ? 1 : 0 }),
-    },
-    15000,
-    "Supabase request",
-  );
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-}
-
-async function supabaseListCompaniesOverview({
-  page,
-  pageSize,
-  sortField,
-  sortDir,
-  filters,
-  search,
-}) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const safePage = toOverviewInt(page, 1);
-  const safePageSize = toOverviewInt(pageSize, 25);
-  const safeSortField = toCompanyOverviewSortField(sortField);
-  const safeSortDir = toOverviewSortDir(sortDir);
-  const offset = (safePage - 1) * safePageSize;
-
-  const params = new URLSearchParams();
-  params.set(
-    "select",
-    "company_id,company_name,linkedin_id,archived,employee_number,linked_person_count,customer_potential_score,sector,campaigns",
-  );
-  params.set("limit", String(safePageSize));
-  params.set("offset", String(offset));
-  params.set("order", `${safeSortField}.${safeSortDir}`);
-  if (filters?.archived === "0" || filters?.archived === "1") {
-    params.set("archived", `eq.${filters.archived}`);
-  }
-  if (filters?.campaign) {
-    const campaignName = String(filters.campaign).trim().replace(/\*/g, "");
-    if (campaignName) {
-      params.set("campaigns", `ilike.*${campaignName}*`);
-    }
-  }
-  if (search && String(search).trim()) {
-    const q = String(search).trim().replace(/\*/g, "");
-    params.set(
-      "or",
-      `(company_name.ilike.*${q}*,employee_number.ilike.*${q}*,sector.ilike.*${q}*,campaigns.ilike.*${q}*)`,
-    );
-  }
-
-  const url = `${supabaseUrl}/rest/v1/vw_company_overview?${params.toString()}`;
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "GET",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        Prefer: "count=exact",
-      },
-    },
-    15000,
-    "Supabase request",
-  );
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-
-  const companies = await res.json();
-  const contentRange = res.headers.get("content-range") || "";
-  const totalMatch = contentRange.match(/\/(\d+|\*)$/);
-  const total =
-    totalMatch && totalMatch[1] !== "*" ? Number(totalMatch[1]) : null;
-  const rows = (Array.isArray(companies) ? companies : []).map((row) => ({
-    company_id: normalizeProfileField(row?.company_id),
-    company_name: normalizeProfileField(row?.company_name),
-    linkedin_url: normalizeLinkedinCompanyUrl(row?.linkedin_id),
-    archived: row?.archived ?? 0,
-    employee_number: normalizeProfileField(row?.employee_number),
-    linked_person_count: Number(row?.linked_person_count || 0),
-    customer_potential_score: Number(row?.customer_potential_score || 0),
-    sector: normalizeProfileField(row?.sector),
-    campaigns: normalizeProfileField(row?.campaigns),
-  }));
-  return { rows, total };
-}
-
-async function supabaseArchiveCompany({ company_id, archived }) {
-  const { supabaseUrl, supabaseAnonKey, accessToken } =
-    await getSupabaseRequestContext();
-  const targetCompanyId = normalizeProfileField(company_id);
-  if (!targetCompanyId) {
-    throw new Error("Missing company_id.");
-  }
-  const endpoint = `${supabaseUrl}/rest/v1/company?company_id=eq.${encodeURIComponent(targetCompanyId)}`;
-  const res = await fetchWithTimeout(
-    endpoint,
-    {
-      method: "PATCH",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        Prefer: "return=minimal",
-      },
-      body: JSON.stringify({ archived: archived ? 1 : 0 }),
-    },
-    15000,
-    "Supabase request",
-  );
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw createProviderHttpError("supabase", res.status, txt);
-  }
-}
-
-const SIDEPANEL_REFRESH_DEBOUNCE_MS = 500;
-const sidePanelRefreshTimers = new Map();
-const lastSidePanelUrlByTab = new Map();
-let lastActivatedLinkedInTabId = null;
-
-function timingLog(eventName, details = {}) {
-  console.log("[LEF][timing]", eventName, {
-    ts: Date.now(),
-    ...details,
-  });
-}
-
-function isLinkedInProfileLikeUrl(url) {
-  if (typeof LEF_UTILS.isLinkedInProfileLikeUrl === "function") {
-    return LEF_UTILS.isLinkedInProfileLikeUrl(url);
-  }
-  if (!url || typeof url !== "string") return false;
-  return /^https:\/\/www\.linkedin\.com\/(in|company|school)\/[^/?#]+/i.test(url);
-}
-
-function canonicalizeLinkedInUrl(rawUrl) {
-  const input = String(rawUrl || "").trim();
-  if (!input) return "";
-  try {
-    const parsed = new URL(input);
-    const parts = (parsed.pathname || "")
-      .split("/")
-      .filter(Boolean);
-    if (
-      parts.length >= 2 &&
-      /^(company|school)$/i.test(parts[0])
-    ) {
-      return `https://www.linkedin.com/${parts[0].toLowerCase()}/${parts[1]}/`;
-    }
-    const pathname = (parsed.pathname || "").replace(/\/+$/, "") || "/";
-    if (pathname === "/") return "https://www.linkedin.com/";
-    return `https://www.linkedin.com${pathname}/`;
-  } catch (_e) {
-    const noHash = input.split("#")[0];
-    const noQuery = noHash.split("?")[0];
-    const match = noQuery.match(
-      /^https:\/\/www\.linkedin\.com\/(company|school)\/([^/?#\/]+)/i,
-    );
-    if (match) {
-      return `https://www.linkedin.com/${match[1].toLowerCase()}/${match[2]}/`;
-    }
-    const noTrailing = noQuery.replace(/\/+$/, "");
-    if (!noTrailing) return "";
-    return noTrailing.endsWith("/") ? noTrailing : `${noTrailing}/`;
-  }
-}
-
-function detectLinkedInPageType(rawUrl) {
-  const linkedin_id = canonicalizeLinkedInUrl(rawUrl || "");
-  const result = { page_type: "unsupported", linkedin_id };
-  if (!/^https:\/\/www\.linkedin\.com\//i.test(linkedin_id)) return result;
-  if (/^https:\/\/www\.linkedin\.com\/in\/[^/?#]+/i.test(linkedin_id)) {
-    result.page_type = "person";
-    return result;
-  }
-  if (/^https:\/\/www\.linkedin\.com\/(company|school)\/[^/?#]+/i.test(linkedin_id)) {
-    result.page_type = "company";
-    return result;
-  }
-  return result;
-}
-
-async function notifySidePanelRefresh({ tabId, url, reason }) {
-  try {
-    await chrome.runtime.sendMessage({
-      type: "SIDEPANEL_REFRESH_CONTEXT",
-      payload: { tabId, url, reason },
-    });
-  } catch (_e) {
-    // Side panel may not be open; ignore.
-  }
-}
-
-function scheduleSidePanelRefresh(tabId, url, reason, { force = false } = {}) {
-  if (!Number.isInteger(tabId) || !isLinkedInProfileLikeUrl(url)) return;
-
-  const existingTimer = sidePanelRefreshTimers.get(tabId);
-  if (existingTimer) clearTimeout(existingTimer);
-
-  const timer = setTimeout(async () => {
-    sidePanelRefreshTimers.delete(tabId);
-    const prevUrl = lastSidePanelUrlByTab.get(tabId);
-    if (!force && prevUrl === url) return;
-    lastSidePanelUrlByTab.set(tabId, url);
-    await notifySidePanelRefresh({ tabId, url, reason });
-  }, SIDEPANEL_REFRESH_DEBOUNCE_MS);
-
-  sidePanelRefreshTimers.set(tabId, timer);
-}
-
-chrome.tabs.onActivated.addListener(async ({ tabId }) => {
-  try {
-    const tab = await chrome.tabs.get(tabId);
-    timingLog("tab_url_change", {
-      source: "tabs.onActivated",
-      tabId,
-      url: tab?.url || "",
-      page: detectLinkedInPageType(tab?.url || ""),
-    });
-    const shouldForceRefresh = lastActivatedLinkedInTabId !== tabId;
-    lastActivatedLinkedInTabId = tabId;
-    scheduleSidePanelRefresh(tabId, tab?.url || "", "tabs.onActivated", {
-      force: shouldForceRefresh,
-    });
-  } catch (_e) {
-    // Ignore transient tab errors.
-  }
-});
-
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (typeof changeInfo.url === "string") {
-    timingLog("tab_url_change", {
-      source: "tabs.onUpdated.url",
-      tabId,
-      url: changeInfo.url,
-      page: detectLinkedInPageType(changeInfo.url),
-    });
-    scheduleSidePanelRefresh(tabId, changeInfo.url, "tabs.onUpdated.url");
-    return;
-  }
-  if (changeInfo.status === "complete") {
-    timingLog("tab_url_change", {
-      source: "tabs.onUpdated.complete",
-      tabId,
-      url: tab?.url || "",
-      page: detectLinkedInPageType(tab?.url || ""),
-    });
-    scheduleSidePanelRefresh(tabId, tab?.url || "", "tabs.onUpdated.complete");
-  }
-});
-
-chrome.webNavigation.onCommitted.addListener((details) => {
-  if (details.frameId !== 0) return;
-  timingLog("tab_url_change", {
-    source: "webNavigation.onCommitted",
-    tabId: details.tabId,
-    url: details.url,
-    page: detectLinkedInPageType(details.url),
-  });
-  scheduleSidePanelRefresh(
-    details.tabId,
-    details.url,
-    "webNavigation.onCommitted",
-  );
-});
-
-chrome.webNavigation.onHistoryStateUpdated.addListener((details) => {
-  if (details.frameId !== 0) return;
-  timingLog("tab_url_change", {
-    source: "webNavigation.onHistoryStateUpdated",
-    tabId: details.tabId,
-    url: details.url,
-    page: detectLinkedInPageType(details.url),
-  });
-  scheduleSidePanelRefresh(
-    details.tabId,
-    details.url,
-    "webNavigation.onHistoryStateUpdated",
-  );
-});
-
-chrome.tabs.onRemoved.addListener((tabId) => {
-  const timer = sidePanelRefreshTimers.get(tabId);
-  if (timer) clearTimeout(timer);
-  sidePanelRefreshTimers.delete(tabId);
-  lastSidePanelUrlByTab.delete(tabId);
-});
 
 function emitUiStatus(text) {
   try {
@@ -3025,7 +744,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       emitUiStatus("Sending to LLM\u2026");
       try {
         // prompt: buildInviteTextPrompt (Generate invite)
-        const generation = await callOpenAIInviteGeneration(msg.payload);
+        const generation =
+          await globalThis.LEFOpenAIService.callOpenAIInviteGeneration(
+            msg.payload,
+          );
         sendResponse({
           ok: true,
           invite_text: generation.invite_text,
@@ -3207,7 +929,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Updating\u2026");
       try {
-        await supabaseUpdateFirstMessage(msg.payload);
+        await LEF_SUPABASE_INVITATIONS.supabaseUpdateFirstMessage(msg.payload);
         sendResponse({ ok: true });
       } catch (e) {
         sendResponse({
@@ -3223,7 +945,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Communicating to database\u2026");
       try {
-        await supabaseMarkStatus(msg.payload);
+        await LEF_SUPABASE_INVITATIONS.supabaseMarkStatus(msg.payload);
         sendResponse({ ok: true });
       } catch (e) {
         sendResponse({
@@ -3239,7 +961,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Communicating to database\u2026");
       try {
-        await supabaseMarkFirstMessageSent(msg.payload || {});
+        await LEF_SUPABASE_INVITATIONS.supabaseMarkFirstMessageSent(
+          msg.payload || {},
+        );
         sendResponse({ ok: true });
       } catch (e) {
         sendResponse({
@@ -3255,7 +979,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Communicating to database\u2026");
       try {
-        await supabaseSetStatusOnly(msg.payload);
+        await LEF_SUPABASE_INVITATIONS.supabaseSetStatusOnly(msg.payload);
         sendResponse({ ok: true });
       } catch (e) {
         sendResponse({
@@ -3271,7 +995,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Communicating to database\u2026");
       try {
-        await supabaseSetAcceptedAtNow(msg.payload || {});
+        await LEF_SUPABASE_INVITATIONS.supabaseSetAcceptedAtNow(
+          msg.payload || {},
+        );
         sendResponse({ ok: true });
       } catch (e) {
         sendResponse({
@@ -3287,7 +1013,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Communicating to database\u2026");
       try {
-        await supabaseClearAcceptedAt(msg.payload || {});
+        await LEF_SUPABASE_INVITATIONS.supabaseClearAcceptedAt(
+          msg.payload || {},
+        );
         sendResponse({ ok: true });
       } catch (e) {
         sendResponse({
@@ -3303,7 +1031,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Updating\u2026");
       try {
-        await supabaseIncrementMessageCount(msg?.payload || {});
+        await LEF_SUPABASE_INVITATIONS.supabaseIncrementMessageCount(
+          msg?.payload || {},
+        );
         sendResponse({ ok: true });
       } catch (e) {
         sendResponse({
@@ -3319,7 +1049,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Updating\u2026");
       try {
-        await supabaseSetMessageCount(msg?.payload || {});
+        await LEF_SUPABASE_INVITATIONS.supabaseSetMessageCount(
+          msg?.payload || {},
+        );
         sendResponse({ ok: true });
       } catch (e) {
         sendResponse({
@@ -3335,7 +1067,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Updating\u2026");
       try {
-        await supabaseUpdateProfileDetailsOnly(msg.payload || {});
+        await LEF_SUPABASE_INVITATIONS.supabaseUpdateProfileDetailsOnly(
+          msg.payload || {},
+        );
         sendResponse({ ok: true });
       } catch (e) {
         sendResponse({
@@ -3351,7 +1085,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Updating\u2026");
       try {
-        await supabaseUpdateProfileFields(msg.payload || {});
+        await LEF_SUPABASE_INVITATIONS.supabaseUpdateProfileFields(
+          msg.payload || {},
+        );
         sendResponse({ ok: true });
       } catch (e) {
         sendResponse({
@@ -3367,9 +1103,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Fetching\u2026");
       try {
-        const row = await supabaseGetInvitationByLinkedinUrl(
-          msg?.payload?.linkedin_url,
-        );
+        const row =
+          await LEF_SUPABASE_INVITATIONS.supabaseGetInvitationByLinkedinUrl(
+            msg?.payload?.linkedin_url,
+          );
         sendResponse({ ok: true, row });
       } catch (e) {
         sendResponse({
@@ -3385,7 +1122,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Fetching\u2026");
       try {
-        const company = await supabaseFindCompanyByName(msg?.payload || {});
+        const company = await LEF_SUPABASE_COMPANY.supabaseFindCompanyByName(
+          msg?.payload || {},
+        );
         sendResponse({ ok: true, company });
       } catch (e) {
         sendResponse({
@@ -3401,7 +1140,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Fetching\u2026");
       try {
-        const company = await supabaseGetCompanyById(msg?.payload || {});
+        const company = await LEF_SUPABASE_COMPANY.supabaseGetCompanyById(
+          msg?.payload || {},
+        );
         sendResponse({ ok: true, company });
       } catch (e) {
         sendResponse({
@@ -3417,9 +1158,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Fetching\u2026");
       try {
-        const company = await supabaseGetCompanyByLinkedinId(
-          msg?.payload || {},
-        );
+        const company =
+          await LEF_SUPABASE_COMPANY.supabaseGetCompanyByLinkedinId(
+            msg?.payload || {},
+          );
         sendResponse({ ok: true, company });
       } catch (e) {
         sendResponse({
@@ -3435,7 +1177,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Fetching\u2026");
       try {
-        const rows = await supabaseListInvitationsByCompany(msg?.payload || {});
+        const rows =
+          await LEF_SUPABASE_COMPANY.supabaseListInvitationsByCompany(
+            msg?.payload || {},
+          );
         sendResponse({ ok: true, rows });
       } catch (e) {
         sendResponse({
@@ -3451,7 +1196,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Fetching\u2026");
       try {
-        const companies = await supabaseSearchCompanies(msg?.payload || {});
+        const companies = await LEF_SUPABASE_COMPANY.supabaseSearchCompanies(
+          msg?.payload || {},
+        );
         sendResponse({ ok: true, companies });
       } catch (e) {
         sendResponse({
@@ -3476,9 +1223,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           term: normalizeProfileField(msg?.payload?.term),
           limit: msg?.payload?.limit,
         });
-        const companies = await supabaseSearchUnlinkedCompanies(
-          msg?.payload || {},
-        );
+        const companies =
+          await LEF_SUPABASE_COMPANY.supabaseSearchUnlinkedCompanies(
+            msg?.payload || {},
+          );
         sendResponse({ ok: true, companies });
       } catch (e) {
         sendResponse({
@@ -3494,7 +1242,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Updating\u2026");
       try {
-        await supabaseConfirmCompanyLink(msg?.payload || {});
+        await LEF_SUPABASE_COMPANY.supabaseConfirmCompanyLink(
+          msg?.payload || {},
+        );
         sendResponse({ ok: true });
       } catch (e) {
         sendResponse({
@@ -3510,10 +1260,13 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Updating\u2026");
       try {
-        const existing = await supabaseGetCompanyByLinkedinId(
+        const existing =
+          await LEF_SUPABASE_COMPANY.supabaseGetCompanyByLinkedinId(
+            msg?.payload || {},
+          );
+        const company = await LEF_SUPABASE_COMPANY.supabaseUpsertCompanyProfile(
           msg?.payload || {},
         );
-        const company = await supabaseUpsertCompanyProfile(msg?.payload || {});
         console.log(
           existing
             ? "[LEF][company row updated]"
@@ -3538,10 +1291,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Updating\u2026");
       try {
-        const company = await supabaseUpdateCompanyById(msg?.payload || {});
+        const company = await LEF_SUPABASE_COMPANY.supabaseUpdateCompanyById(
+          msg?.payload || {},
+        );
         console.log("[LEF][company row updated]", {
-          company_id: normalizeProfileField(msg?.payload?.company_id),
-          linkedin_id: normalizeLinkedinCompanyUrl(msg?.payload?.linkedin_id),
+          company_id: LEF_SUPABASE_COMPANY.normalizeProfileField(
+            msg?.payload?.company_id,
+          ),
+          linkedin_id: LEF_SUPABASE_COMPANY.normalizeLinkedinCompanyUrl(
+            msg?.payload?.linkedin_id,
+          ),
         });
         sendResponse({ ok: true, company });
       } catch (e) {
@@ -3559,7 +1318,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Fetching\u2026");
       try {
-        const prompts = await supabaseGetPrompts();
+        const prompts = await LEF_SUPABASE_PROMPTS.supabaseGetPrompts();
         sendResponse({ ok: true, prompts });
       } catch (e) {
         sendResponse({
@@ -3575,7 +1334,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Updating\u2026");
       try {
-        const prompt = await supabaseCreatePrompt(msg?.payload || {});
+        const prompt = await LEF_SUPABASE_PROMPTS.supabaseCreatePrompt(
+          msg?.payload || {},
+        );
         sendResponse({ ok: true, prompt });
       } catch (e) {
         sendResponse({
@@ -3591,7 +1352,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Updating\u2026");
       try {
-        const prompt = await supabaseUpdatePrompt(msg?.payload || {});
+        const prompt = await LEF_SUPABASE_PROMPTS.supabaseUpdatePrompt(
+          msg?.payload || {},
+        );
         sendResponse({ ok: true, prompt });
       } catch (e) {
         sendResponse({
@@ -3607,7 +1370,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Updating\u2026");
       try {
-        const prompt = await supabaseUpdatePromptName(msg?.payload || {});
+        const prompt = await LEF_SUPABASE_PROMPTS.supabaseUpdatePromptName(
+          msg?.payload || {},
+        );
         sendResponse({ ok: true, prompt });
       } catch (e) {
         sendResponse({
@@ -3623,7 +1388,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Fetching\u2026");
       try {
-        const campaign_rows = await supabaseListCampaigns();
+        const campaign_rows =
+          await LEF_SUPABASE_CAMPAIGNS.supabaseListCampaigns();
         const campaigns = campaign_rows
           .map((row) => normalizeProfileField(row?.campaign_name))
           .filter(Boolean);
@@ -3642,7 +1408,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Updating\u2026");
       try {
-        const campaign = await supabaseCreateCampaign(msg?.payload || {});
+        const campaign = await LEF_SUPABASE_CAMPAIGNS.supabaseCreateCampaign(
+          msg?.payload || {},
+        );
         sendResponse({ ok: true, campaign });
       } catch (e) {
         sendResponse({
@@ -3658,7 +1426,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Updating\u2026");
       try {
-        const campaign = await supabaseUpdateCampaign(msg?.payload || {});
+        const campaign = await LEF_SUPABASE_CAMPAIGNS.supabaseUpdateCampaign(
+          msg?.payload || {},
+        );
         sendResponse({ ok: true, campaign });
       } catch (e) {
         sendResponse({
@@ -3674,7 +1444,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Fetching\u2026");
       try {
-        const rows = await supabaseListPersonCampaigns(msg?.payload || {});
+        const rows =
+          await LEF_SUPABASE_CAMPAIGNS.supabaseListPersonCampaigns(
+            msg?.payload || {},
+          );
         sendResponse({ ok: true, rows });
       } catch (e) {
         sendResponse({
@@ -3690,7 +1463,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Updating\u2026");
       try {
-        await supabaseLinkPersonCampaign(msg?.payload || {});
+        await LEF_SUPABASE_CAMPAIGNS.supabaseLinkPersonCampaign(
+          msg?.payload || {},
+        );
         sendResponse({ ok: true });
       } catch (e) {
         sendResponse({
@@ -3706,7 +1481,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Updating\u2026");
       try {
-        await supabaseUnlinkPersonCampaign(msg?.payload || {});
+        await LEF_SUPABASE_CAMPAIGNS.supabaseUnlinkPersonCampaign(
+          msg?.payload || {},
+        );
         sendResponse({ ok: true });
       } catch (e) {
         sendResponse({
@@ -3722,9 +1499,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Fetching\u2026");
       try {
-        const result = await supabaseListInvitationsOverview(
-          msg?.payload || {},
-        );
+        const result =
+          await LEF_SUPABASE_OVERVIEW.supabaseListInvitationsOverview(
+            msg?.payload || {},
+          );
         sendResponse({ ok: true, rows: result.rows, total: result.total });
       } catch (e) {
         sendResponse({
@@ -3740,7 +1518,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Fetching\u2026");
       try {
-        const result = await supabaseListCompaniesOverview(msg?.payload || {});
+        const result = await LEF_SUPABASE_COMPANY.supabaseListCompaniesOverview(
+          msg?.payload || {},
+        );
         sendResponse({ ok: true, rows: result.rows, total: result.total });
       } catch (e) {
         sendResponse({
@@ -3756,7 +1536,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Updating\u2026");
       try {
-        await supabaseArchiveCompany(msg?.payload || {});
+        await LEF_SUPABASE_COMPANY.supabaseArchiveCompany(msg?.payload || {});
         sendResponse({ ok: true });
       } catch (e) {
         sendResponse({
@@ -3772,7 +1552,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Updating\u2026");
       try {
-        await supabaseArchiveInvitation(msg?.payload || {});
+        await LEF_SUPABASE_INVITATIONS.supabaseArchiveInvitation(msg?.payload || {});
         sendResponse({ ok: true });
       } catch (e) {
         sendResponse({
@@ -3788,7 +1568,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       emitUiStatus("Updating\u2026");
       try {
-        await supabaseSetArchived(msg?.payload || {});
+        await LEF_SUPABASE_INVITATIONS.supabaseSetArchived(msg?.payload || {});
         sendResponse({ ok: true });
       } catch (e) {
         sendResponse({
@@ -3808,8 +1588,17 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           currentWindow: true,
         });
         const url = tab?.url || "";
-        if (tab?.id && isLinkedInProfileLikeUrl(url)) {
-          scheduleSidePanelRefresh(tab.id, url, "sidepanel.request");
+        if (
+          tab?.id &&
+          globalThis.LEFNavigationWatcher?.scheduleSidePanelRefresh &&
+          isLinkedInProfileLikeUrl(url)
+        ) {
+          globalThis.LEFNavigationWatcher.scheduleSidePanelRefresh(
+            tab.id,
+            url,
+            "sidepanel.request",
+            { force: true },
+          );
         }
         sendResponse({ ok: true });
       } catch (e) {
