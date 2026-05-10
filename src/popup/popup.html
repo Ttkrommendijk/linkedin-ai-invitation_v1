@@ -156,6 +156,16 @@
                             </span>
                             <datalist id="companyLinkSearchOptions"></datalist>
                             <button
+                                id="companyQuickLinkBtn"
+                                type="button"
+                                class="btn-icon company-suggestion-accept"
+                                title="Link company"
+                                aria-label="Link company"
+                                hidden
+                            >
+                                &#128279;
+                            </button>
+                            <button
                                 id="acceptCompanySuggestionBtn"
                                 type="button"
                                 class="btn-icon company-suggestion-accept"
@@ -1286,7 +1296,20 @@
         </div>
 
         <script src="../shared/utils.js"></script>
+        <script src="../shared/popup-message-types.js"></script>
+        <script src="../shared/popup-storage-keys.js"></script>
+        <script src="../shared/popup-status-constants.js"></script>
+        <script src="popup-logger.js"></script>
         <script src="../prompts.js"></script>
+        <script src="popup-utils.js"></script>
+        <script src="popup-dom.js"></script>
+        <script src="popup-state.js"></script>
+        <script src="popup-lifecycle-controller.js"></script>
+        <script src="popup-config-controller.js"></script>
+        <script src="popup-chat-controller.js"></script>
+        <script src="popup-message-controller.js"></script>
+        <script src="popup-profile-controller.js"></script>
+        <script src="popup-invitation-controller.js"></script>
         <script src="popup-grid.js"></script>
         <script src="popup-tabs.js"></script>
         <script src="popup-config.js"></script>

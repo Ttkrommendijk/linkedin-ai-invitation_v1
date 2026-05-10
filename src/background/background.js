@@ -606,664 +606,397 @@ async function sendMessageToTab(tabId, message) {
   }
 }
 
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  const req = msg || {};
-  debug("onMessage:", msg?.type);
-  console.log("[LEF][chat] received type", req.type);
-
-  if (msg?.type === "GET_ACTIVE_TAB_CONTEXT") {
-    (async () => {
-      try {
-        const tab = await getActiveTabInCurrentWindow();
-        sendResponse({
+const ROUTES = {
+  GET_ACTIVE_TAB_CONTEXT: {
+    errorCode: "UNKNOWN_ERROR",
+    handler: async () => {
+      const tab = await getActiveTabInCurrentWindow();
+      return {
+        ok: true,
+        data: {
+          tabId: Number.isInteger(tab?.id) ? tab.id : null,
+          url: tab?.url || "",
+        },
+      };
+    },
+  },
+  SCRAPE_PROFILE_CONTEXT: {
+    errorCode: "EXTRACTION_FAILED",
+    handler: async () => {
+      const tab = await getActiveTabInCurrentWindow();
+      if (!Number.isInteger(tab?.id)) {
+        return {
+          ok: false,
+          error: normalizeError("No active tab found.", "EXTRACTION_FAILED"),
+        };
+      }
+      const resp = await sendMessageToTab(tab.id, {
+        type: "EXTRACT_PROFILE_CONTEXT",
+      });
+      if (!resp?.ok || !resp?.profile) {
+        const errorMessage =
+          typeof resp?.error === "string"
+            ? resp.error
+            : resp?.error?.message || "profile extraction failed";
+        return {
+          ok: false,
+          error: normalizeError(errorMessage, "EXTRACTION_FAILED"),
+        };
+      }
+      return { ok: true, data: { profile: resp.profile } };
+    },
+  },
+  FETCH_CHAT_HISTORY: {
+    errorCode: "EXTRACTION_FAILED",
+    handler: async ({ msg }) => {
+      const tab = await getActiveTabInCurrentWindow();
+      if (!Number.isInteger(tab?.id)) {
+        return {
           ok: true,
           data: {
-            tabId: Number.isInteger(tab?.id) ? tab.id : null,
-            url: tab?.url || "",
+            messages: [],
+            chat_history: "",
+            meta: { no_active_tab: true },
           },
-        });
-      } catch (e) {
-        sendResponse({ ok: false, error: normalizeError(e, "UNKNOWN_ERROR") });
+        };
       }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "SCRAPE_PROFILE_CONTEXT") {
-    (async () => {
-      try {
-        const tab = await getActiveTabInCurrentWindow();
-        if (!Number.isInteger(tab?.id)) {
-          sendResponse({
-            ok: false,
-            error: normalizeError("No active tab found.", "EXTRACTION_FAILED"),
-          });
-          return;
-        }
-        const resp = await sendMessageToTab(tab.id, {
-          type: "EXTRACT_PROFILE_CONTEXT",
-        });
-        if (!resp?.ok || !resp?.profile) {
-          const errorMessage =
-            typeof resp?.error === "string"
-              ? resp.error
-              : resp?.error?.message || "profile extraction failed";
-          sendResponse({
-            ok: false,
-            error: normalizeError(errorMessage, "EXTRACTION_FAILED"),
-          });
-          return;
-        }
-        sendResponse({ ok: true, data: { profile: resp.profile } });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "EXTRACTION_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "FETCH_CHAT_HISTORY") {
-    (async () => {
-      try {
-        const tab = await getActiveTabInCurrentWindow();
-        if (!Number.isInteger(tab?.id)) {
-          sendResponse({
-            ok: true,
-            data: {
-              messages: [],
-              chat_history: "",
-              meta: { no_active_tab: true },
-            },
-          });
-          return;
-        }
-        const reqId = String(msg?.payload?.reqId || `chat_${Date.now()}`);
-        const resp = await sendMessageToTab(tab.id, {
-          type: "EXTRACT_CHAT_HISTORY",
-          reqId,
-        });
-        if (!resp?.ok) {
-          sendResponse({
-            ok: true,
-            data: { messages: [], chat_history: "", meta: resp?.meta || {} },
-          });
-          return;
-        }
-        const messages = Array.isArray(resp?.messages) ? resp.messages : [];
-        const chat_history = messages
-          .map((m) => (m?.text || "").toString().trim())
-          .filter(Boolean)
-          .join("\n");
-        sendResponse({
+      const reqId = String(msg?.payload?.reqId || `chat_${Date.now()}`);
+      const resp = await sendMessageToTab(tab.id, {
+        type: "EXTRACT_CHAT_HISTORY",
+        reqId,
+      });
+      if (!resp?.ok) {
+        return {
           ok: true,
-          data: { messages, chat_history, meta: resp?.meta || {} },
-        });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "EXTRACTION_FAILED"),
-        });
+          data: { messages: [], chat_history: "", meta: resp?.meta || {} },
+        };
       }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "OPEN_LINKEDIN_URL") {
-    (async () => {
-      try {
-        const targetUrl = normalizeProfileField(msg?.payload?.url);
-        const openInNewTab = Boolean(msg?.payload?.new_tab);
-        if (!isLinkedInProfileLikeUrl(targetUrl)) {
-          sendResponse({ ok: true });
-          return;
-        }
-        if (openInNewTab) {
-          await chrome.tabs.create({ url: targetUrl, active: true });
-          sendResponse({ ok: true });
-          return;
-        }
-        const tab = await getActiveTabInCurrentWindow();
-        if (Number.isInteger(tab?.id)) {
-          await chrome.tabs.update(tab.id, { url: targetUrl, active: true });
-        } else {
-          await chrome.tabs.create({ url: targetUrl, active: true });
-        }
-        sendResponse({ ok: true });
-      } catch (e) {
-        sendResponse({ ok: false, error: normalizeError(e, "UNKNOWN_ERROR") });
+      const messages = Array.isArray(resp?.messages) ? resp.messages : [];
+      const chat_history = messages
+        .map((m) => (m?.text || "").toString().trim())
+        .filter(Boolean)
+        .join("\n");
+      return {
+        ok: true,
+        data: { messages, chat_history, meta: resp?.meta || {} },
+      };
+    },
+  },
+  OPEN_LINKEDIN_URL: {
+    errorCode: "UNKNOWN_ERROR",
+    handler: async ({ msg }) => {
+      const targetUrl = normalizeProfileField(msg?.payload?.url);
+      const openInNewTab = Boolean(msg?.payload?.new_tab);
+      if (!isLinkedInProfileLikeUrl(targetUrl)) {
+        return { ok: true };
       }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "GENERATE_INVITE") {
-    (async () => {
+      if (openInNewTab) {
+        await chrome.tabs.create({ url: targetUrl, active: true });
+        return { ok: true };
+      }
+      const tab = await getActiveTabInCurrentWindow();
+      if (Number.isInteger(tab?.id)) {
+        await chrome.tabs.update(tab.id, { url: targetUrl, active: true });
+      } else {
+        await chrome.tabs.create({ url: targetUrl, active: true });
+      }
+      return { ok: true };
+    },
+  },
+  GENERATE_INVITE: {
+    errorCode: "GENERATION_FAILED",
+    includeDetails: true,
+    handler: async ({ msg }) => {
       emitUiStatus("Sending to LLM\u2026");
-      try {
-        // prompt: buildInviteTextPrompt (Generate invite)
-        const generation =
-          await globalThis.LEFOpenAIService.callOpenAIInviteGeneration(
-            msg.payload,
-          );
-        sendResponse({
-          ok: true,
-          invite_text: generation.invite_text,
-        });
-      } catch (e) {
-        const details =
-          e && typeof e === "object" && e.details ? e.details : undefined;
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "GENERATION_FAILED", details),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "ENRICH_PROFILE") {
-    (async () => {
+      const generation = await globalThis.LEFOpenAIService.callOpenAIInviteGeneration(
+        msg.payload,
+      );
+      return {
+        ok: true,
+        invite_text: generation.invite_text,
+      };
+    },
+  },
+  ENRICH_PROFILE: {
+    errorCode: "GENERATION_FAILED",
+    handler: async ({ msg }) => {
       emitUiStatus("Sending to LLM\u2026");
-      try {
-        // prompt: buildProfileExtractionPrompt (Enrich)
-        const extraction = await callOpenAIProfileExtraction(msg.payload || {});
-        sendResponse({
-          ok: true,
-          company: extraction.company || "",
-          headline: sanitizeHeadlineJobTitle(extraction.headline || ""),
-          language: extraction.language || "",
-        });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "GENERATION_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "ENRICH_COMPANY_PROFILE") {
-    (async () => {
+      const extraction = await callOpenAIProfileExtraction(msg.payload || {});
+      return {
+        ok: true,
+        company: extraction.company || "",
+        headline: sanitizeHeadlineJobTitle(extraction.headline || ""),
+        language: extraction.language || "",
+      };
+    },
+  },
+  ENRICH_COMPANY_PROFILE: {
+    errorCode: "GENERATION_FAILED",
+    handler: async ({ msg }) => {
       emitUiStatus("Sending to LLM\u2026");
       try {
         const extraction = await callOpenAICompanyExtraction(msg.payload || {});
         console.log("[LEF][company AI extraction result]", extraction);
-        sendResponse({ ok: true, ...extraction });
+        return { ok: true, ...extraction };
       } catch (e) {
         console.log("[LEF][company save failed]", e);
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "GENERATION_FAILED"),
-        });
+        throw e;
       }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "GENERATE_FREE_PROMPT") {
-    (async () => {
+    },
+  },
+  GENERATE_FREE_PROMPT: {
+    errorCode: "GENERATION_FAILED",
+    includeDetails: true,
+    handler: async ({ msg }) => {
       emitUiStatus("Sending to LLM\u2026");
-      try {
-        const text = await callOpenAIFreePrompt(msg.payload || {});
-        sendResponse({ ok: true, text });
-      } catch (e) {
-        const details =
-          e && typeof e === "object" && e.details ? e.details : undefined;
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "GENERATION_FAILED", details),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "SUPABASE_AUTH_SIGNUP") {
-    (async () => {
-      try {
-        const result = await callSupabaseAuthSignup(msg?.payload || {});
-        sendResponse({
-          ok: true,
-          session: result.session || null,
-          message: result.message || "Signup successful.",
-        });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_AUTH_SIGNUP_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "SUPABASE_AUTH_LOGIN") {
-    (async () => {
-      try {
-        const session = await callSupabaseAuthLogin(msg?.payload || {});
-        sendResponse({ ok: true, session });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_AUTH_LOGIN_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "SUPABASE_AUTH_RESET_PASSWORD") {
-    (async () => {
-      try {
-        await callSupabaseAuthResetPassword(msg?.payload || {});
-        sendResponse({ ok: true });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_AUTH_RESET_PASSWORD_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "SUPABASE_AUTH_LOGOUT") {
-    (async () => {
-      try {
-        await callSupabaseAuthLogout();
-        sendResponse({ ok: true });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_AUTH_LOGOUT_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "SUPABASE_AUTH_GET_SESSION") {
-    (async () => {
-      try {
-        let session = await readSupabaseSessionFromStorage();
-        if (session && isSupabaseSessionExpired(session)) {
-          try {
-            session = await refreshSupabaseSession(session);
-          } catch (_e) {
-            await clearSupabaseSession();
-            session = null;
-          }
+      const text = await callOpenAIFreePrompt(msg.payload || {});
+      return { ok: true, text };
+    },
+  },
+  SUPABASE_AUTH_SIGNUP: {
+    errorCode: "SUPABASE_AUTH_SIGNUP_FAILED",
+    handler: async ({ msg }) => {
+      const result = await callSupabaseAuthSignup(msg?.payload || {});
+      return {
+        ok: true,
+        session: result.session || null,
+        message: result.message || "Signup successful.",
+      };
+    },
+  },
+  SUPABASE_AUTH_LOGIN: {
+    errorCode: "SUPABASE_AUTH_LOGIN_FAILED",
+    handler: async ({ msg }) => {
+      const session = await callSupabaseAuthLogin(msg?.payload || {});
+      return { ok: true, session };
+    },
+  },
+  SUPABASE_AUTH_RESET_PASSWORD: {
+    errorCode: "SUPABASE_AUTH_RESET_PASSWORD_FAILED",
+    handler: async ({ msg }) => {
+      await callSupabaseAuthResetPassword(msg?.payload || {});
+      return { ok: true };
+    },
+  },
+  SUPABASE_AUTH_LOGOUT: {
+    errorCode: "SUPABASE_AUTH_LOGOUT_FAILED",
+    handler: async () => {
+      await callSupabaseAuthLogout();
+      return { ok: true };
+    },
+  },
+  SUPABASE_AUTH_GET_SESSION: {
+    errorCode: "SUPABASE_AUTH_SESSION_FAILED",
+    handler: async () => {
+      let session = await readSupabaseSessionFromStorage();
+      if (session && isSupabaseSessionExpired(session)) {
+        try {
+          session = await refreshSupabaseSession(session);
+        } catch (_e) {
+          await clearSupabaseSession();
+          session = null;
         }
-        sendResponse({ ok: true, session });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_AUTH_SESSION_FAILED"),
-        });
       }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_UPSERT_GENERATED") {
-    (async () => {
+      return { ok: true, session };
+    },
+  },
+  DB_UPSERT_GENERATED: {
+    errorCode: "SUPABASE_UPSERT_FAILED",
+    handler: async ({ msg }) => {
       emitUiStatus("Communicating to database\u2026");
-      try {
-        await supabaseUpsertInvitation(msg.payload);
-        sendResponse({ ok: true });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_UPSERT_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_UPDATE_FIRST_MESSAGE") {
-    (async () => {
+      await LEF_SUPABASE_INVITATIONS.supabaseUpsertInvitation(msg.payload);
+      return { ok: true };
+    },
+  },
+  DB_UPDATE_FIRST_MESSAGE: {
+    errorCode: "SUPABASE_UPDATE_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Updating\u2026");
+      await LEF_SUPABASE_INVITATIONS.supabaseUpdateFirstMessage(msg.payload);
+      return { ok: true };
+    },
+  },
+  DB_MARK_STATUS: {
+    errorCode: "SUPABASE_UPDATE_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Communicating to database\u2026");
+      await LEF_SUPABASE_INVITATIONS.supabaseMarkStatus(msg.payload);
+      return { ok: true };
+    },
+  },
+  DB_MARK_FIRST_MESSAGE_SENT: {
+    errorCode: "SUPABASE_UPDATE_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Communicating to database\u2026");
+      await LEF_SUPABASE_INVITATIONS.supabaseMarkFirstMessageSent(
+        msg.payload || {},
+      );
+      return { ok: true };
+    },
+  },
+  DB_SET_STATUS_ONLY: {
+    errorCode: "SUPABASE_UPDATE_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Communicating to database\u2026");
+      await LEF_SUPABASE_INVITATIONS.supabaseSetStatusOnly(msg.payload);
+      return { ok: true };
+    },
+  },
+  DB_SET_ACCEPTED_AT_NOW: {
+    errorCode: "SUPABASE_UPDATE_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Communicating to database\u2026");
+      await LEF_SUPABASE_INVITATIONS.supabaseSetAcceptedAtNow(
+        msg.payload || {},
+      );
+      return { ok: true };
+    },
+  },
+  DB_CLEAR_ACCEPTED_AT: {
+    errorCode: "SUPABASE_UPDATE_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Communicating to database\u2026");
+      await LEF_SUPABASE_INVITATIONS.supabaseClearAcceptedAt(
+        msg.payload || {},
+      );
+      return { ok: true };
+    },
+  },
+  DB_INCREMENT_MESSAGE_COUNT: {
+    errorCode: "SUPABASE_UPDATE_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Updating\u2026");
+      await LEF_SUPABASE_INVITATIONS.supabaseIncrementMessageCount(
+        msg?.payload || {},
+      );
+      return { ok: true };
+    },
+  },
+  DB_SET_MESSAGE_COUNT: {
+    errorCode: "SUPABASE_UPDATE_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Updating\u2026");
+      await LEF_SUPABASE_INVITATIONS.supabaseSetMessageCount(
+        msg?.payload || {},
+      );
+      return { ok: true };
+    },
+  },
+  DB_UPDATE_PROFILE_DETAILS_ONLY: {
+    errorCode: "SUPABASE_UPDATE_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Updating\u2026");
+      await LEF_SUPABASE_INVITATIONS.supabaseUpdateProfileDetailsOnly(
+        msg.payload || {},
+      );
+      return { ok: true };
+    },
+  },
+  DB_UPDATE_PROFILE_FIELDS: {
+    errorCode: "SUPABASE_UPDATE_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Updating\u2026");
+      await LEF_SUPABASE_INVITATIONS.supabaseUpdateProfileFields(
+        msg.payload || {},
+      );
+      return { ok: true };
+    },
+  },
+  DB_GET_INVITATION: {
+    errorCode: "SUPABASE_GET_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Fetching\u2026");
+      const row = await LEF_SUPABASE_INVITATIONS.supabaseGetInvitationByLinkedinUrl(
+        msg?.payload?.linkedin_url,
+      );
+      return { ok: true, row };
+    },
+  },
+  DB_FIND_COMPANY_BY_NAME: {
+    errorCode: "SUPABASE_GET_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Fetching\u2026");
+      const company = await LEF_SUPABASE_COMPANY.supabaseFindCompanyByName(
+        msg?.payload || {},
+      );
+      return { ok: true, company };
+    },
+  },
+  DB_GET_COMPANY_BY_ID: {
+    errorCode: "SUPABASE_GET_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Fetching\u2026");
+      const company = await LEF_SUPABASE_COMPANY.supabaseGetCompanyById(
+        msg?.payload || {},
+      );
+      return { ok: true, company };
+    },
+  },
+  DB_GET_COMPANY_BY_LINKEDIN_ID: {
+    errorCode: "SUPABASE_GET_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Fetching\u2026");
+      const company = await LEF_SUPABASE_COMPANY.supabaseGetCompanyByLinkedinId(
+        msg?.payload || {},
+      );
+      return { ok: true, company };
+    },
+  },
+  DB_LIST_INVITATIONS_BY_COMPANY: {
+    errorCode: "SUPABASE_GET_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Fetching\u2026");
+      const rows = await LEF_SUPABASE_COMPANY.supabaseListInvitationsByCompany(
+        msg?.payload || {},
+      );
+      return { ok: true, rows };
+    },
+  },
+  DB_SEARCH_COMPANIES: {
+    errorCode: "SUPABASE_GET_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Fetching\u2026");
+      const companies = await LEF_SUPABASE_COMPANY.supabaseSearchCompanies(
+        msg?.payload || {},
+      );
+      return { ok: true, companies };
+    },
+  },
+  DB_SEARCH_UNLINKED_COMPANIES: {
+    errorCode: "SUPABASE_GET_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Fetching\u2026");
+      timingLog("db_search_unlinked_companies_called", {
+        term: normalizeProfileField(msg?.payload?.term),
+        limit: msg?.payload?.limit,
+      });
+      console.log("[LEF][company search]", {
+        ts: Date.now(),
+        term: normalizeProfileField(msg?.payload?.term),
+        limit: msg?.payload?.limit,
+      });
+      const companies = await LEF_SUPABASE_COMPANY.supabaseSearchUnlinkedCompanies(
+        msg?.payload || {},
+      );
+      return { ok: true, companies };
+    },
+  },
+  DB_CONFIRM_COMPANY_LINK: {
+    errorCode: "SUPABASE_UPDATE_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Updating\u2026");
+      await LEF_SUPABASE_COMPANY.supabaseConfirmCompanyLink(msg?.payload || {});
+      return { ok: true };
+    },
+  },
+  DB_UPSERT_COMPANY_PROFILE: {
+    errorCode: "SUPABASE_UPDATE_FAILED",
+    handler: async ({ msg }) => {
       emitUiStatus("Updating\u2026");
       try {
-        await LEF_SUPABASE_INVITATIONS.supabaseUpdateFirstMessage(msg.payload);
-        sendResponse({ ok: true });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_MARK_STATUS") {
-    (async () => {
-      emitUiStatus("Communicating to database\u2026");
-      try {
-        await LEF_SUPABASE_INVITATIONS.supabaseMarkStatus(msg.payload);
-        sendResponse({ ok: true });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_MARK_FIRST_MESSAGE_SENT") {
-    (async () => {
-      emitUiStatus("Communicating to database\u2026");
-      try {
-        await LEF_SUPABASE_INVITATIONS.supabaseMarkFirstMessageSent(
-          msg.payload || {},
-        );
-        sendResponse({ ok: true });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_SET_STATUS_ONLY") {
-    (async () => {
-      emitUiStatus("Communicating to database\u2026");
-      try {
-        await LEF_SUPABASE_INVITATIONS.supabaseSetStatusOnly(msg.payload);
-        sendResponse({ ok: true });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_SET_ACCEPTED_AT_NOW") {
-    (async () => {
-      emitUiStatus("Communicating to database\u2026");
-      try {
-        await LEF_SUPABASE_INVITATIONS.supabaseSetAcceptedAtNow(
-          msg.payload || {},
-        );
-        sendResponse({ ok: true });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_CLEAR_ACCEPTED_AT") {
-    (async () => {
-      emitUiStatus("Communicating to database\u2026");
-      try {
-        await LEF_SUPABASE_INVITATIONS.supabaseClearAcceptedAt(
-          msg.payload || {},
-        );
-        sendResponse({ ok: true });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_INCREMENT_MESSAGE_COUNT") {
-    (async () => {
-      emitUiStatus("Updating\u2026");
-      try {
-        await LEF_SUPABASE_INVITATIONS.supabaseIncrementMessageCount(
+        const existing = await LEF_SUPABASE_COMPANY.supabaseGetCompanyByLinkedinId(
           msg?.payload || {},
         );
-        sendResponse({ ok: true });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_SET_MESSAGE_COUNT") {
-    (async () => {
-      emitUiStatus("Updating\u2026");
-      try {
-        await LEF_SUPABASE_INVITATIONS.supabaseSetMessageCount(
-          msg?.payload || {},
-        );
-        sendResponse({ ok: true });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_UPDATE_PROFILE_DETAILS_ONLY") {
-    (async () => {
-      emitUiStatus("Updating\u2026");
-      try {
-        await LEF_SUPABASE_INVITATIONS.supabaseUpdateProfileDetailsOnly(
-          msg.payload || {},
-        );
-        sendResponse({ ok: true });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_UPDATE_PROFILE_FIELDS") {
-    (async () => {
-      emitUiStatus("Updating\u2026");
-      try {
-        await LEF_SUPABASE_INVITATIONS.supabaseUpdateProfileFields(
-          msg.payload || {},
-        );
-        sendResponse({ ok: true });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_GET_INVITATION") {
-    (async () => {
-      emitUiStatus("Fetching\u2026");
-      try {
-        const row =
-          await LEF_SUPABASE_INVITATIONS.supabaseGetInvitationByLinkedinUrl(
-            msg?.payload?.linkedin_url,
-          );
-        sendResponse({ ok: true, row });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_GET_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_FIND_COMPANY_BY_NAME") {
-    (async () => {
-      emitUiStatus("Fetching\u2026");
-      try {
-        const company = await LEF_SUPABASE_COMPANY.supabaseFindCompanyByName(
-          msg?.payload || {},
-        );
-        sendResponse({ ok: true, company });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_GET_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_GET_COMPANY_BY_ID") {
-    (async () => {
-      emitUiStatus("Fetching\u2026");
-      try {
-        const company = await LEF_SUPABASE_COMPANY.supabaseGetCompanyById(
-          msg?.payload || {},
-        );
-        sendResponse({ ok: true, company });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_GET_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_GET_COMPANY_BY_LINKEDIN_ID") {
-    (async () => {
-      emitUiStatus("Fetching\u2026");
-      try {
-        const company =
-          await LEF_SUPABASE_COMPANY.supabaseGetCompanyByLinkedinId(
-            msg?.payload || {},
-          );
-        sendResponse({ ok: true, company });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_GET_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_LIST_INVITATIONS_BY_COMPANY") {
-    (async () => {
-      emitUiStatus("Fetching\u2026");
-      try {
-        const rows =
-          await LEF_SUPABASE_COMPANY.supabaseListInvitationsByCompany(
-            msg?.payload || {},
-          );
-        sendResponse({ ok: true, rows });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_GET_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_SEARCH_COMPANIES") {
-    (async () => {
-      emitUiStatus("Fetching\u2026");
-      try {
-        const companies = await LEF_SUPABASE_COMPANY.supabaseSearchCompanies(
-          msg?.payload || {},
-        );
-        sendResponse({ ok: true, companies });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_GET_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_SEARCH_UNLINKED_COMPANIES") {
-    (async () => {
-      emitUiStatus("Fetching\u2026");
-      try {
-        timingLog("db_search_unlinked_companies_called", {
-          term: normalizeProfileField(msg?.payload?.term),
-          limit: msg?.payload?.limit,
-        });
-        console.log("[LEF][company search]", {
-          ts: Date.now(),
-          term: normalizeProfileField(msg?.payload?.term),
-          limit: msg?.payload?.limit,
-        });
-        const companies =
-          await LEF_SUPABASE_COMPANY.supabaseSearchUnlinkedCompanies(
-            msg?.payload || {},
-          );
-        sendResponse({ ok: true, companies });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_GET_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_CONFIRM_COMPANY_LINK") {
-    (async () => {
-      emitUiStatus("Updating\u2026");
-      try {
-        await LEF_SUPABASE_COMPANY.supabaseConfirmCompanyLink(
-          msg?.payload || {},
-        );
-        sendResponse({ ok: true });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_UPSERT_COMPANY_PROFILE") {
-    (async () => {
-      emitUiStatus("Updating\u2026");
-      try {
-        const existing =
-          await LEF_SUPABASE_COMPANY.supabaseGetCompanyByLinkedinId(
-            msg?.payload || {},
-          );
         const company = await LEF_SUPABASE_COMPANY.supabaseUpsertCompanyProfile(
           msg?.payload || {},
         );
@@ -1275,20 +1008,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             linkedin_id: normalizeLinkedinCompanyUrl(msg?.payload?.linkedin_id),
           },
         );
-        sendResponse({ ok: true, company });
+        return { ok: true, company };
       } catch (e) {
         console.log("[LEF][company save failed]", e);
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
-        });
+        throw e;
       }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_UPDATE_COMPANY_BY_ID") {
-    (async () => {
+    },
+  },
+  DB_UPDATE_COMPANY_BY_ID: {
+    errorCode: "SUPABASE_UPDATE_FAILED",
+    handler: async ({ msg }) => {
       emitUiStatus("Updating\u2026");
       try {
         const company = await LEF_SUPABASE_COMPANY.supabaseUpdateCompanyById(
@@ -1302,319 +1031,232 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             msg?.payload?.linkedin_id,
           ),
         });
-        sendResponse({ ok: true, company });
+        return { ok: true, company };
       } catch (e) {
         console.log("[LEF][company save failed]", e);
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
-        });
+        throw e;
       }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "GET_PROMPTS") {
-    (async () => {
+    },
+  },
+  GET_PROMPTS: {
+    errorCode: "SUPABASE_GET_FAILED",
+    handler: async () => {
       emitUiStatus("Fetching\u2026");
-      try {
-        const prompts = await LEF_SUPABASE_PROMPTS.supabaseGetPrompts();
-        sendResponse({ ok: true, prompts });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_GET_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "CREATE_PROMPT") {
-    (async () => {
+      const prompts = await LEF_SUPABASE_PROMPTS.supabaseGetPrompts();
+      return { ok: true, prompts };
+    },
+  },
+  CREATE_PROMPT: {
+    errorCode: "SUPABASE_UPSERT_FAILED",
+    handler: async ({ msg }) => {
       emitUiStatus("Updating\u2026");
-      try {
-        const prompt = await LEF_SUPABASE_PROMPTS.supabaseCreatePrompt(
-          msg?.payload || {},
-        );
-        sendResponse({ ok: true, prompt });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_UPSERT_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "UPDATE_PROMPT") {
-    (async () => {
+      const prompt = await LEF_SUPABASE_PROMPTS.supabaseCreatePrompt(
+        msg?.payload || {},
+      );
+      return { ok: true, prompt };
+    },
+  },
+  UPDATE_PROMPT: {
+    errorCode: "SUPABASE_UPDATE_FAILED",
+    handler: async ({ msg }) => {
       emitUiStatus("Updating\u2026");
-      try {
-        const prompt = await LEF_SUPABASE_PROMPTS.supabaseUpdatePrompt(
-          msg?.payload || {},
-        );
-        sendResponse({ ok: true, prompt });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "UPDATE_PROMPT_NAME") {
-    (async () => {
+      const prompt = await LEF_SUPABASE_PROMPTS.supabaseUpdatePrompt(
+        msg?.payload || {},
+      );
+      return { ok: true, prompt };
+    },
+  },
+  UPDATE_PROMPT_NAME: {
+    errorCode: "SUPABASE_UPDATE_FAILED",
+    handler: async ({ msg }) => {
       emitUiStatus("Updating\u2026");
-      try {
-        const prompt = await LEF_SUPABASE_PROMPTS.supabaseUpdatePromptName(
-          msg?.payload || {},
-        );
-        sendResponse({ ok: true, prompt });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_LIST_CAMPAIGNS") {
-    (async () => {
+      const prompt = await LEF_SUPABASE_PROMPTS.supabaseUpdatePromptName(
+        msg?.payload || {},
+      );
+      return { ok: true, prompt };
+    },
+  },
+  DB_LIST_CAMPAIGNS: {
+    errorCode: "SUPABASE_GET_FAILED",
+    handler: async () => {
       emitUiStatus("Fetching\u2026");
-      try {
-        const campaign_rows =
-          await LEF_SUPABASE_CAMPAIGNS.supabaseListCampaigns();
-        const campaigns = campaign_rows
-          .map((row) => normalizeProfileField(row?.campaign_name))
-          .filter(Boolean);
-        sendResponse({ ok: true, campaigns, campaign_rows });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_GET_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_CREATE_CAMPAIGN") {
-    (async () => {
+      const campaign_rows = await LEF_SUPABASE_CAMPAIGNS.supabaseListCampaigns();
+      const campaigns = campaign_rows
+        .map((row) => normalizeProfileField(row?.campaign_name))
+        .filter(Boolean);
+      return { ok: true, campaigns, campaign_rows };
+    },
+  },
+  DB_CREATE_CAMPAIGN: {
+    errorCode: "SUPABASE_UPSERT_FAILED",
+    handler: async ({ msg }) => {
       emitUiStatus("Updating\u2026");
-      try {
-        const campaign = await LEF_SUPABASE_CAMPAIGNS.supabaseCreateCampaign(
-          msg?.payload || {},
-        );
-        sendResponse({ ok: true, campaign });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_UPSERT_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_UPDATE_CAMPAIGN") {
-    (async () => {
+      const campaign = await LEF_SUPABASE_CAMPAIGNS.supabaseCreateCampaign(
+        msg?.payload || {},
+      );
+      return { ok: true, campaign };
+    },
+  },
+  DB_UPDATE_CAMPAIGN: {
+    errorCode: "SUPABASE_UPDATE_FAILED",
+    handler: async ({ msg }) => {
       emitUiStatus("Updating\u2026");
-      try {
-        const campaign = await LEF_SUPABASE_CAMPAIGNS.supabaseUpdateCampaign(
-          msg?.payload || {},
-        );
-        sendResponse({ ok: true, campaign });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_LIST_PERSON_CAMPAIGNS") {
-    (async () => {
+      const campaign = await LEF_SUPABASE_CAMPAIGNS.supabaseUpdateCampaign(
+        msg?.payload || {},
+      );
+      return { ok: true, campaign };
+    },
+  },
+  DB_LIST_PERSON_CAMPAIGNS: {
+    errorCode: "SUPABASE_GET_FAILED",
+    handler: async ({ msg }) => {
       emitUiStatus("Fetching\u2026");
-      try {
-        const rows =
-          await LEF_SUPABASE_CAMPAIGNS.supabaseListPersonCampaigns(
-            msg?.payload || {},
-          );
-        sendResponse({ ok: true, rows });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_GET_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_LINK_PERSON_CAMPAIGN") {
-    (async () => {
+      const rows = await LEF_SUPABASE_CAMPAIGNS.supabaseListPersonCampaigns(
+        msg?.payload || {},
+      );
+      return { ok: true, rows };
+    },
+  },
+  DB_LINK_PERSON_CAMPAIGN: {
+    errorCode: "SUPABASE_UPSERT_FAILED",
+    handler: async ({ msg }) => {
       emitUiStatus("Updating\u2026");
-      try {
-        await LEF_SUPABASE_CAMPAIGNS.supabaseLinkPersonCampaign(
-          msg?.payload || {},
-        );
-        sendResponse({ ok: true });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_UPSERT_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_UNLINK_PERSON_CAMPAIGN") {
-    (async () => {
+      await LEF_SUPABASE_CAMPAIGNS.supabaseLinkPersonCampaign(
+        msg?.payload || {},
+      );
+      return { ok: true };
+    },
+  },
+  DB_UNLINK_PERSON_CAMPAIGN: {
+    errorCode: "SUPABASE_UPDATE_FAILED",
+    handler: async ({ msg }) => {
       emitUiStatus("Updating\u2026");
-      try {
-        await LEF_SUPABASE_CAMPAIGNS.supabaseUnlinkPersonCampaign(
-          msg?.payload || {},
-        );
-        sendResponse({ ok: true });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_LIST_INVITATIONS_OVERVIEW") {
-    (async () => {
+      await LEF_SUPABASE_CAMPAIGNS.supabaseUnlinkPersonCampaign(
+        msg?.payload || {},
+      );
+      return { ok: true };
+    },
+  },
+  DB_LIST_INVITATIONS_OVERVIEW: {
+    errorCode: "SUPABASE_GET_FAILED",
+    handler: async ({ msg }) => {
       emitUiStatus("Fetching\u2026");
-      try {
-        const result =
-          await LEF_SUPABASE_OVERVIEW.supabaseListInvitationsOverview(
-            msg?.payload || {},
-          );
-        sendResponse({ ok: true, rows: result.rows, total: result.total });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_GET_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_LIST_COMPANIES") {
-    (async () => {
+      const result = await LEF_SUPABASE_OVERVIEW.supabaseListInvitationsOverview(
+        msg?.payload || {},
+      );
+      return { ok: true, rows: result.rows, total: result.total };
+    },
+  },
+  DB_LIST_COMPANIES: {
+    errorCode: "SUPABASE_GET_FAILED",
+    handler: async ({ msg }) => {
       emitUiStatus("Fetching\u2026");
-      try {
-        const result = await LEF_SUPABASE_COMPANY.supabaseListCompaniesOverview(
-          msg?.payload || {},
+      const result = await LEF_SUPABASE_COMPANY.supabaseListCompaniesOverview(
+        msg?.payload || {},
+      );
+      return { ok: true, rows: result.rows, total: result.total };
+    },
+  },
+  DB_ARCHIVE_COMPANY: {
+    errorCode: "SUPABASE_UPDATE_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Updating\u2026");
+      await LEF_SUPABASE_COMPANY.supabaseArchiveCompany(msg?.payload || {});
+      return { ok: true };
+    },
+  },
+  DB_ARCHIVE_INVITATION: {
+    errorCode: "SUPABASE_UPDATE_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Updating\u2026");
+      await LEF_SUPABASE_INVITATIONS.supabaseArchiveInvitation(
+        msg?.payload || {},
+      );
+      return { ok: true };
+    },
+  },
+  DB_SET_ARCHIVED: {
+    errorCode: "SUPABASE_UPDATE_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Updating\u2026");
+      await LEF_SUPABASE_INVITATIONS.supabaseSetArchived(msg?.payload || {});
+      return { ok: true };
+    },
+  },
+  SP_REQUEST_REFRESH_SIGNAL: {
+    errorCode: "UNKNOWN_ERROR",
+    handler: async () => {
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+      const url = tab?.url || "";
+      if (
+        tab?.id &&
+        globalThis.LEFNavigationWatcher?.scheduleSidePanelRefresh &&
+        isLinkedInProfileLikeUrl(url)
+      ) {
+        globalThis.LEFNavigationWatcher.scheduleSidePanelRefresh(
+          tab.id,
+          url,
+          "sidepanel.request",
+          { force: true },
         );
-        sendResponse({ ok: true, rows: result.rows, total: result.total });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_GET_FAILED"),
-        });
       }
-    })();
-    return true;
+      return { ok: true };
+    },
+  },
+};
+
+function executeRoute({ routes, msg, sender, sendResponse }) {
+  const req = msg || {};
+  debug("onMessage:", msg?.type);
+  console.log("[LEF][chat] received type", req.type);
+
+  const route = routes[msg?.type];
+  if (!route || typeof route.handler !== "function") {
+    console.error("[LEF][chat] unknown type", req.type);
+    sendResponse({
+      ok: false,
+      error: normalizeError("unknown_message_type", "UNKNOWN_MESSAGE_TYPE"),
+    });
+    return false;
   }
 
-  if (msg?.type === "DB_ARCHIVE_COMPANY") {
-    (async () => {
-      emitUiStatus("Updating\u2026");
-      try {
-        await LEF_SUPABASE_COMPANY.supabaseArchiveCompany(msg?.payload || {});
-        sendResponse({ ok: true });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
-        });
+  (async () => {
+    try {
+      const out = await route.handler({
+        msg,
+        sender,
+        payload: msg?.payload || {},
+      });
+      if (out && typeof out === "object" && "ok" in out) {
+        sendResponse(out);
+        return;
       }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "DB_ARCHIVE_INVITATION") {
-    (async () => {
-      emitUiStatus("Updating\u2026");
-      try {
-        await LEF_SUPABASE_INVITATIONS.supabaseArchiveInvitation(msg?.payload || {});
-        sendResponse({ ok: true });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
-        });
+      if (out && typeof out === "object") {
+        sendResponse({ ok: true, ...out });
+        return;
       }
-    })();
-    return true;
-  }
+      sendResponse({ ok: true, data: out });
+    } catch (e) {
+      const details =
+        route.includeDetails && e && typeof e === "object" ? e.details : undefined;
+      sendResponse({
+        ok: false,
+        error: normalizeError(e, route.errorCode || "UNKNOWN_ERROR", details),
+      });
+    }
+  })();
 
-  if (msg?.type === "DB_SET_ARCHIVED") {
-    (async () => {
-      emitUiStatus("Updating\u2026");
-      try {
-        await LEF_SUPABASE_INVITATIONS.supabaseSetArchived(msg?.payload || {});
-        sendResponse({ ok: true });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "SUPABASE_UPDATE_FAILED"),
-        });
-      }
-    })();
-    return true;
-  }
+  return true;
+}
 
-  if (msg?.type === "SP_REQUEST_REFRESH_SIGNAL") {
-    (async () => {
-      try {
-        const [tab] = await chrome.tabs.query({
-          active: true,
-          currentWindow: true,
-        });
-        const url = tab?.url || "";
-        if (
-          tab?.id &&
-          globalThis.LEFNavigationWatcher?.scheduleSidePanelRefresh &&
-          isLinkedInProfileLikeUrl(url)
-        ) {
-          globalThis.LEFNavigationWatcher.scheduleSidePanelRefresh(
-            tab.id,
-            url,
-            "sidepanel.request",
-            { force: true },
-          );
-        }
-        sendResponse({ ok: true });
-      } catch (e) {
-        sendResponse({
-          ok: false,
-          error: normalizeError(e, "UNKNOWN_ERROR"),
-        });
-      }
-    })();
-    return true;
-  }
-
-  console.error("[LEF][chat] unknown type", req.type);
-  sendResponse({
-    ok: false,
-    error: normalizeError("unknown_message_type", "UNKNOWN_MESSAGE_TYPE"),
-  });
-  return false;
-});
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) =>
+  executeRoute({
+    routes: ROUTES,
+    msg,
+    sender,
+    sendResponse,
+  }),
+);

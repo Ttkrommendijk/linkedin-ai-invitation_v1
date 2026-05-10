@@ -22,6 +22,7 @@ function initPromptsModule(deps = {}) {
   let promptRowsCache = [];
   let selectedPromptId = "";
   let originalPromptText = "";
+  let promptEventsBound = false;
 
   // helpers
   function normalizePromptText(value) {
@@ -226,6 +227,8 @@ function initPromptsModule(deps = {}) {
 
   // event listeners
   function bindPromptManagementEvents() {
+    if (promptEventsBound) return;
+    promptEventsBound = true;
     setNewPromptRowVisible(false);
     setRenamePromptRowVisible(false);
     updateRenamePromptButtonState();

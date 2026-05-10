@@ -1,56 +1,178 @@
-const focusEl = document.getElementById("focus");
-const messageLanguageEl = document.getElementById("messageLanguage");
-const inviteLanguageEl = document.getElementById("inviteLanguage");
-const freePromptLanguageEl = document.getElementById("freePromptLanguage");
-const campaignSelectEl = document.getElementById("campaignSelect");
-const renameCampaignBtnEl = document.getElementById("renameCampaign");
-const renameCampaignRowEl = document.getElementById("renameCampaignRow");
-const renameCampaignNameEl = document.getElementById("renameCampaignName");
-const saveRenameCampaignBtnEl = document.getElementById("saveRenameCampaign");
-const cancelRenameCampaignBtnEl = document.getElementById("cancelRenameCampaign");
-const newCampaignRowEl = document.getElementById("newCampaignRow");
-const toggleNewCampaignBtnEl = document.getElementById("toggleNewCampaign");
-const newCampaignNameEl = document.getElementById("newCampaignName");
-const addCampaignBtnEl = document.getElementById("addCampaign");
-const cancelNewCampaignBtnEl = document.getElementById("cancelNewCampaign");
-const linkedCampaignsListEl = document.getElementById("linkedCampaignsList");
-const firstMessageAdditionalPromptEl = document.getElementById(
-  "firstMessageAdditionalPrompt",
-);
-const generateFirstMessageBtnEl = document.getElementById(
-  "generateFirstMessage",
-);
-const markMessageSentBtnEl =
-  document.getElementById("markFirstMessageSent") ||
-  document.getElementById("markMessageSent");
-const copyFirstMessageBtnEl = document.getElementById("copyFirstMessage");
-const saveFirstMessageIconEl = document.getElementById("saveFirstMessageIcon");
-const initialMessageSectionEl = document.getElementById(
-  "initialMessageSection",
-);
-const firstMessagePreviewSectionEl = document.getElementById(
-  "firstMessagePreviewSection",
-);
-const acceptedModeEl = document.getElementById("acceptedMode");
-const firstMessageSentModeEl = document.getElementById("firstMessageSentMode");
-const followupSectionEl = document.getElementById("followupSection");
-const followupObjectiveEl = document.getElementById("followupObjective");
-const includeStrategyEl = document.getElementById("includeStrategy");
-const generateFollowupBtnEl = document.getElementById("generateFollowup");
-const footerStatusEl = document.getElementById("commFooterText");
+// popup.js is startup/orchestration only.
+// Business logic should live in popup controllers.
+// Do not add new flow logic here unless it is startup wiring.
+const POPUP_DOM = globalThis.PopupDom;
+if (!POPUP_DOM || typeof POPUP_DOM !== "object") {
+  throw new Error("PopupDom must be loaded before popup.js.");
+}
+const {
+  focusEl,
+  messageLanguageEl,
+  inviteLanguageEl,
+  freePromptLanguageEl,
+  campaignSelectEl,
+  renameCampaignBtnEl,
+  renameCampaignRowEl,
+  renameCampaignNameEl,
+  saveRenameCampaignBtnEl,
+  cancelRenameCampaignBtnEl,
+  newCampaignRowEl,
+  toggleNewCampaignBtnEl,
+  newCampaignNameEl,
+  addCampaignBtnEl,
+  cancelNewCampaignBtnEl,
+  linkedCampaignsListEl,
+  firstMessageAdditionalPromptEl,
+  generateFirstMessageBtnEl,
+  markMessageSentBtnEl,
+  copyFirstMessageBtnEl,
+  saveFirstMessageIconEl,
+  initialMessageSectionEl,
+  firstMessagePreviewSectionEl,
+  acceptedModeEl,
+  firstMessageSentModeEl,
+  followupSectionEl,
+  followupObjectiveEl,
+  includeStrategyEl,
+  generateFollowupBtnEl,
+  footerStatusEl,
+  followupPreviewEl,
+  copyFollowupBtnEl,
+  freePromptInputEl,
+  freePromptIncludeProfileEl,
+  freePromptIncludeStrategyEl,
+  generateFreePromptBtnEl,
+  freePromptPreviewEl,
+  copyFreePromptBtnEl,
+  previewEl,
+  firstMessagePreviewEl,
+  copyInviteIconEl,
+  saveInviteBtnEl,
+  openSidePanelBtnEl,
+  detailPersonNameEl,
+  detailCompanyEl,
+  detailEmployeeNumberEl,
+  detailHeadlineEl,
+  detailCommentsEl,
+  detailCityEl,
+  detailItMembersEl,
+  detailCompanyLabelEl,
+  detailEmployeeNumberLabelEl,
+  detailHeadlineLabelEl,
+  detailCommentsLabelEl,
+  detailCityLabelEl,
+  detailItMembersLabelEl,
+  companyExistingLinkSectionEl,
+  companyExistingLinkInputEl,
+  companyExistingLinkStatusEl,
+  companyExistingLinkButtonEl,
+  companyExistingLinkOptionsEl,
+  companyPeopleSectionEl,
+  companyPeopleListEl,
+  companyCampaignControlsEl,
+  companyLinkedCampaignsListEl,
+  companyCampaignSelectEl,
+  companyRenameCampaignBtnEl,
+  companyRenameCampaignRowEl,
+  companyRenameCampaignNameEl,
+  companySaveRenameCampaignBtnEl,
+  companyCancelRenameCampaignBtnEl,
+  companyToggleNewCampaignBtnEl,
+  companyNewCampaignRowEl,
+  companyNewCampaignNameEl,
+  companyAddCampaignBtnEl,
+  companyCancelNewCampaignBtnEl,
+  enrichProfileBtnEl,
+  editProfileBtnEl,
+  saveProfileFieldsBtnEl,
+  cancelProfileEditBtnEl,
+  acceptCompanySuggestionBtnEl,
+  companyLinkedRowEl,
+  companyLinkedNameEl,
+  companyLinkedEmployeeNumberEl,
+  companyLinkSearchInputEl,
+  companyLinkedIndicatorEl,
+  companyLinkSearchOptionsEl,
+  companyQuickLinkBtn,
+  companySuggestionWarningEl,
+  personNotRegisteredStateEl,
+  companyUrlMismatchBannerEl,
+  campaignGroupEl,
+  campaignDividerEl,
+  statusDividerEl,
+  detailTabsDividerEl,
+  detailTabsRowEl,
+  statusStepperEl,
+  stepRegisterEl,
+  stepInvitedEl,
+  stepAcceptedEl,
+  stepFirstMessageSentEl,
+  stepperUnderlayEl,
+  messageCountBadgeEl,
+  messageCountControlsEl,
+  messageCountDecrementEl,
+  messageCountIncrementEl,
+  stepMessageRespondedEl,
+  detailInviteSectionEl,
+  detailMessageMountEl,
+  tabFreePromptEl,
+  tabMainBtn,
+  tabMessageBtn,
+  tabOverviewBtn,
+  tabConfigBtn,
+  tabSupabaseAuthBtn,
+  tabMain,
+  tabMessage,
+  tabOverview,
+  tabConfig,
+  tabSupabaseAuth,
+  configGeneralTabBtnEl,
+  configSupabaseTabBtnEl,
+  configGeneralPanelEl,
+  authInnerSignupBtnEl,
+  authInnerLoginBtnEl,
+  supabaseAuthFormsEl,
+  authSignupPanelEl,
+  authLoginPanelEl,
+  supabaseSignupNameEl,
+  supabaseSignupEmailEl,
+  supabaseSignupPasswordEl,
+  supabaseSignupBtnEl,
+  supabaseLoginEmailEl,
+  supabaseLoginPasswordEl,
+  supabaseLoginBtnEl,
+  supabaseResetPasswordBtnEl,
+  supabaseLoggedInPanelEl,
+  supabaseUserEmailEl,
+  supabaseLogoutBtnEl,
+  filterCampaignEl,
+  overviewArchivedFilterEl,
+  overviewStatusFilterEl,
+  filterAcceptedEl,
+  overviewSearchEl,
+  overviewSearchClearBtnEl,
+  overviewTbodyEl,
+  overviewPageSizeEl,
+  overviewPrevBtnEl,
+  overviewNextBtnEl,
+  overviewCountLabelEl,
+  overviewTableEl,
+  companyOverviewTableEl,
+  listPersonsTabBtnEl,
+  listCompaniesTabBtnEl,
+  personsListPanelEl,
+  companiesListPanelEl,
+  companyArchivedFilterEl,
+  companyCampaignFilterEl,
+  companySearchEl,
+  companySearchClearBtnEl,
+  companyOverviewTbodyEl,
+  companyOverviewPageSizeEl,
+  companyOverviewPrevBtnEl,
+  companyOverviewNextBtnEl,
+  companyOverviewCountLabelEl,
+} = POPUP_DOM;
 // DO NOT write to .textContent directly; use setFooterStatus()
-const followupPreviewEl = document.getElementById("followupPreview");
-const copyFollowupBtnEl = document.getElementById("copyFollowup");
-const freePromptInputEl = document.getElementById("freePromptInput");
-const freePromptIncludeProfileEl = document.getElementById(
-  "freePromptIncludeProfile",
-);
-const freePromptIncludeStrategyEl = document.getElementById(
-  "freePromptIncludeStrategy",
-);
-const generateFreePromptBtnEl = document.getElementById("generateFreePrompt");
-const freePromptPreviewEl = document.getElementById("freePromptPreview");
-const copyFreePromptBtnEl = document.getElementById("copyFreePrompt");
 
 const EMOJI_CHECK = "\u2705";
 const SYMBOL_ELLIPSIS = "\u2026";
@@ -91,8 +213,14 @@ const UI_TEXT = {
   lifecycleFirstMessageSent: "First message sent",
   lifecycleInDatabase: "In database",
 };
-const STORAGE_KEY_MESSAGE_LANGUAGE = "message_language";
-const STORAGE_KEY_FREE_PROMPT_LANGUAGE = "free_prompt_language";
+const POPUP_MESSAGE_TYPES = globalThis.PopupMessageTypes;
+const POPUP_STORAGE_KEYS = globalThis.PopupStorageKeys;
+const POPUP_STATUS_CONSTANTS = globalThis.PopupStatusConstants;
+if (!POPUP_MESSAGE_TYPES || !POPUP_STORAGE_KEYS || !POPUP_STATUS_CONSTANTS) {
+  throw new Error("Popup shared constants must be loaded before popup modules.");
+}
+const STORAGE_KEY_MESSAGE_LANGUAGE = POPUP_STORAGE_KEYS.messageLanguage;
+const STORAGE_KEY_FREE_PROMPT_LANGUAGE = POPUP_STORAGE_KEYS.freePromptLanguage;
 const STORAGE_KEY_LAST_ACTIVE_CAMPAIGN = "last_active_campaign";
 const STORAGE_KEY_LIST_FILTERS = "lef_list_filters_v1";
 const STORAGE_KEY_LIST_COLUMN_WIDTHS = "lef_list_column_widths_v1";
@@ -106,302 +234,75 @@ const DEFAULT_NAV_PACING_CONFIG = Object.freeze({
   quiet_reset_ms: 12000,
 });
 const SUPPORTED_LANGUAGES = ["Portuguese", "English", "Dutch", "Spanish"];
-const LEF_UTILS_SOURCE = globalThis.LEFUtils;
-if (
-  (!LEF_UTILS_SOURCE || typeof LEF_UTILS_SOURCE !== "object") &&
-  !globalThis.__LEFUTILS_MISSING_WARNED__
-) {
-  globalThis.__LEFUTILS_MISSING_WARNED__ = true;
-  console.warn("[lefutils] not found; using local fallbacks");
+const POPUP_UTILS = globalThis.PopupUtils;
+if (!POPUP_UTILS || typeof POPUP_UTILS !== "object") {
+  throw new Error("PopupUtils must be loaded before popup.js.");
 }
-const LEF_UTILS =
-  LEF_UTILS_SOURCE && typeof LEF_UTILS_SOURCE === "object"
-    ? LEF_UTILS_SOURCE
-    : {};
+const PopupLogger = globalThis.PopupLogger;
+if (!PopupLogger || typeof PopupLogger !== "object") {
+  throw new Error("PopupLogger must be loaded before popup.js.");
+}
+const LEF_UTILS = POPUP_UTILS.LEF_UTILS || globalThis.LEFUtils || {};
+const PopupState = globalThis.PopupState;
+if (!PopupState || typeof PopupState !== "object") {
+  throw new Error("PopupState must be loaded before popup.js.");
+}
+const PopupLifecycleController = globalThis.PopupLifecycleController;
+if (!PopupLifecycleController || typeof PopupLifecycleController !== "object") {
+  throw new Error("PopupLifecycleController must be loaded before popup.js.");
+}
+const PopupConfigController = globalThis.PopupConfigController;
+if (!PopupConfigController || typeof PopupConfigController !== "object") {
+  throw new Error("PopupConfigController must be loaded before popup.js.");
+}
+const PopupChatController = globalThis.PopupChatController;
+if (!PopupChatController || typeof PopupChatController !== "object") {
+  throw new Error("PopupChatController must be loaded before popup.js.");
+}
+const PopupMessageController = globalThis.PopupMessageController;
+if (!PopupMessageController || typeof PopupMessageController !== "object") {
+  throw new Error("PopupMessageController must be loaded before popup.js.");
+}
+const PopupProfileController = globalThis.PopupProfileController;
+if (!PopupProfileController || typeof PopupProfileController !== "object") {
+  throw new Error("PopupProfileController must be loaded before popup.js.");
+}
+const PopupInvitationController = globalThis.PopupInvitationController;
+if (!PopupInvitationController || typeof PopupInvitationController !== "object") {
+  throw new Error("PopupInvitationController must be loaded before popup.js.");
+}
 const DEBUG_EMPTY_STATE = false;
-function safeTrimFallback(v) {
-  return v == null ? "" : String(v).trim();
-}
-function normalizeWhitespaceFallback(v) {
-  return safeTrimFallback(v).replace(/\s+/g, " ");
-}
-function sanitizeHeadlineJobTitleFallback(v) {
-  return normalizeWhitespaceFallback(v);
-}
 const safeTrim =
-  typeof LEF_UTILS.safeTrim === "function"
-    ? LEF_UTILS.safeTrim
-    : safeTrimFallback;
+  typeof POPUP_UTILS.safeTrim === "function"
+    ? POPUP_UTILS.safeTrim
+    : (value) => (value == null ? "" : String(value).trim());
 const normalizeWhitespace =
-  typeof LEF_UTILS.normalizeWhitespace === "function"
-    ? LEF_UTILS.normalizeWhitespace
-    : normalizeWhitespaceFallback;
+  typeof POPUP_UTILS.normalizeWhitespace === "function"
+    ? POPUP_UTILS.normalizeWhitespace
+    : (value) => safeTrim(value).replace(/\s+/g, " ");
 const sanitizeHeadlineJobTitle =
-  typeof LEF_UTILS.sanitizeHeadlineJobTitle === "function"
-    ? LEF_UTILS.sanitizeHeadlineJobTitle
-    : sanitizeHeadlineJobTitleFallback;
+  typeof POPUP_UTILS.sanitizeHeadlineJobTitle === "function"
+    ? POPUP_UTILS.sanitizeHeadlineJobTitle
+    : normalizeWhitespace;
 const sendRuntimeMessage =
-  typeof LEF_UTILS.sendRuntimeMessage === "function"
-    ? LEF_UTILS.sendRuntimeMessage
-    : (type, payload = {}, options = {}) => {
-        const timeoutMs =
-          Number.isFinite(options?.timeoutMs) && options.timeoutMs > 0
-            ? options.timeoutMs
-            : 20000;
-        return new Promise((resolve) => {
-          let settled = false;
-          const done = (result) => {
-            if (settled) return;
-            settled = true;
-            clearTimeout(timeoutId);
-            resolve(result);
-          };
-          const timeoutId = setTimeout(() => {
-            console.error(`[msg] ${type} failed: timeout`);
-            done({ ok: false, error: "timeout", data: null });
-          }, timeoutMs);
-          try {
-            chrome.runtime.sendMessage(
-              {
-                type,
-                ...(payload && typeof payload === "object" ? payload : {}),
-              },
-              (response) => {
-                const runtimeError = chrome.runtime?.lastError;
-                if (runtimeError) {
-                  const errorText = String(
-                    runtimeError.message || runtimeError,
-                  );
-                  console.error(`[msg] ${type} failed: ${errorText}`);
-                  done({ ok: false, error: errorText, data: null });
-                  return;
-                }
-                if (response?.ok === false || response?.error) {
-                  const errorText =
-                    typeof response?.error === "string"
-                      ? response.error
-                      : response?.error?.message || "unknown error";
-                  console.error(`[msg] ${type} failed: ${errorText}`);
-                  done({ ok: false, error: errorText, data: response || null });
-                  return;
-                }
-                done({ ok: true, data: response });
-              },
-            );
-          } catch (e) {
-            const errorText = e instanceof Error ? e.message : String(e || "");
-            done({ ok: false, error: errorText, data: null });
-          }
-        });
-      };
+  typeof POPUP_UTILS.sendRuntimeMessage === "function"
+    ? POPUP_UTILS.sendRuntimeMessage
+    : LEF_UTILS.sendRuntimeMessage;
 const debugLog =
-  typeof LEF_UTILS.debugLog === "function" ? LEF_UTILS.debugLog : () => {};
-const IS_SIDE_PANEL_CONTEXT = (() => {
-  try {
-    return (
-      window.location.pathname.includes("sidepanel.html") ||
-      window.top.location.pathname.includes("sidepanel.html")
-    );
-  } catch (_e) {
-    return window.location.pathname.includes("sidepanel.html");
-  }
-})();
+  typeof POPUP_UTILS.debugLog === "function" ? POPUP_UTILS.debugLog : () => {};
+const IS_SIDE_PANEL_CONTEXT =
+  typeof POPUP_UTILS.isSidePanelContext === "function"
+    ? POPUP_UTILS.isSidePanelContext()
+    : false;
 
 function debug(...args) {
   debugLog(...args);
 }
 
-const previewEl = document.getElementById("preview");
-const firstMessagePreviewEl = document.getElementById("firstMessagePreview");
-const copyInviteIconEl = document.getElementById("copyInviteIcon");
-const saveInviteBtnEl = document.getElementById("saveInviteBtn");
-const openSidePanelBtnEl = document.getElementById("openSidePanel");
-const detailPersonNameEl = document.getElementById("detailPersonName");
-const detailCompanyEl = document.getElementById("detailCompany");
-const detailEmployeeNumberEl = document.getElementById("detailEmployeeNumber");
-const detailHeadlineEl = document.getElementById("detailHeadline");
-const detailCommentsEl = document.getElementById("detailComments");
-const detailCityEl = document.getElementById("detailCity");
-const detailItMembersEl = document.getElementById("detailItMembers");
-const detailCompanyLabelEl = document.getElementById("detailCompanyLabel");
-const detailEmployeeNumberLabelEl = document.getElementById(
-  "detailEmployeeNumberLabel",
-);
-const detailHeadlineLabelEl = document.getElementById("detailHeadlineLabel");
-const detailCommentsLabelEl = document.getElementById("detailCommentsLabel");
-const detailCityLabelEl = document.getElementById("detailCityLabel");
-const detailItMembersLabelEl = document.getElementById("detailItMembersLabel");
-const companyExistingLinkSectionEl = document.getElementById(
-  "companyExistingLinkSection",
-);
-const companyExistingLinkInputEl = document.getElementById(
-  "companyExistingLinkInput",
-);
-const companyExistingLinkStatusEl = document.getElementById(
-  "companyExistingLinkStatus",
-);
-const companyExistingLinkButtonEl = document.getElementById(
-  "companyExistingLinkButton",
-);
-const companyExistingLinkOptionsEl = document.getElementById(
-  "companyExistingLinkOptions",
-);
-const companyPeopleSectionEl = document.getElementById("companyPeopleSection");
-const companyPeopleListEl = document.getElementById("companyPeopleList");
-const companyCampaignControlsEl = document.getElementById("companyCampaignControls");
-const companyLinkedCampaignsListEl = document.getElementById("companyLinkedCampaignsList");
-const companyCampaignSelectEl = document.getElementById("companyCampaignSelect");
-const companyRenameCampaignBtnEl = document.getElementById("companyRenameCampaign");
-const companyRenameCampaignRowEl = document.getElementById("companyRenameCampaignRow");
-const companyRenameCampaignNameEl = document.getElementById("companyRenameCampaignName");
-const companySaveRenameCampaignBtnEl = document.getElementById("companySaveRenameCampaign");
-const companyCancelRenameCampaignBtnEl = document.getElementById("companyCancelRenameCampaign");
-const companyToggleNewCampaignBtnEl = document.getElementById("companyToggleNewCampaign");
-const companyNewCampaignRowEl = document.getElementById("companyNewCampaignRow");
-const companyNewCampaignNameEl = document.getElementById("companyNewCampaignName");
-const companyAddCampaignBtnEl = document.getElementById("companyAddCampaign");
-const companyCancelNewCampaignBtnEl = document.getElementById("companyCancelNewCampaign");
-const enrichProfileBtnEl = document.getElementById("enrichProfileBtn");
-const editProfileBtnEl = document.getElementById("editProfileBtn");
-const saveProfileFieldsBtnEl = document.getElementById("saveProfileFieldsBtn");
-const cancelProfileEditBtnEl = document.getElementById("cancelProfileEditBtn");
-const acceptCompanySuggestionBtnEl = document.getElementById(
-  "acceptCompanySuggestionBtn",
-);
-const companyLinkedRowEl = document.getElementById("companyLinkedRow");
-const companyLinkedNameEl = document.getElementById("companyLinkedName");
-const companyLinkedEmployeeNumberEl = document.getElementById(
-  "companyLinkedEmployeeNumber",
-);
-const companyLinkSearchInputEl = document.getElementById(
-  "companyLinkSearchInput",
-);
-const companyLinkedIndicatorEl = document.getElementById(
-  "companyLinkedIndicator",
-);
-const companyLinkSearchOptionsEl = document.getElementById(
-  "companyLinkSearchOptions",
-);
-const companySuggestionWarningEl = document.getElementById(
-  "companySuggestionWarning",
-);
-const personNotRegisteredStateEl = document.getElementById(
-  "personNotRegisteredState",
-);
-const companyUrlMismatchBannerEl = document.getElementById(
-  "companyUrlMismatchBanner",
-);
-const campaignGroupEl = document.getElementById("campaignGroup");
-const campaignDividerEl = document.getElementById("campaignDivider");
-const statusDividerEl = document.getElementById("statusDivider");
-const detailTabsDividerEl = document.getElementById("detailTabsDivider");
-const detailTabsRowEl = document.getElementById("detailTabsRow");
-const statusStepperEl = document.getElementById("statusStepper");
-const stepRegisterEl = document.getElementById("step-register");
-const stepInvitedEl = document.getElementById("step-invited");
-const stepAcceptedEl = document.getElementById("step-accepted");
-const stepFirstMessageSentEl = document.getElementById(
-  "step-first-message-sent",
-);
-const stepperUnderlayEl = document.getElementById("stepperUnderlay");
-const messageCountBadgeEl = document.getElementById("messageCountBadge");
-const messageCountControlsEl = document.getElementById("messageCountControls");
-const messageCountDecrementEl = document.getElementById(
-  "messageCountDecrement",
-);
-const messageCountIncrementEl = document.getElementById(
-  "messageCountIncrement",
-);
-const stepMessageRespondedEl = document.getElementById(
-  "step-message-responded",
-);
-const detailInviteSectionEl = document.getElementById("detailInviteSection");
-const detailMessageMountEl = document.getElementById("detailMessageMount");
-const tabFreePromptEl = document.getElementById("tabFreePrompt");
-
 if (!openSidePanelBtnEl) {
-  console.error("[sidepanel] missing #openSidePanel");
+  PopupLogger.error("[sidepanel] missing #openSidePanel");
 }
 
-const tabMainBtn = document.getElementById("tabMainBtn");
-const tabMessageBtn = document.getElementById("tabMessageBtn");
-const tabOverviewBtn = document.getElementById("tabOverviewBtn");
-const tabConfigBtn = document.getElementById("tabConfigBtn");
-const tabSupabaseAuthBtn = document.getElementById("tabSupabaseAuthBtn");
-const tabMain = document.getElementById("tabMain");
-const tabMessage = document.getElementById("tabMessage");
-const tabOverview = document.getElementById("tabOverview");
-const tabConfig = document.getElementById("tabConfig");
-const tabSupabaseAuth = document.getElementById("tabSupabaseAuth");
-const configGeneralTabBtnEl = document.getElementById("configGeneralTabBtn");
-const configSupabaseTabBtnEl = document.getElementById("configSupabaseTabBtn");
-const configGeneralPanelEl = document.getElementById("configGeneralPanel");
-
-const authInnerSignupBtnEl = document.getElementById("authInnerSignupBtn");
-const authInnerLoginBtnEl = document.getElementById("authInnerLoginBtn");
-const supabaseAuthFormsEl = document.getElementById("supabaseAuthForms");
-const authSignupPanelEl = document.getElementById("authSignupPanel");
-const authLoginPanelEl = document.getElementById("authLoginPanel");
-const supabaseSignupNameEl = document.getElementById("supabaseSignupName");
-const supabaseSignupEmailEl = document.getElementById("supabaseSignupEmail");
-const supabaseSignupPasswordEl = document.getElementById(
-  "supabaseSignupPassword",
-);
-const supabaseSignupBtnEl = document.getElementById("supabaseSignupBtn");
-const supabaseLoginEmailEl = document.getElementById("supabaseLoginEmail");
-const supabaseLoginPasswordEl = document.getElementById(
-  "supabaseLoginPassword",
-);
-const supabaseLoginBtnEl = document.getElementById("supabaseLoginBtn");
-const supabaseResetPasswordBtnEl = document.getElementById(
-  "supabaseResetPasswordBtn",
-);
-const supabaseLoggedInPanelEl = document.getElementById(
-  "supabaseLoggedInPanel",
-);
-const supabaseUserEmailEl = document.getElementById("supabaseUserEmail");
-const supabaseLogoutBtnEl = document.getElementById("supabaseLogoutBtn");
-
-const filterCampaignEl = document.getElementById("filterCampaign");
-const overviewArchivedFilterEl = document.getElementById(
-  "overviewArchivedFilter",
-);
-const overviewStatusFilterEl = document.getElementById("overviewStatusFilter");
-const filterAcceptedEl = document.getElementById("filterAccepted");
-const overviewSearchEl = document.getElementById("overviewSearch");
-const overviewSearchClearBtnEl = document.getElementById("overviewSearchClear");
-const overviewTbodyEl = document.getElementById("overviewTbody");
-const overviewPageSizeEl = document.getElementById("overviewPageSize");
-const overviewPrevBtnEl = document.getElementById("overviewPrevBtn");
-const overviewNextBtnEl = document.getElementById("overviewNextBtn");
-const overviewCountLabelEl = document.getElementById("overviewCountLabel");
-const overviewTableEl = document.querySelector("#tabOverview .overview-table");
-const companyOverviewTableEl = document.getElementById("companyOverviewTable");
-const listPersonsTabBtnEl = document.getElementById("listPersonsTabBtn");
-const listCompaniesTabBtnEl = document.getElementById("listCompaniesTabBtn");
-const personsListPanelEl = document.getElementById("personsListPanel");
-const companiesListPanelEl = document.getElementById("companiesListPanel");
-const companyArchivedFilterEl = document.getElementById("companyArchivedFilter");
-const companyCampaignFilterEl = document.getElementById("companyCampaignFilter");
-const companySearchEl = document.getElementById("companySearch");
-const companySearchClearBtnEl = document.getElementById("companySearchClear");
-const companyOverviewTbodyEl = document.getElementById("companyOverviewTbody");
-const companyOverviewPageSizeEl = document.getElementById(
-  "companyOverviewPageSize",
-);
-const companyOverviewPrevBtnEl = document.getElementById(
-  "companyOverviewPrevBtn",
-);
-const companyOverviewNextBtnEl = document.getElementById(
-  "companyOverviewNextBtn",
-);
-const companyOverviewCountLabelEl = document.getElementById(
-  "companyOverviewCountLabel",
-);
-
-let lastProfileContextSent = {};
-let lastProfileContextEnriched = null;
-let currentProfileContext = null;
 let latestPersonScrape = null;
 let latestCompanyScrape = null;
 let isProfileEditMode = false;
@@ -412,8 +313,6 @@ let isAcceptingCompanySuggestion = false;
 let companyLinkSearchDebounceTimer = null;
 let companyLinkSearchResults = [];
 let selectedCompanyForSave = null;
-let firstMessage = "";
-let dbInvitationRow = null;
 let dbCompanyRow = null;
 let companyPeopleRows = [];
 let companyLinkedCampaignRows = [];
@@ -421,8 +320,6 @@ let companyExistingLinkResults = [];
 let selectedExistingCompanyForLink = null;
 let companyExistingLinkDebounceTimer = null;
 let selectedCompanyFromListLinkedinUrl = "";
-let extractedChatMessages = [];
-let outreachMessageStatus = "accepted";
 let overviewPage = 1;
 let overviewPageSize = 25;
 let overviewTotal = null;
@@ -490,7 +387,6 @@ let stepperStatusStage = "";
 let stepperForwardSteps = new Set();
 let isMarkingMessageSent = false;
 let currentLanguage = "Portuguese";
-let inviteCopyIconResetTimer = null;
 let firstMessageCopyIconResetTimer = null;
 let followupCopyIconResetTimer = null;
 let freePromptCopyIconResetTimer = null;
@@ -515,6 +411,82 @@ const state = {
   messageStatus: null,
 };
 let popupModulesInitialized = false;
+globalThis.DEBUG_EMPTY_STATE = DEBUG_EMPTY_STATE;
+Object.defineProperties(globalThis, {
+  latestPersonScrape: {
+    configurable: true,
+    get: () => latestPersonScrape,
+    set: (value) => {
+      latestPersonScrape = value;
+    },
+  },
+  latestCompanyScrape: {
+    configurable: true,
+    get: () => latestCompanyScrape,
+    set: (value) => {
+      latestCompanyScrape = value;
+    },
+  },
+  isProfileEditMode: {
+    configurable: true,
+    get: () => isProfileEditMode,
+    set: (value) => {
+      isProfileEditMode = Boolean(value);
+    },
+  },
+  isProfileSaveInFlight: {
+    configurable: true,
+    get: () => isProfileSaveInFlight,
+    set: (value) => {
+      isProfileSaveInFlight = Boolean(value);
+    },
+  },
+  dbCompanyRow: {
+    configurable: true,
+    get: () => dbCompanyRow,
+    set: (value) => {
+      dbCompanyRow = value;
+    },
+  },
+  companyPeopleRows: {
+    configurable: true,
+    get: () => companyPeopleRows,
+    set: (value) => {
+      companyPeopleRows = Array.isArray(value) ? value : [];
+    },
+  },
+  selectedExistingCompanyForLink: {
+    configurable: true,
+    get: () => selectedExistingCompanyForLink,
+    set: (value) => {
+      selectedExistingCompanyForLink = value;
+    },
+  },
+  selectedCompanyFromListLinkedinUrl: {
+    configurable: true,
+    get: () => selectedCompanyFromListLinkedinUrl,
+    set: (value) => {
+      selectedCompanyFromListLinkedinUrl = value == null ? "" : String(value);
+    },
+  },
+  linkedPersonCampaignRows: {
+    configurable: true,
+    get: () => linkedPersonCampaignRows,
+    set: (value) => {
+      linkedPersonCampaignRows = Array.isArray(value) ? value : [];
+    },
+  },
+  messageCountLegacyFixAttemptedUrl: {
+    configurable: true,
+    get: () => messageCountLegacyFixAttemptedUrl,
+    set: (value) => {
+      messageCountLegacyFixAttemptedUrl = value == null ? "" : String(value);
+    },
+  },
+});
+globalThis.previewEl = previewEl;
+globalThis.firstMessagePreviewEl = firstMessagePreviewEl;
+globalThis.followupPreviewEl = followupPreviewEl;
 const LEF_GRID =
   typeof globalThis.initPopupGridUtils === "function"
     ? globalThis.initPopupGridUtils()
@@ -538,15 +510,13 @@ function initPopupModules() {
     setDetailInnerTab,
     fetchOverviewPage: fetchActiveListTabPage,
   });
-  const configApi = initConfigModule({
+  const configApi = PopupConfigController.configure({
     state,
-    getEffectiveSupabaseUrl,
-    loadNavPacingConfigForUi,
-    saveSupabaseUrlOverride,
-    saveNavPacingEnabled,
     setFooterStatus,
     setFooterUpdatingStatus,
     setFooterReady,
+    setLanguage,
+    setFreePromptLanguage,
   });
   const promptsApi = initPromptsModule({
     state,
@@ -569,15 +539,17 @@ function initPopupModules() {
 }
 
 function timingLog(eventName, details = {}) {
-  console.log("[LEF][timing]", eventName, {
+  PopupLogger.debug("[LEF][timing]", eventName, {
     ts: Date.now(),
     ...details,
   });
 }
 
-function getLifecycleStatusValue(dbRow) {
-  return (dbRow?.status || "").trim().toLowerCase();
-}
+const getLifecycleStatusValue =
+  PopupLifecycleController.getLifecycleStatusValue;
+const applyLifecycleUiState =
+  PopupLifecycleController.applyLifecycleUiState;
+const renderMessageTab = PopupLifecycleController.renderMessageTab;
 
 function getMessageCountValue(dbRow) {
   const value = Number(dbRow?.message_count);
@@ -720,64 +692,14 @@ async function openCampaignColorPicker({
   colorInputEl.click();
 }
 
-function normalizeSupabaseUrl(value) {
-  return String(value || "")
-    .trim()
-    .replace(/\/+$/, "");
-}
-
-function getEffectiveSupabaseUrl(localUrl, legacyUrl) {
-  const normalizedLocal = normalizeSupabaseUrl(localUrl);
-  if (normalizedLocal) return normalizedLocal;
-  const normalizedLegacy = normalizeSupabaseUrl(legacyUrl);
-  if (normalizedLegacy) return normalizedLegacy;
-  return DEFAULT_SUPABASE_URL;
-}
-
-async function saveSupabaseUrlOverride(rawValue, { showStatus = true } = {}) {
-  const normalized = normalizeSupabaseUrl(rawValue);
-  if (!normalized) {
-    await chrome.storage.local.remove([STORAGE_KEY_SUPABASE_URL]);
-    if (webhookBaseUrlEl) webhookBaseUrlEl.value = DEFAULT_SUPABASE_URL;
-    if (showStatus) setFooterStatus("Supabase URL saved.");
-    return DEFAULT_SUPABASE_URL;
-  }
-  await chrome.storage.local.set({ [STORAGE_KEY_SUPABASE_URL]: normalized });
-  if (webhookBaseUrlEl) webhookBaseUrlEl.value = normalized;
-  if (showStatus) setFooterStatus("Supabase URL saved.");
-  return normalized;
-}
-
-function mergeNavPacingConfig(rawConfig) {
-  const cfg =
-    rawConfig && typeof rawConfig === "object"
-      ? rawConfig
-      : Object.create(null);
-  return {
-    ...DEFAULT_NAV_PACING_CONFIG,
-    ...cfg,
-    enabled:
-      typeof cfg.enabled === "boolean"
-        ? cfg.enabled
-        : DEFAULT_NAV_PACING_CONFIG.enabled,
-  };
-}
-
-async function loadNavPacingConfigForUi() {
-  const data = await chrome.storage.local.get([STORAGE_KEY_NAV_PACING]);
-  return mergeNavPacingConfig(data?.[STORAGE_KEY_NAV_PACING]);
-}
-
-async function saveNavPacingEnabled(enabled) {
-  const current = await loadNavPacingConfigForUi();
-  const next = {
-    ...current,
-    enabled: Boolean(enabled),
-  };
-  await chrome.storage.local.set({
-    [STORAGE_KEY_NAV_PACING]: next,
-  });
-}
+const normalizeSupabaseUrl = PopupConfigController.normalizeSupabaseUrl;
+const getEffectiveSupabaseUrl = PopupConfigController.getEffectiveSupabaseUrl;
+const saveSupabaseUrlOverride =
+  PopupConfigController.saveSupabaseUrlOverride;
+const mergeNavPacingConfig = PopupConfigController.mergeNavPacingConfig;
+const loadNavPacingConfigForUi =
+  PopupConfigController.loadNavPacingConfigForUi;
+const saveNavPacingEnabled = PopupConfigController.saveNavPacingEnabled;
 
 function truncateCampaignLabel(value, maxLen = OVERVIEW_CAMPAIGN_LABEL_MAX) {
   const full = String(value || "");
@@ -1359,7 +1281,7 @@ async function loadCampaignOptions({ keepSelected = true } = {}) {
 
 async function applyCampaignSelectionFromProfile() {
   if (!campaignSelectEl) return;
-  if (dbInvitationRow) {
+  if (PopupState.dbInvitationRow) {
     setCampaignSelectValue("");
     return;
   }
@@ -1450,7 +1372,7 @@ function renderLinkedCampaignChips() {
     removeBtn.title = "Remove link";
     removeBtn.setAttribute("aria-label", `Remove ${campaignName}`);
     removeBtn.addEventListener("click", async () => {
-      const personId = safeTrim(dbInvitationRow?.id);
+      const personId = safeTrim(PopupState.dbInvitationRow?.id);
       if (!personId) return;
       setFooterUpdatingStatus();
       try {
@@ -1475,12 +1397,12 @@ function renderLinkedCampaignChips() {
 
 async function refreshPersonCampaignLinks() {
   linkedPersonCampaignRows = [];
-  if (!dbInvitationRow?.id) {
+  if (!PopupState.dbInvitationRow?.id) {
     renderLinkedCampaignChips();
     return;
   }
   const result = await sendRuntimeMessage("DB_LIST_PERSON_CAMPAIGNS", {
-    payload: { person_id: dbInvitationRow.id },
+    payload: { person_id: PopupState.dbInvitationRow.id },
   });
   const resp = result.data || {};
   if (!result.ok || !Array.isArray(resp?.rows)) {
@@ -1494,13 +1416,13 @@ async function refreshPersonCampaignLinks() {
 async function linkCampaignToCurrentPerson(campaignId) {
   const normalizedCampaignId = String(campaignId || "").trim();
   if (!normalizedCampaignId) return;
-  if (!dbInvitationRow?.id) {
+  if (!PopupState.dbInvitationRow?.id) {
     setFooterStatus("Person must exist/generated first.");
     return;
   }
   const result = await sendRuntimeMessage("DB_LINK_PERSON_CAMPAIGN", {
     payload: {
-      person_id: dbInvitationRow.id,
+      person_id: PopupState.dbInvitationRow.id,
       campaign_id: normalizedCampaignId,
     },
   });
@@ -1537,15 +1459,7 @@ async function renameSelectedCampaign(campaignName) {
   await saveLastActiveCampaign(campaignId);
 }
 
-function isPostSendMode() {
-  const status = getLifecycleStatusValue(dbInvitationRow);
-  return (
-    status === "first message sent" ||
-    status === "first_message_sent" ||
-    status === "message responded" ||
-    status === "message_responded"
-  );
-}
+const isPostSendMode = PopupLifecycleController.isPostSendMode;
 
 function coalesceDbThenScraped(dbValue, scrapedValue) {
   return dbValue && String(dbValue).trim() !== ""
@@ -1617,15 +1531,18 @@ function renderProfileEditControls() {
   if (companyLinkedEmployeeNumberEl) {
     companyLinkedEmployeeNumberEl.hidden =
       isCompany ||
-      !safeTrim(dbInvitationRow?.company_id) ||
+      !safeTrim(PopupState.dbInvitationRow?.company_id) ||
       !safeTrim(companyLinkedEmployeeNumberEl.textContent);
   }
   if (acceptCompanySuggestionBtnEl && isProfileEditMode) {
     acceptCompanySuggestionBtnEl.hidden = true;
   }
+  if (companyQuickLinkBtn && isProfileEditMode) {
+    companyQuickLinkBtn.hidden = true;
+  }
   if (companyLinkedIndicatorEl) {
     const showLinkedIndicator =
-      !isCompany && isProfileEditMode && Boolean(safeTrim(dbInvitationRow?.company_id));
+      !isCompany && isProfileEditMode && Boolean(safeTrim(PopupState.dbInvitationRow?.company_id));
     companyLinkedIndicatorEl.hidden = !showLinkedIndicator;
     companyLinkedIndicatorEl.style.display = showLinkedIndicator
       ? "inline-flex"
@@ -1643,6 +1560,7 @@ function renderProfileEditControls() {
     }
     if (companyLinkSearchOptionsEl) companyLinkSearchOptionsEl.innerHTML = "";
     if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.hidden = true;
+    if (companyQuickLinkBtn) companyQuickLinkBtn.hidden = true;
   }
   applyProfileModeUi();
 }
@@ -1650,8 +1568,9 @@ function renderProfileEditControls() {
 function applyProfileModeUi() {
   const isCompany = isCompanyProfileMode();
   const shouldShowExistingCompanyDropdown = isCompany && !dbCompanyRow;
-  const shouldShowPersonNotRegistered =
-    !isCompany && !isProfileEditMode && !dbInvitationRow;
+  const shouldShowProfileNotRegistered =
+    !isProfileEditMode &&
+    ((!isCompany && !PopupState.dbInvitationRow) || (isCompany && !dbCompanyRow));
   document.documentElement.classList.toggle("company-profile-mode", isCompany);
   document.body?.classList.toggle("company-profile-mode", isCompany);
   tabMain?.classList.toggle("company-profile-mode", isCompany);
@@ -1659,14 +1578,14 @@ function applyProfileModeUi() {
     detailCompanyLabelEl.textContent = "Company:";
     detailCompanyLabelEl.hidden =
       isCompany ||
-      shouldShowPersonNotRegistered ||
+      shouldShowProfileNotRegistered ||
       (!isProfileEditMode && !isCompany);
   }
   if (detailCompanyEl) {
     detailCompanyEl.hidden =
       isCompany ||
-      shouldShowPersonNotRegistered ||
-      (!isProfileEditMode && Boolean(safeTrim(dbInvitationRow?.company_id)));
+      shouldShowProfileNotRegistered ||
+      (!isProfileEditMode && Boolean(safeTrim(PopupState.dbInvitationRow?.company_id)));
   }
   if (detailEmployeeNumberLabelEl) {
     detailEmployeeNumberLabelEl.hidden = !isCompany;
@@ -1677,14 +1596,14 @@ function applyProfileModeUi() {
   if (detailHeadlineLabelEl) {
     detailHeadlineLabelEl.textContent = isCompany ? "Sector:" : "Job title:";
     detailHeadlineLabelEl.hidden =
-      shouldShowPersonNotRegistered || (!isCompany && !isProfileEditMode);
+      shouldShowProfileNotRegistered || (!isCompany && !isProfileEditMode);
   }
   if (detailCommentsLabelEl) {
     detailCommentsLabelEl.textContent = "Comments:";
-    detailCommentsLabelEl.hidden = isCompany || shouldShowPersonNotRegistered;
+    detailCommentsLabelEl.hidden = isCompany || shouldShowProfileNotRegistered;
   }
   if (detailCommentsEl) {
-    detailCommentsEl.hidden = isCompany || shouldShowPersonNotRegistered;
+    detailCommentsEl.hidden = isCompany || shouldShowProfileNotRegistered;
   }
   if (detailCityLabelEl) {
     detailCityLabelEl.hidden = !isCompany;
@@ -1711,7 +1630,10 @@ function applyProfileModeUi() {
     companyPeopleSectionEl.hidden = !isCompany;
   }
   if (personNotRegisteredStateEl) {
-    personNotRegisteredStateEl.hidden = !shouldShowPersonNotRegistered;
+    personNotRegisteredStateEl.hidden = !shouldShowProfileNotRegistered;
+    personNotRegisteredStateEl.textContent = isCompany
+      ? "Company is not yet registered"
+      : "Person is not yet registered";
   }
   if (!isCompany) {
     setCompanyUrlMismatchBannerVisible(false);
@@ -1744,11 +1666,27 @@ function applyProfileModeUi() {
     el.style.display = hideInvitationUi ? "none" : "";
   }
   if (companyLinkedRowEl) {
-    companyLinkedRowEl.hidden =
-      isCompany || shouldShowPersonNotRegistered || companyLinkedRowEl.hidden;
+    const hasQuickLinkSuggestion =
+      !isCompany &&
+      !isProfileEditMode &&
+      Boolean(companySuggestion?.company_id);
+    const shouldForceHideLinkedRow =
+      isCompany || (shouldShowProfileNotRegistered && !hasQuickLinkSuggestion);
+    PopupLogger.debug("[LEF][quick-link][row-visibility]", {
+      isCompany,
+      isProfileEditMode,
+      shouldShowProfileNotRegistered,
+      hasQuickLinkSuggestion,
+      shouldForceHideLinkedRow,
+      companySuggestionId: safeTrim(companySuggestion?.company_id),
+    });
+    if (shouldForceHideLinkedRow) {
+      companyLinkedRowEl.hidden = true;
+    }
   }
   if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = true;
   if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.hidden = true;
+  if (companyQuickLinkBtn) companyQuickLinkBtn.hidden = true;
   if (isCompany) {
     if (companyLinkedNameEl) companyLinkedNameEl.hidden = true;
     if (companyLinkedEmployeeNumberEl) companyLinkedEmployeeNumberEl.hidden = true;
@@ -1844,7 +1782,7 @@ async function searchExistingCompaniesForCompanyPage(term) {
       ? "Company URL not registered"
       : "Company URL not registered. No matching unlinked company found.",
   );
-  console.log("[LEF][company link search]", { term: query, count: rows.length });
+  PopupLogger.debug("[LEF][company link search]", { term: query, count: rows.length });
 }
 
 async function prepareExistingCompanyLinkDropdown({ allowSearch = true } = {}) {
@@ -1891,7 +1829,7 @@ function setProfileEditMode(nextMode) {
 
 function renderDetailHeader({ force = false } = {}) {
   if (isCompanyProfileMode()) {
-    const scraped = currentProfileContext || {};
+    const scraped = PopupState.currentProfileContext || {};
     const row = dbCompanyRow || {};
     const companyName = coalesceDbThenScraped(
       row.company_name,
@@ -1916,29 +1854,29 @@ function renderDetailHeader({ force = false } = {}) {
       if (detailItMembersEl) detailItMembersEl.value = itMembers.trim() || "-";
       if (detailCityEl) detailCityEl.value = city.trim() || "-";
     }
-    if (currentProfileContext) currentProfileContext.it_members = itMembers.trim();
+    if (PopupState.currentProfileContext) PopupState.currentProfileContext.it_members = itMembers.trim();
     applyProfileModeUi();
     renderProfileEditControls();
     return;
   }
 
   const scrapedName = (
-    currentProfileContext?.name ||
-    currentProfileContext?.full_name ||
+    PopupState.currentProfileContext?.name ||
+    PopupState.currentProfileContext?.full_name ||
     ""
   ).trim();
-  const scrapedCompany = (currentProfileContext?.company || "").trim();
-  const scrapedHeadline = (currentProfileContext?.headline || "").trim();
-  const scrapedComments = (currentProfileContext?.comments || "").trim();
+  const scrapedCompany = (PopupState.currentProfileContext?.company || "").trim();
+  const scrapedHeadline = (PopupState.currentProfileContext?.headline || "").trim();
+  const scrapedComments = (PopupState.currentProfileContext?.comments || "").trim();
 
   const dbName = (
-    dbInvitationRow?.full_name ||
-    dbInvitationRow?.name ||
+    PopupState.dbInvitationRow?.full_name ||
+    PopupState.dbInvitationRow?.name ||
     ""
   ).trim();
-  const dbCompany = (dbInvitationRow?.company || "").trim();
-  const dbHeadline = (dbInvitationRow?.headline || "").trim();
-  const dbComments = (dbInvitationRow?.comments || "").trim();
+  const dbCompany = (PopupState.dbInvitationRow?.company || "").trim();
+  const dbHeadline = (PopupState.dbInvitationRow?.headline || "").trim();
+  const dbComments = (PopupState.dbInvitationRow?.comments || "").trim();
 
   const name = coalesceDbThenScraped(dbName, scrapedName).trim() || "-";
   const company =
@@ -1971,9 +1909,9 @@ function renderDetailHeader({ force = false } = {}) {
 function getCompanyNameForPeopleList() {
   return safeTrim(
     dbCompanyRow?.company_name ||
-      currentProfileContext?.company_name ||
-      currentProfileContext?.name ||
-      currentProfileContext?.full_name ||
+      PopupState.currentProfileContext?.company_name ||
+      PopupState.currentProfileContext?.name ||
+      PopupState.currentProfileContext?.full_name ||
       "",
   );
 }
@@ -2141,7 +2079,7 @@ async function refreshCompanyPeopleList() {
 
 function buildCompanyProfileSavePayload() {
   const payload = {
-    linkedin_id: normalizeCompanyLinkedinId(currentProfileContext),
+    linkedin_id: normalizeCompanyLinkedinId(PopupState.currentProfileContext),
     company_name: normalizeWhitespace(
       (detailPersonNameEl?.value || "").trim() === "-"
         ? ""
@@ -2197,7 +2135,7 @@ async function linkSelectedExistingCompany() {
   if (!result.ok || !resp?.ok) {
     throw new Error(getErrorMessage(result.error || resp?.error));
   }
-  console.log("[LEF][company link accepted]", {
+  PopupLogger.debug("[LEF][company link accepted]", {
     company_id,
     linkedin_id: payload.linkedin_id,
   });
@@ -2284,7 +2222,10 @@ function renderCompanySuggestionFound(companyRow) {
   if (companyLinkedRowEl) companyLinkedRowEl.hidden = false;
   if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = true;
   if (acceptCompanySuggestionBtnEl) {
-    acceptCompanySuggestionBtnEl.hidden = isProfileEditMode;
+    acceptCompanySuggestionBtnEl.hidden = true;
+  }
+  if (companyQuickLinkBtn) {
+    companyQuickLinkBtn.hidden = isProfileEditMode;
   }
 }
 
@@ -2293,16 +2234,30 @@ function renderCompanySuggestionNotFound() {
   if (companyLinkedRowEl) companyLinkedRowEl.hidden = true;
   if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = false;
   if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.hidden = true;
+  if (companyQuickLinkBtn) companyQuickLinkBtn.hidden = true;
 }
 
 async function refreshCompanySuggestionUiForCurrentInvitation() {
   hideCompanySuggestionUi();
-  if (!dbInvitationRow) return;
-  const savedCompany = safeTrim(dbInvitationRow?.company);
-  const savedCompanyId = safeTrim(dbInvitationRow?.company_id);
+  const savedCompany = safeTrim(
+    PopupState.dbInvitationRow?.company ||
+      PopupState.currentProfileContext?.company ||
+      detailCompanyEl?.value ||
+      companyLinkedNameEl?.textContent,
+  );
+  const savedCompanyId = safeTrim(PopupState.dbInvitationRow?.company_id);
+  PopupLogger.debug("[LEF][quick-link][refresh-start]", {
+    savedCompany,
+    savedCompanyId,
+    dbCompany: safeTrim(PopupState.dbInvitationRow?.company),
+    ctxCompany: safeTrim(PopupState.currentProfileContext?.company),
+    detailCompany: safeTrim(detailCompanyEl?.value),
+    linkedNameText: safeTrim(companyLinkedNameEl?.textContent),
+  });
   if (!savedCompany || savedCompany === "-") return;
 
   if (savedCompanyId) {
+    PopupLogger.debug("[LEF][quick-link][skip-existing-link]", { savedCompanyId });
     const result = await sendRuntimeMessage("DB_GET_COMPANY_BY_ID", {
       payload: { company_id: savedCompanyId },
     });
@@ -2315,6 +2270,35 @@ async function refreshCompanySuggestionUiForCurrentInvitation() {
     return;
   }
   if (detailCompanyEl) detailCompanyEl.hidden = false;
+
+  const result = await sendRuntimeMessage("DB_FIND_COMPANY_BY_NAME", {
+    payload: { company_name: savedCompany },
+  });
+  const companyRow = result.ok ? result.data?.company || null : null;
+  PopupLogger.debug("[LEF][quick-link][find-by-name-result]", {
+    query: savedCompany,
+    ok: result.ok,
+    matchedCompanyId: safeTrim(companyRow?.company_id),
+    matchedCompanyName: safeTrim(companyRow?.company_name),
+    error: result.ok ? "" : getErrorMessage(result.error),
+  });
+  if (companyRow?.company_id && safeTrim(companyRow?.company_name)) {
+    PopupLogger.debug("[LEF][company suggestion] exact match found", {
+      company_id: companyRow.company_id,
+      company_name: companyRow.company_name,
+    });
+    renderCompanySuggestionFound({
+      company_id: companyRow.company_id,
+      company_name: companyRow.company_name,
+      linkedin_id: companyRow.linkedin_id || "",
+      employee_number: companyRow.employee_number || "",
+    });
+    return;
+  }
+  PopupLogger.debug("[LEF][company suggestion] no exact match found", {
+    company_name: savedCompany,
+  });
+  renderCompanySuggestionNotFound();
 }
 
 function setCompanyLinkSearchOptions(rows) {
@@ -2339,7 +2323,7 @@ function setCompanyDropdownSelected(companyRow) {
   const name = safeTrim(companyRow?.company_name);
   selectedCompanyForSave = id && name ? { company_id: id, company_name: name } : null;
   if (companyLinkSearchInputEl) companyLinkSearchInputEl.value = name;
-  console.log("[LEF][company dropdown] company selected", {
+  PopupLogger.debug("[LEF][company dropdown] company selected", {
     company_id: id,
     company_name: name,
   });
@@ -2357,16 +2341,16 @@ async function searchCompaniesForEditDropdown(term) {
   const resp = result.data || {};
   const rows = result.ok ? resp?.companies || [] : [];
   setCompanyLinkSearchOptions(rows);
-  console.log("[LEF][company dropdown] company search results", {
+  PopupLogger.debug("[LEF][company dropdown] company search results", {
     term: query,
     count: rows.length,
   });
 }
 
 async function prepareCompanyDropdownForEdit() {
-  if (!dbInvitationRow || !companyLinkedRowEl || !companyLinkSearchInputEl) return;
-  const savedCompany = safeTrim(dbInvitationRow?.company);
-  const savedCompanyId = safeTrim(dbInvitationRow?.company_id);
+  if (!PopupState.dbInvitationRow || !companyLinkedRowEl || !companyLinkSearchInputEl) return;
+  const savedCompany = safeTrim(PopupState.dbInvitationRow?.company);
+  const savedCompanyId = safeTrim(PopupState.dbInvitationRow?.company_id);
   selectedCompanyForSave = null;
   setCompanyLinkSearchOptions([]);
   companyLinkedRowEl.hidden = false;
@@ -2376,7 +2360,7 @@ async function prepareCompanyDropdownForEdit() {
   if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.hidden = true;
   if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = true;
 
-  console.log("[LEF][company dropdown] initial load", {
+  PopupLogger.debug("[LEF][company dropdown] initial load", {
     company_id: savedCompanyId,
     company_name: savedCompany,
   });
@@ -2402,8 +2386,15 @@ async function prepareCompanyDropdownForEdit() {
     payload: { company_name: savedCompany },
   });
   const companyRow = result.ok ? result.data?.company || null : null;
+  PopupLogger.debug("[LEF][quick-link][find-by-name-result]", {
+    query: savedCompany,
+    ok: result.ok,
+    matchedCompanyId: safeTrim(companyRow?.company_id),
+    matchedCompanyName: safeTrim(companyRow?.company_name),
+    error: result.ok ? "" : getErrorMessage(result.error),
+  });
   if (companyRow?.company_id && safeTrim(companyRow?.company_name)) {
-    console.log("[LEF][company dropdown] exact match found", {
+    PopupLogger.debug("[LEF][company dropdown] exact match found", {
       company_id: companyRow.company_id,
       company_name: companyRow.company_name,
     });
@@ -2411,7 +2402,7 @@ async function prepareCompanyDropdownForEdit() {
     setCompanyLinkSearchOptions([companyRow]);
     return;
   }
-  console.log("[LEF][company dropdown] no exact match found", {
+  PopupLogger.debug("[LEF][company dropdown] no exact match found", {
     company_name: savedCompany,
   });
 }
@@ -2433,10 +2424,13 @@ function syncSelectedCompanyFromDropdownInput() {
 function updateStepperInteractivity() {
   if (!statusStepperEl) return;
 
-  const rawStatus = getLifecycleStatusValue(dbInvitationRow);
-  const status = rawStatus === "accepted" ? "invited" : rawStatus;
-  const hasRow = Boolean(dbInvitationRow);
-  const isAccepted = isAcceptedRow(dbInvitationRow);
+  const rawStatus = getLifecycleStatusValue(PopupState.dbInvitationRow);
+  const status =
+    rawStatus === POPUP_STATUS_CONSTANTS.accepted
+      ? POPUP_STATUS_CONSTANTS.invited
+      : rawStatus;
+  const hasRow = Boolean(PopupState.dbInvitationRow);
+  const isAccepted = isAcceptedRow(PopupState.dbInvitationRow);
   const normalizedStatus =
     status === "first_message_sent"
       ? "first message sent"
@@ -2447,8 +2441,8 @@ function updateStepperInteractivity() {
     if (normalizedStatus === "registered" || normalizedStatus === "generated") {
       return 1;
     }
-    if (normalizedStatus === "invited") return 2;
-    if (normalizedStatus === "first message sent") return 3;
+    if (normalizedStatus === POPUP_STATUS_CONSTANTS.invited) return 2;
+    if (normalizedStatus === POPUP_STATUS_CONSTANTS.firstMessageSent) return 3;
     if (normalizedStatus === "message responded") return 4;
     return 0;
   })();
@@ -2485,14 +2479,14 @@ function updateStepperInteractivity() {
   ) {
     forwardTarget = "invited";
     forwardSteps.add("invited");
-  } else if (normalizedStatus === "invited") {
+  } else if (normalizedStatus === POPUP_STATUS_CONSTANTS.invited) {
     allowed.first_message_sent = true;
     forwardTarget = "first_message_sent";
     forwardSteps.add("first_message_sent");
-    backTarget = "invited";
+    backTarget = POPUP_STATUS_CONSTANTS.invited;
     backAction = "status_registered";
     hoverable.first_message_sent = true;
-  } else if (normalizedStatus === "first message sent") {
+  } else if (normalizedStatus === POPUP_STATUS_CONSTANTS.firstMessageSent) {
     forwardTarget = "message_responded";
     forwardSteps.add("message_responded");
     backTarget = "first_message_sent";
@@ -2542,7 +2536,7 @@ function updateStepperInteractivity() {
   applyStepState(stepMessageRespondedEl, "message_responded", {
     done: statusRank >= 4,
   });
-  const messageCount = getEffectiveMessageCount(dbInvitationRow);
+  const messageCount = getEffectiveMessageCount(PopupState.dbInvitationRow);
   if (messageCountBadgeEl) {
     messageCountBadgeEl.hidden = messageCount <= 0;
     messageCountBadgeEl.textContent = String(messageCount);
@@ -2553,7 +2547,7 @@ function updateStepperInteractivity() {
   if (messageCountDecrementEl) {
     messageCountDecrementEl.disabled =
       messageCount <= 0 ||
-      (isMessageSentOrBeyondStatus(getLifecycleStatusValue(dbInvitationRow)) &&
+      (isMessageSentOrBeyondStatus(getLifecycleStatusValue(PopupState.dbInvitationRow)) &&
         messageCount <= 1);
   }
   positionMessageCountControls();
@@ -2588,102 +2582,55 @@ function setDetailInnerTab(tab) {
   }
 }
 
-function updateGenerateFirstMessageButtonLabel() {
-  return;
-}
+const updateGenerateFirstMessageButtonLabel =
+  PopupLifecycleController.updateGenerateFirstMessageButtonLabel;
 
-function getErrorMessage(error) {
-  if (error && typeof error === "object" && typeof error.message === "string") {
-    return error.message;
-  }
-  if (error instanceof Error && typeof error.message === "string") {
-    return error.message;
-  }
-  return UI_TEXT.unexpectedError;
-}
+const getErrorMessage =
+  typeof POPUP_UTILS.getErrorMessage === "function"
+    ? POPUP_UTILS.getErrorMessage
+    : (error) =>
+        error && typeof error === "object" && typeof error.message === "string"
+          ? error.message
+          : error instanceof Error && typeof error.message === "string"
+            ? error.message
+            : UI_TEXT.unexpectedError;
 
-function formatChatHistory(messages) {
-  if (!Array.isArray(messages) || messages.length === 0) {
-    return "No chat messages found.";
-  }
-  const lines = [];
-  let lastHeading = "";
-  let lastGroupKey = "";
-  for (const m of messages) {
-    const dateLabel = (m?.heading || m?.dateLabel || "").trim();
-    const name = (m?.name || "").trim() || "Unknown";
-    const time = (m?.time || m?.ts || "").trim();
-    const text = (m?.text || "").trim();
-    if (!text || !time) continue;
-    if (dateLabel && dateLabel !== lastHeading) {
-      if (lines.length && lines[lines.length - 1] !== "") lines.push("");
-      lines.push(dateLabel);
-      lastHeading = dateLabel;
-      lastGroupKey = "";
-    }
-    const groupKey = `${name}||${time}`;
-    if (groupKey !== lastGroupKey) {
-      if (lines.length && lines[lines.length - 1] !== "") lines.push("");
-      lines.push(`${name}  ${time}`);
-      lastGroupKey = groupKey;
-    }
-    lines.push(text);
-  }
-  return lines.join("\n");
-}
+const formatChatHistory =
+  typeof POPUP_UTILS.formatChatHistory === "function"
+    ? POPUP_UTILS.formatChatHistory
+    : (messages) => {
+        if (!Array.isArray(messages) || messages.length === 0) {
+          return "No chat messages found.";
+        }
+        const lines = [];
+        let lastHeading = "";
+        let lastGroupKey = "";
+        for (const m of messages) {
+          const dateLabel = (m?.heading || m?.dateLabel || "").trim();
+          const name = (m?.name || "").trim() || "Unknown";
+          const time = (m?.time || m?.ts || "").trim();
+          const text = (m?.text || "").trim();
+          if (!text || !time) continue;
+          if (dateLabel && dateLabel !== lastHeading) {
+            if (lines.length && lines[lines.length - 1] !== "") lines.push("");
+            lines.push(dateLabel);
+            lastHeading = dateLabel;
+            lastGroupKey = "";
+          }
+          const groupKey = `${name}||${time}`;
+          if (groupKey !== lastGroupKey) {
+            if (lines.length && lines[lines.length - 1] !== "") lines.push("");
+            lines.push(`${name}  ${time}`);
+            lastGroupKey = groupKey;
+          }
+          lines.push(text);
+        }
+        return lines.join("\n");
+      };
 
-function normalizeChatText(value) {
-  return typeof normalizeWhitespace === "function"
-    ? normalizeWhitespace(value || "")
-    : typeof safeTrim === "function"
-      ? safeTrim(value || "")
-      : "";
-}
-
-function toChatLogEntry(message, index) {
-  const direction =
-    message?.direction === "them"
-      ? "them"
-      : message?.direction === "me"
-        ? "me"
-        : "unknown";
-  const dateLabel = (message?.heading || message?.dateLabel || "")
-    .toString()
-    .trim();
-  const time = (message?.time || message?.ts || "").toString().trim();
-  const ts = (message?.ts || message?.time || "").toString().trim();
-  const normalizedText = normalizeChatText(message?.text || "");
-  const key = `${direction}|${dateLabel}|${ts || time}|${normalizedText}`;
-  return {
-    i: index,
-    liIndex: message?.liIndex ?? -1,
-    direction,
-    dateLabel,
-    time,
-    ts,
-    textLen: normalizedText.length,
-    text: normalizedText,
-    key,
-    dayHeading: dateLabel,
-    dt_label: (message?.dt_label || `${dateLabel} ${time}`.trim()).trim(),
-    name: (message?.name || "").toString().trim(),
-    sortTsIso: "",
-    displayLocal: "",
-    datetimeForDebug:
-      (message?.dt_label || `${dateLabel} ${time}`.trim()).trim() ||
-      "NO_DATETIME",
-    msgId: message?.msgId || "",
-    domHint: message?.domHint || null,
-  };
-}
-
-function isMessageBoxMissingError(errorText) {
-  const text = String(errorText || "").toLowerCase();
-  return (
-    text.includes("message overlay not open") ||
-    text.includes("interop shadow root not found")
-  );
-}
+const normalizeChatText = PopupChatController.normalizeChatText;
+const toChatLogEntry = PopupChatController.toChatLogEntry;
+const isMessageBoxMissingError = PopupChatController.isMessageBoxMissingError;
 
 function setCommunicationStatus(text) {
   setFooterStatus(text || "Ready");
@@ -2749,31 +2696,7 @@ chrome.runtime.onMessage.addListener((msg) => {
   setFooterStatus(msg?.text || "Ready");
 });
 
-function formatDateTime(isoString) {
-  if (!isoString) return "";
-  const date = new Date(isoString);
-  if (Number.isNaN(date.getTime())) return "";
-
-  try {
-    const parts = new Intl.DateTimeFormat("en-GB", {
-      timeZone: "America/Sao_Paulo",
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).formatToParts(date);
-    const get = (type) => parts.find((p) => p.type === type)?.value || "";
-    return `${get("day")} ${get("month")} ${get("year")} ${get("hour")}:${get("minute")}`.trim();
-  } catch (_e) {
-    try {
-      return date.toLocaleString();
-    } catch (_e2) {
-      return "";
-    }
-  }
-}
+const formatDateTime = POPUP_UTILS.formatDateTime;
 
 async function refreshCompanyRowFromDb({
   linkedin_id: linkedinIdOverride,
@@ -2809,21 +2732,8 @@ function getOverviewLastRelevantDate(row) {
   return row?.most_relevant_date || "";
 }
 
-function pad2(n) {
-  return String(n).padStart(2, "0");
-}
-
-function formatLocalDateTime(isoString) {
-  if (!isoString) return "";
-  const d = new Date(isoString);
-  if (Number.isNaN(d.getTime())) return "";
-  const dd = pad2(d.getDate());
-  const mm = pad2(d.getMonth() + 1);
-  const yy = String(d.getFullYear()).slice(-2);
-  const hh = pad2(d.getHours());
-  const mi = pad2(d.getMinutes());
-  return `${dd}-${mm}-${yy} ${hh}:${mi}`;
-}
+const pad2 = POPUP_UTILS.pad2;
+const formatLocalDateTime = POPUP_UTILS.formatLocalDateTime;
 
 function buildOverviewQueryState() {
   const selectedCampaignOption =
@@ -3062,8 +2972,8 @@ async function openPersonDetailsFromOverviewRow(row) {
     dbCompanyRow = null;
     companyPeopleRows = [];
     selectedExistingCompanyForLink = null;
-    lastProfileContextEnriched = null;
-    currentProfileContext = {
+    PopupState.lastProfileContextEnriched = null;
+    PopupState.currentProfileContext = {
       url: linkedinUrl,
       linkedin_url: linkedinUrl,
       name: safeTrim(row?.name),
@@ -3071,7 +2981,7 @@ async function openPersonDetailsFromOverviewRow(row) {
       company: safeTrim(row?.company),
       headline: safeTrim(row?.headline),
     };
-    lastProfileContextSent = currentProfileContext;
+    PopupState.lastProfileContextSent = PopupState.currentProfileContext;
     await refreshInvitationRowFromDb({ preserveTabs: true });
     setNoProfileStateVisible(false);
     renderDetailHeader({ force: true });
@@ -3287,7 +3197,7 @@ function bindCompanyNameDetailsActions(rows) {
         dbCompanyRow = companyRow;
         const linkedinId = safeTrim(companyRow?.linkedin_id || row?.linkedin_url || "");
         selectedCompanyFromListLinkedinUrl = linkedinId;
-        currentProfileContext = {
+        PopupState.currentProfileContext = {
           url: linkedinId,
           linkedin_id: linkedinId,
           is_company_profile: true,
@@ -3404,9 +3314,7 @@ function getGridColumnKey(kind, index) {
   return keys[index] || `persons_col_${index}`;
 }
 
-function clampNumber(value, min, max) {
-  return Math.min(Math.max(value, min), max);
-}
+const clampNumber = POPUP_UTILS.clampNumber;
 
 function ensureGridColgroup(tableEl, columnCount) {
   if (!tableEl) return null;
@@ -3722,9 +3630,7 @@ async function refreshOverviewListContextSnapshot() {
   } catch (_e) {}
 }
 
-function shouldOpenInNewTab(event) {
-  return Boolean(event?.ctrlKey || event?.metaKey);
-}
+const shouldOpenInNewTab = POPUP_UTILS.shouldOpenInNewTab;
 
 async function openLinkedIn(url, { newTab = false } = {}) {
   const targetUrl = String(url || "").trim();
@@ -4009,67 +3915,70 @@ function wireOverviewEvents() {
   });
 }
 
-function getProfileForGeneration(profile) {
-  const p = profile || {};
-  const out = {};
+const getLinkedinUrlFromContext =
+  typeof POPUP_UTILS.getLinkedinUrlFromContext === "function"
+    ? POPUP_UTILS.getLinkedinUrlFromContext
+    : (profileContext) =>
+        profileContext?.url ||
+        profileContext?.profile_url ||
+        profileContext?.linkedin_url ||
+        null;
 
-  const copyKeys = [
-    "url",
-    "profile_url",
-    "linkedin_url",
-    "name",
-    "full_name",
-    "first_name",
-    "headline",
-    "company",
-    "location",
-    "about",
-    "recent_experience",
-  ];
+const getProfileForGeneration =
+  typeof POPUP_UTILS.getProfileForGeneration === "function"
+    ? POPUP_UTILS.getProfileForGeneration
+    : (profile) => {
+        const p = profile || {};
+        const out = {};
 
-  for (const key of copyKeys) {
-    if (p[key] !== undefined && p[key] !== null) {
-      out[key] = p[key];
-    }
-  }
+        const copyKeys = [
+          "url",
+          "profile_url",
+          "linkedin_url",
+          "name",
+          "full_name",
+          "first_name",
+          "headline",
+          "company",
+          "location",
+          "about",
+          "recent_experience",
+        ];
 
-  if (p.excerpt_fallback) {
-    out.excerpt_fallback = p.excerpt_fallback;
-  }
+        for (const key of copyKeys) {
+          if (p[key] !== undefined && p[key] !== null) {
+            out[key] = p[key];
+          }
+        }
 
-  return out;
-}
+        if (p.excerpt_fallback) {
+          out.excerpt_fallback = p.excerpt_fallback;
+        }
 
-function isCompanyProfileMode(profileContext = currentProfileContext) {
+        return out;
+      };
+
+function isCompanyProfileMode(profileContext = PopupState.currentProfileContext) {
   if (safeTrim(dbCompanyRow?.company_id)) return true;
   const url = String(getLinkedinUrlFromContext(profileContext) || "");
   return /linkedin\.com\/(company|school)\//i.test(url);
 }
 
-function normalizeCompanyLinkedinId(profileContext = currentProfileContext) {
+function normalizeCompanyLinkedinId(profileContext = PopupState.currentProfileContext) {
   const raw =
     profileContext?.linkedin_id || getLinkedinUrlFromContext(profileContext) || "";
   return canonicalizeLinkedInUrl(raw);
-}
-
-function getLinkedinUrlFromContext(profileContext) {
-  return (
-    profileContext?.url ||
-    profileContext?.profile_url ||
-    profileContext?.linkedin_url ||
-    null
-  );
 }
 
 function getDetailNameLinkedinUrl() {
   if (isCompanyProfileMode()) {
     return (
       safeTrim(dbCompanyRow?.linkedin_id) ||
-      normalizeCompanyLinkedinId(currentProfileContext)
+      normalizeCompanyLinkedinId(PopupState.currentProfileContext)
     );
   }
   return safeTrim(
-    dbInvitationRow?.linkedin_url || getLinkedinUrlFromContext(currentProfileContext),
+    PopupState.dbInvitationRow?.linkedin_url || getLinkedinUrlFromContext(PopupState.currentProfileContext),
   );
 }
 
@@ -4162,475 +4071,43 @@ function getProfileMatchForUrl(url) {
   };
 }
 
-async function getActiveTabForProfileCheck() {
-  const [queriedTab] = await chrome.tabs.query({
-    active: true,
-    currentWindow: true,
-  });
-  if (!queriedTab) return null;
-  if (queriedTab.url || !Number.isInteger(queriedTab.id)) return queriedTab;
-  try {
-    const refreshedTab = await chrome.tabs.get(queriedTab.id);
-    return refreshedTab || queriedTab;
-  } catch (_e) {
-    return queriedTab;
-  }
-}
+const getActiveTabForProfileCheck =
+  PopupProfileController.getActiveTabForProfileCheck;
+const logEmptyStateDebugOnce = PopupProfileController.logEmptyStateDebugOnce;
+const findNoProfileEl = PopupProfileController.findNoProfileEl;
+const setNoProfileStateVisible = PopupProfileController.setNoProfileStateVisible;
+const getNoProfileDomDebugInfo =
+  PopupProfileController.getNoProfileDomDebugInfo;
+const ensureNoProfileStateUi = PopupProfileController.ensureNoProfileStateUi;
 
-let emptyStateDebugLogged = false;
-function logEmptyStateDebugOnce(payload) {
-  if (!DEBUG_EMPTY_STATE || emptyStateDebugLogged) return;
-  emptyStateDebugLogged = true;
-  console.log("[LEF][empty-state]", payload);
-}
+const getFullNameFromContext =
+  typeof POPUP_UTILS.getFullNameFromContext === "function"
+    ? POPUP_UTILS.getFullNameFromContext
+    : (profileContext) => profileContext?.name || profileContext?.full_name || null;
+globalThis.UI_TEXT = UI_TEXT;
+globalThis.IS_SIDE_PANEL_CONTEXT = IS_SIDE_PANEL_CONTEXT;
+globalThis.safeTrim = safeTrim;
+globalThis.getErrorMessage = getErrorMessage;
+globalThis.getLinkedinUrlFromContext = getLinkedinUrlFromContext;
+globalThis.getProfileForGeneration = getProfileForGeneration;
 
-function findNoProfileEl() {
-  return document.getElementById("noProfileState");
-}
-
-function setNoProfileStateVisible(visible) {
-  ensureNoProfileStateUi();
-  const noProfileEl = findNoProfileEl();
-  if (!noProfileEl) return;
-
-  if (visible) noProfileEl.classList.remove("hidden");
-  else noProfileEl.classList.add("hidden");
-
-  const detailContentEl = document.getElementById("detailProfileContent");
-  if (detailContentEl) {
-    if (visible) detailContentEl.classList.add("hidden");
-    else detailContentEl.classList.remove("hidden");
-  }
-}
-
-function getNoProfileDomDebugInfo() {
-  const localEl = document.getElementById("noProfileState");
-  const frameEl = document.querySelector("iframe");
-  const frameNoProfileEl =
-    frameEl?.contentDocument?.getElementById("noProfileState") || null;
-  const targetEl = localEl || frameNoProfileEl || null;
-  return {
-    localExists: Boolean(localEl),
-    iframeExists: Boolean(frameEl),
-    iframeNoProfileExists: Boolean(frameNoProfileEl),
-    targetDocument: localEl ? "popup" : frameNoProfileEl ? "iframe" : "none",
-    hasClassHidden: targetEl ? targetEl.classList.contains("hidden") : null,
-  };
-}
-
-function ensureNoProfileStateUi() {
-  const tabMainEl = document.getElementById("tabMain");
-  if (!tabMainEl) return;
-
-  let detailProfileContentEl = document.getElementById("detailProfileContent");
-  if (!detailProfileContentEl) {
-    const existing = document.getElementById("detailProfileContent");
-    if (existing) {
-      detailProfileContentEl = existing;
-    } else {
-      const wrapper = document.createElement("div");
-      wrapper.id = "detailProfileContent";
-      while (tabMainEl.firstChild) {
-        wrapper.appendChild(tabMainEl.firstChild);
-      }
-      tabMainEl.appendChild(wrapper);
-      detailProfileContentEl = wrapper;
-    }
-  }
-
-  const noProfileMatches = tabMainEl.querySelectorAll("#noProfileState");
-  if (noProfileMatches.length > 1) {
-    for (let i = 1; i < noProfileMatches.length; i += 1) {
-      noProfileMatches[i].remove();
-    }
-  }
-
-  let noProfileStateEl = document.getElementById("noProfileState");
-  if (!noProfileStateEl) {
-    const existing = document.getElementById("noProfileState");
-    if (existing) {
-      return;
-    }
-    const stateEl = document.createElement("div");
-    stateEl.id = "noProfileState";
-    stateEl.className = "empty-state hidden";
-    stateEl.setAttribute("aria-live", "polite");
-
-    const innerEl = document.createElement("div");
-    innerEl.className = "empty-state-inner";
-
-    const iconEl = document.createElement("div");
-    iconEl.className = "empty-state-icon";
-    iconEl.setAttribute("aria-hidden", "true");
-    iconEl.textContent = "\u{1F464}";
-
-    const textEl = document.createElement("div");
-    textEl.className = "empty-state-text";
-    textEl.textContent = "Please open a profile in linkedin";
-
-    innerEl.appendChild(iconEl);
-    innerEl.appendChild(textEl);
-    stateEl.appendChild(innerEl);
-    tabMainEl.insertBefore(stateEl, detailProfileContentEl);
-  }
-}
-
-function getFullNameFromContext(profileContext) {
-  return profileContext?.name || profileContext?.full_name || null;
-}
-
-async function extractProfileContextFromActiveTab({ source = "" } = {}) {
-  const activeTab = await getActiveTabForProfileCheck().catch(() => null);
-  if (!Number.isInteger(activeTab?.id)) {
-    throw new Error("No active tab found.");
-  }
-  const activeTabUrl = canonicalizeLinkedInUrl(activeTab?.url || "");
-  if (detectLinkedInPageType(activeTabUrl).page_type !== "person") {
-    throw new Error("Active page is not a LinkedIn person profile.");
-  }
-
-  let resp = null;
-  try {
-    resp = await chrome.tabs.sendMessage(activeTab.id, {
-      type: "EXTRACT_PROFILE_CONTEXT",
-    });
-  } catch (e) {
-    throw new Error(
-      getErrorMessage(e) || UI_TEXT.couldNotExtractProfileContext,
-    );
-  }
-
-  if (!resp || !resp?.ok || !resp?.profile) {
-    throw new Error(
-      getErrorMessage(resp?.error) || UI_TEXT.couldNotExtractProfileContext,
-    );
-  }
-  const profile = getProfileForGeneration(resp.profile);
-  const scrapedUrl = canonicalizeLinkedInUrl(getLinkedinUrlFromContext(profile) || "");
-  if (activeTabUrl && scrapedUrl && activeTabUrl !== scrapedUrl) {
-    throw new Error("Scraped page URL does not match active tab URL.");
-  }
-  console.log("[LEF][active page scrape]", {
-    source,
-    active_tab_url: activeTabUrl,
-    scraped_url: scrapedUrl,
-    is_company_profile: isCompanyProfileMode(profile),
-  });
-  latestPersonScrape = profile;
-  console.log("[LEF][scrape] person saved", {
-    linkedin_url: scrapedUrl || activeTabUrl,
-  });
-  return profile;
-}
-
-async function extractCompanyContextFromActiveTab({ source = "" } = {}) {
-  const activeTab = await getActiveTabForProfileCheck().catch(() => null);
-  if (!Number.isInteger(activeTab?.id)) {
-    throw new Error("No active tab found.");
-  }
-  const activeTabUrl = canonicalizeLinkedInUrl(activeTab?.url || "");
-  if (!/^https:\/\/www\.linkedin\.com\/(company|school)\/[^/?#]+/i.test(activeTabUrl)) {
-    throw new Error("Active page is not a LinkedIn company page.");
-  }
-  console.log("[LEF][company ai] company page detected", {
-    source,
-    url: activeTabUrl,
-  });
-
-  const startedAt = Date.now();
-  const timeoutMs = 3000;
-  const retryDelayMs = 180;
-  let resp = null;
-  let lastErrorMessage = "";
-
-  while (Date.now() - startedAt < timeoutMs) {
-    try {
-      resp = await chrome.tabs.sendMessage(activeTab.id, {
-        type: "EXTRACT_COMPANY_CONTEXT",
-      });
-    } catch (e) {
-      lastErrorMessage = getErrorMessage(e) || "Could not extract company context.";
-      await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
-      continue;
-    }
-
-    if (resp?.ok && resp?.company) {
-      break;
-    }
-    lastErrorMessage =
-      getErrorMessage(resp?.error) || "Could not extract company context.";
-    await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
-  }
-
-  if (!resp || !resp?.ok || !resp?.company) {
-    throw new Error(lastErrorMessage || "Could not extract company context.");
-  }
-
-  const company = resp.company || {};
-  const linkedin_id = canonicalizeLinkedInUrl(company.linkedin_id || company.url || "");
-  const companyContext = {
-    url: linkedin_id,
-    is_company_profile: true,
-    linkedin_id,
-    company_name: safeTrim(company.company_name),
-    employee_number: safeTrim(company.employee_number),
-    sector: safeTrim(company.sector),
-    city: safeTrim(company.city),
-    it_members: safeTrim(company.it_members),
-    company_page_excerpt: safeTrim(company.company_page_excerpt),
-  };
-  if (!linkedin_id) throw new Error("Missing linkedin_id.");
-  console.log("[LEF][company ai] scraped company context", companyContext);
-  latestCompanyScrape = companyContext;
-  console.log("[LEF][scrape] company saved", { linkedin_id });
-  return companyContext;
-}
-
-async function getFreshScrapeForPage(pageInfo, { source = "", force = false } = {}) {
-  if (pageInfo?.page_type === "person") {
-    if (!force && getScrapeUrl(latestPersonScrape) === pageInfo.linkedin_id) {
-      console.log("[LEF][llm] using fresh person scrape", {
-        linkedin_url: pageInfo.linkedin_id,
-      });
-      return latestPersonScrape;
-    }
-    console.log("[LEF][scrape] person started", {
-      source,
-      linkedin_url: pageInfo.linkedin_id,
-    });
-    try {
-      return await extractProfileContextFromActiveTab({ source });
-    } catch (e) {
-      latestPersonScrape = null;
-      console.log("[LEF][scrape] stale DOM detected", {
-        page_type: "person",
-        linkedin_url: pageInfo.linkedin_id,
-        error: getErrorMessage(e),
-      });
-      throw e;
-    }
-  }
-  if (pageInfo?.page_type === "company") {
-    if (!force && getScrapeUrl(latestCompanyScrape) === pageInfo.linkedin_id) {
-      console.log("[LEF][llm] using fresh company scrape", {
-        linkedin_id: pageInfo.linkedin_id,
-      });
-      return latestCompanyScrape;
-    }
-    console.log("[LEF][scrape] company started", {
-      source,
-      linkedin_id: pageInfo.linkedin_id,
-    });
-    try {
-      return await extractCompanyContextFromActiveTab({ source });
-    } catch (e) {
-      latestCompanyScrape = null;
-      console.log("[LEF][scrape] stale DOM detected", {
-        page_type: "company",
-        linkedin_id: pageInfo.linkedin_id,
-        error: getErrorMessage(e),
-      });
-      throw e;
-    }
-  }
-  console.log("[LEF][llm] blocked because scrape missing", {
-    page_type: pageInfo?.page_type || "unsupported",
-  });
-  throw new Error("Unsupported LinkedIn page.");
-}
+const extractProfileContextFromActiveTab =
+  PopupProfileController.extractProfileContextFromActiveTab;
+const extractCompanyContextFromActiveTab =
+  PopupProfileController.extractCompanyContextFromActiveTab;
+const getFreshScrapeForPage = PopupProfileController.getFreshScrapeForPage;
+const extractAndPersistProfileDetails =
+  PopupProfileController.extractAndPersistProfileDetails;
 
 function clearFreePromptPreview() {
   if (freePromptPreviewEl) freePromptPreviewEl.textContent = "";
   updateFreePromptCopyButtonState();
 }
 
-function applyProfileExtractionFailureState(statusText) {
-  isProfileEditMode = false;
-  isProfileSaveInFlight = false;
-  currentProfileContext = null;
-  lastProfileContextSent = {};
-  lastProfileContextEnriched = null;
-  dbInvitationRow = null;
-  dbCompanyRow = null;
-  companyPeopleRows = [];
-  selectedExistingCompanyForLink = null;
-  linkedPersonCampaignRows = [];
-  renderLinkedCampaignChips();
-  setCampaignSelectValue("");
-  if (previewEl) previewEl.textContent = "";
-  if (firstMessagePreviewEl) firstMessagePreviewEl.textContent = "";
-  if (followupPreviewEl) followupPreviewEl.value = "";
-  clearFreePromptPreview();
-  updateInviteCopyIconVisibility();
-  updateMessageTabControls();
-  updateFollowupCopyIconVisibility();
-  setCommunicationStatus(statusText || UI_TEXT.couldNotExtractProfileContext);
-  applyLifecycleUiState(dbInvitationRow);
-  outreachMessageStatus = "accepted";
-  renderMessageTab(outreachMessageStatus);
-  renderDetailHeader();
-  updatePhaseButtons();
-}
-
-async function refreshAll() {
-  selectedCompanyFromListLinkedinUrl = "";
-  setCompanyUrlMismatchBannerVisible(false);
-  const activeTab = await getActiveTabForProfileCheck().catch(() => null);
-  const tabUrl = activeTab?.url || "";
-  const canonicalTabUrl = canonicalizeLinkedInUrl(tabUrl);
-  const pageInfo = detectLinkedInPageType(tabUrl);
-  console.log("[LEF][page] detected", pageInfo);
-  timingLog("UI refresh requested", {
-    source: IS_SIDE_PANEL_CONTEXT ? "sidepanel/popup" : "popup",
-    tab_url: tabUrl,
-  });
-  const { isProfileOpen, matchedRule } = getProfileMatchForUrl(tabUrl);
-
-  if (!isProfileOpen) {
-    setNoProfileStateVisible(true);
-    logEmptyStateDebugOnce({
-      tabId: activeTab?.id ?? null,
-      tabUrl: tabUrl || null,
-      tabStatus: activeTab?.status || null,
-      isProfileOpen,
-      matchedRule,
-      dom: getNoProfileDomDebugInfo(),
-    });
-    isProfileEditMode = false;
-    isProfileSaveInFlight = false;
-    currentProfileContext = null;
-    lastProfileContextSent = {};
-    lastProfileContextEnriched = null;
-    latestPersonScrape = null;
-    latestCompanyScrape = null;
-    dbInvitationRow = null;
-    dbCompanyRow = null;
-    companyPeopleRows = [];
-    selectedExistingCompanyForLink = null;
-    linkedPersonCampaignRows = [];
-    renderLinkedCampaignChips();
-    setCampaignSelectValue("");
-    clearFreePromptPreview();
-    updateMessageTabControls();
-    applyLifecycleUiState(dbInvitationRow);
-    outreachMessageStatus = "accepted";
-    renderMessageTab(outreachMessageStatus);
-    setCommunicationStatus(UI_TEXT.lifecycleOpenLinkedInProfileFirst);
-    renderDetailHeader();
-    updatePhaseButtons();
-    return false;
-  }
-
-  try {
-    setNoProfileStateVisible(false);
-    logEmptyStateDebugOnce({
-      tabId: activeTab?.id ?? null,
-      tabUrl: tabUrl || null,
-      tabStatus: activeTab?.status || null,
-      isProfileOpen,
-      matchedRule,
-      dom: getNoProfileDomDebugInfo(),
-    });
-    if (pageInfo.page_type === "company") {
-      console.log("[LEF][db] load requested", {
-        page_type: "company",
-        ts: Date.now(),
-        linkedin_id: pageInfo.linkedin_id,
-      });
-      currentProfileContext = {
-        url: pageInfo.linkedin_id,
-        linkedin_id: pageInfo.linkedin_id,
-        is_company_profile: true,
-      };
-      lastProfileContextSent = currentProfileContext;
-      lastProfileContextEnriched = null;
-      dbCompanyRow = null;
-      companyPeopleRows = [];
-      selectedExistingCompanyForLink = null;
-      updateMessageTabControls();
-      await refreshCompanyRowFromDb({
-        linkedin_id: pageInfo.linkedin_id,
-        allowNameSearch: false,
-      });
-      console.log(dbCompanyRow ? "[LEF][db] load found" : "[LEF][db] load not found", {
-        page_type: "company",
-        linkedin_id: pageInfo.linkedin_id,
-      });
-      renderDetailHeader();
-      updatePhaseButtons();
-      getFreshScrapeForPage(pageInfo, { source: "refresh", force: true }).catch(
-        () => null,
-      );
-      if (IS_SIDE_PANEL_CONTEXT) {
-        setActiveTab("detail", { userInitiated: true });
-      }
-      return true;
-    }
-
-    if (pageInfo.page_type !== "person") {
-      throw new Error(UI_TEXT.couldNotExtractProfileContext);
-    }
-
-    console.log("[LEF][db] load requested", {
-      page_type: "person",
-      linkedin_url: pageInfo.linkedin_id,
-    });
-    const previousProfileUrl = canonicalizeLinkedInUrl(
-      getLinkedinUrlFromContext(currentProfileContext) || "",
-    );
-    if (previousProfileUrl !== pageInfo.linkedin_id) {
-      clearFreePromptPreview();
-    }
-    currentProfileContext = { url: pageInfo.linkedin_id };
-    lastProfileContextSent = currentProfileContext;
-    dbCompanyRow = null;
-    companyPeopleRows = [];
-    selectedExistingCompanyForLink = null;
-    lastProfileContextEnriched = null;
-    updateMessageTabControls();
-    await refreshInvitationRowFromDb();
-    console.log(dbInvitationRow ? "[LEF][db] load found" : "[LEF][db] load not found", {
-      page_type: "person",
-      linkedin_url: pageInfo.linkedin_id,
-    });
-    getFreshScrapeForPage(pageInfo, {
-      source: "refresh",
-      force: true,
-    })
-      .then((profileContext) => {
-        timingLog("extraction completed", {
-          scraped_url: getLinkedinUrlFromContext(profileContext) || "",
-          is_company_profile: isCompanyProfileMode(profileContext),
-        });
-        currentProfileContext = profileContext;
-        lastProfileContextSent = profileContext;
-        renderDetailHeader();
-      })
-      .catch(() => null);
-    renderDetailHeader();
-    updatePhaseButtons();
-    if (IS_SIDE_PANEL_CONTEXT) {
-      setActiveTab("detail", { userInitiated: true });
-    }
-    return true;
-  } catch (_e) {
-    setNoProfileStateVisible(false);
-    applyProfileExtractionFailureState(
-      getErrorMessage(_e) || UI_TEXT.couldNotExtractProfileContext,
-    );
-    return false;
-  }
-}
-
-async function loadProfileContextOnOpen() {
-  try {
-    return await refreshAll();
-  } catch (_e) {
-    setNoProfileStateVisible(false);
-    applyProfileExtractionFailureState(UI_TEXT.couldNotExtractProfileContext);
-    return false;
-  }
-}
+const applyProfileExtractionFailureState =
+  PopupProfileController.applyProfileExtractionFailureState;
+const refreshAll = PopupProfileController.refreshAll;
+const loadProfileContextOnOpen = PopupProfileController.loadProfileContextOnOpen;
 
 function normalizeLanguageValue(value) {
   const raw = String(value || "").trim();
@@ -4657,8 +4134,8 @@ async function setLanguage(value, { persist = true } = {}) {
       el.value = normalized;
     }
   });
-  if (currentProfileContext) {
-    currentProfileContext.language = normalized;
+  if (PopupState.currentProfileContext) {
+    PopupState.currentProfileContext.language = normalized;
   }
   if (persist) {
     await chrome.storage.local.set({
@@ -4667,15 +4144,7 @@ async function setLanguage(value, { persist = true } = {}) {
   }
 }
 
-async function loadMessageLanguage() {
-  const { [STORAGE_KEY_MESSAGE_LANGUAGE]: savedLanguage } =
-    await chrome.storage.local.get([STORAGE_KEY_MESSAGE_LANGUAGE]);
-  if (typeof savedLanguage === "string" && savedLanguage.trim()) {
-    await setLanguage(savedLanguage.trim(), { persist: false });
-    return;
-  }
-  await setLanguage("Portuguese", { persist: false });
-}
+const loadMessageLanguage = PopupConfigController.loadMessageLanguage;
 
 function getFreePromptLanguage() {
   return normalizeLanguageValue(freePromptLanguageEl?.value) || getLanguage();
@@ -4692,145 +4161,65 @@ async function setFreePromptLanguage(value, { persist = true } = {}) {
   }
 }
 
-async function loadFreePromptLanguage() {
-  const data = await chrome.storage.local.get([
-    STORAGE_KEY_FREE_PROMPT_LANGUAGE,
-    STORAGE_KEY_MESSAGE_LANGUAGE,
-  ]);
-  const savedFreePromptLanguage = normalizeLanguageValue(
-    data?.[STORAGE_KEY_FREE_PROMPT_LANGUAGE],
-  );
-  if (savedFreePromptLanguage) {
-    await setFreePromptLanguage(savedFreePromptLanguage, { persist: false });
-    return;
-  }
-  const savedMessageLanguage = normalizeLanguageValue(
-    data?.[STORAGE_KEY_MESSAGE_LANGUAGE],
-  );
-  if (savedMessageLanguage) {
-    await setFreePromptLanguage(savedMessageLanguage, { persist: false });
-    return;
-  }
-  await setFreePromptLanguage("Portuguese", { persist: false });
-}
+const loadFreePromptLanguage = PopupConfigController.loadFreePromptLanguage;
 
-async function copyToClipboard(text) {
-  const value = typeof text === "string" ? text : String(text ?? "");
+const copyToClipboard =
+  typeof POPUP_UTILS.copyToClipboard === "function"
+    ? POPUP_UTILS.copyToClipboard
+    : async (text) => {
+        const value = typeof text === "string" ? text : String(text ?? "");
 
-  if (
-    navigator?.clipboard &&
-    typeof navigator.clipboard.writeText === "function"
-  ) {
-    try {
-      await navigator.clipboard.writeText(value);
-      return { ok: true };
-    } catch (_err) {
-      // Fallback below.
-    }
-  }
+        if (
+          navigator?.clipboard &&
+          typeof navigator.clipboard.writeText === "function"
+        ) {
+          try {
+            await navigator.clipboard.writeText(value);
+            return { ok: true };
+          } catch (_err) {
+            // Fallback below.
+          }
+        }
 
-  try {
-    const ta = document.createElement("textarea");
-    ta.value = value;
-    ta.setAttribute("readonly", "");
-    ta.style.position = "fixed";
-    ta.style.left = "-9999px";
-    ta.style.top = "-9999px";
-    document.body.appendChild(ta);
+        try {
+          const ta = document.createElement("textarea");
+          ta.value = value;
+          ta.setAttribute("readonly", "");
+          ta.style.position = "fixed";
+          ta.style.left = "-9999px";
+          ta.style.top = "-9999px";
+          document.body.appendChild(ta);
 
-    ta.select();
-    ta.setSelectionRange(0, ta.value.length);
+          ta.select();
+          ta.setSelectionRange(0, ta.value.length);
 
-    const ok = document.execCommand("copy");
-    document.body.removeChild(ta);
+          const ok = document.execCommand("copy");
+          document.body.removeChild(ta);
 
-    if (!ok) {
-      return { ok: false, error: "Copy failed (execCommand)." };
-    }
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: getErrorMessage(e) };
-  }
-}
+          if (!ok) {
+            return { ok: false, error: "Copy failed (execCommand)." };
+          }
+          return { ok: true };
+        } catch (e) {
+          return { ok: false, error: getErrorMessage(e) };
+        }
+      };
+globalThis.copyToClipboard = copyToClipboard;
 
-function showFirstMessageCopySuccessCheck(buttonEl) {
-  const btn = buttonEl || copyFirstMessageBtnEl;
-  if (!btn) return;
-  setCopyIconSuccessState(btn);
-  if (firstMessageCopyIconResetTimer) {
-    clearTimeout(firstMessageCopyIconResetTimer);
-  }
-  firstMessageCopyIconResetTimer = setTimeout(() => {
-    if (btn) {
-      setCopyIconDefaultState(btn);
-    }
-    firstMessageCopyIconResetTimer = null;
-  }, 800);
-}
-
-function showFollowupCopySuccessCheck(buttonEl) {
-  const btn = buttonEl || copyFollowupBtnEl;
-  if (!btn) return;
-  setCopyIconSuccessState(btn);
-  if (followupCopyIconResetTimer) {
-    clearTimeout(followupCopyIconResetTimer);
-  }
-  followupCopyIconResetTimer = setTimeout(() => {
-    if (btn) {
-      setCopyIconDefaultState(btn);
-    }
-    followupCopyIconResetTimer = null;
-  }, 800);
-}
-
-function showFreePromptCopySuccessCheck(buttonEl) {
-  const btn = buttonEl || copyFreePromptBtnEl;
-  if (!btn) return;
-  setCopyIconSuccessState(btn);
-  if (freePromptCopyIconResetTimer) {
-    clearTimeout(freePromptCopyIconResetTimer);
-  }
-  freePromptCopyIconResetTimer = setTimeout(() => {
-    if (btn) {
-      setCopyIconDefaultState(btn);
-    }
-    freePromptCopyIconResetTimer = null;
-  }, 800);
-}
-
-function setCopyIconDefaultState(buttonEl) {
-  if (!buttonEl) return;
-  buttonEl.textContent = COPY_ICON_GLYPH;
-  buttonEl.title = COPY_TOOLTIP_DEFAULT;
-  buttonEl.setAttribute("aria-label", COPY_TOOLTIP_DEFAULT);
-}
-
-function setCopyIconSuccessState(buttonEl) {
-  if (!buttonEl) return;
-  buttonEl.textContent = "\u2713";
-  buttonEl.title = COPY_TOOLTIP_SUCCESS;
-  buttonEl.setAttribute("aria-label", COPY_TOOLTIP_SUCCESS);
-}
-
-function updateFollowupCopyIconVisibility() {
-  if (!copyFollowupBtnEl || !followupPreviewEl) return;
-  const hasText = (followupPreviewEl.value || "").trim().length > 0;
-  if (!hasText) {
-    setCopyIconDefaultState(copyFollowupBtnEl);
-  }
-  copyFollowupBtnEl.hidden = !hasText;
-  copyFollowupBtnEl.disabled = !hasText;
-}
-
-function updateFreePromptCopyButtonState() {
-  if (!copyFreePromptBtnEl || !freePromptPreviewEl) return;
-  const hasText = (freePromptPreviewEl.textContent || "").trim().length > 0;
-  if (!hasText) {
-    setCopyIconDefaultState(copyFreePromptBtnEl);
-  }
-  copyFreePromptBtnEl.hidden = !hasText;
-  copyFreePromptBtnEl.disabled = !hasText;
-}
+const setCopyIconDefaultState =
+  PopupMessageController.setCopyIconDefaultState || (() => {});
+const setCopyIconSuccessState =
+  PopupMessageController.setCopyIconSuccessState || (() => {});
+const showFirstMessageCopySuccessCheck =
+  PopupMessageController.showFirstMessageCopySuccessCheck || (() => {});
+const showFollowupCopySuccessCheck =
+  PopupMessageController.showFollowupCopySuccessCheck || (() => {});
+const showFreePromptCopySuccessCheck =
+  PopupMessageController.showFreePromptCopySuccessCheck || (() => {});
+const updateFollowupCopyIconVisibility =
+  PopupMessageController.updateFollowupCopyIconVisibility || (() => {});
+const updateFreePromptCopyButtonState =
+  PopupMessageController.updateFreePromptCopyButtonState || (() => {});
 
 function setAuthInnerTab(which) {
   supabaseAuthInnerTab = which === "login" ? "login" : "signup";
@@ -4975,13 +4364,41 @@ let popupInitErrorLogged = false;
 function logPopupInitError(error) {
   if (popupInitErrorLogged) return;
   popupInitErrorLogged = true;
-  console.error(`[LEF][init] popup init failed: ${getErrorMessage(error)}`);
+  PopupLogger.error(`[LEF][init] popup init failed: ${getErrorMessage(error)}`);
   if (error && typeof error === "object" && typeof error.stack === "string") {
-    console.error(error.stack);
+    PopupLogger.error(error.stack);
   }
 }
 
 function runPopupInit() {
+  globalThis.canonicalizeLinkedInUrl = canonicalizeLinkedInUrl;
+  globalThis.detectLinkedInPageType = detectLinkedInPageType;
+  globalThis.isCompanyProfileMode = isCompanyProfileMode;
+  globalThis.getScrapeUrl = getScrapeUrl;
+  globalThis.getProfileMatchForUrl = getProfileMatchForUrl;
+  globalThis.setCompanyUrlMismatchBannerVisible = setCompanyUrlMismatchBannerVisible;
+  globalThis.timingLog = timingLog;
+  globalThis.renderLinkedCampaignChips = renderLinkedCampaignChips;
+  globalThis.setCampaignSelectValue = setCampaignSelectValue;
+  globalThis.clearFreePromptPreview = clearFreePromptPreview;
+  globalThis.renderDetailHeader = renderDetailHeader;
+  globalThis.updatePhaseButtons = updatePhaseButtons;
+  globalThis.refreshCompanyRowFromDb = refreshCompanyRowFromDb;
+  globalThis.refreshCompanySuggestionUiForCurrentInvitation =
+    refreshCompanySuggestionUiForCurrentInvitation;
+  globalThis.loadProfileContextOnOpen = loadProfileContextOnOpen;
+  globalThis.sendRuntimeMessage = sendRuntimeMessage;
+  globalThis.getMessageCountValue = getMessageCountValue;
+  globalThis.isMessageSentOrBeyondStatus = isMessageSentOrBeyondStatus;
+  globalThis.getLanguage = getLanguage;
+  globalThis.setLanguage = setLanguage;
+  globalThis.normalizeCompanyLinkedinId = normalizeCompanyLinkedinId;
+  globalThis.setFooterUpdatingStatus = setFooterUpdatingStatus;
+  globalThis.applyLifecycleUiState = applyLifecycleUiState;
+  globalThis.renderMessageTab = renderMessageTab;
+  globalThis.setCopyIconDefaultState = setCopyIconDefaultState;
+  globalThis.setCopyIconSuccessState = setCopyIconSuccessState;
+  globalThis.updateFollowupCopyIconVisibility = updateFollowupCopyIconVisibility;
   initPopupModules();
   tabMainBtn?.addEventListener("click", async () => {
     setFooterFetchingStatus();
@@ -5061,7 +4478,6 @@ function runPopupInit() {
   updateInviteCopyIconVisibility();
   updateFollowupCopyIconVisibility();
   bindPromptManagementEvents();
-  bindPersonWorkflowEvents();
   bindMessagesWorkflowEvents();
   bindStepperClickHandlers();
   updateMessageTabControls();
@@ -5095,15 +4511,15 @@ function runPopupInit() {
   }
   setFooterReady();
   setCommunicationStatus("Ready");
-  applyLifecycleUiState(dbInvitationRow);
-  renderMessageTab(outreachMessageStatus);
+  applyLifecycleUiState(PopupState.dbInvitationRow);
+  renderMessageTab(PopupState.outreachMessageStatus);
   setDetailInnerTab("free_prompt");
   renderDetailHeader();
   updatePhaseButtons();
   loadProfileContextOnOpen().catch((_e) => {});
   supabaseAuthUiPromise.finally(() => {
     loadPromptOptions().catch((e) => {
-      console.warn("[LEF][prompt] failed to load prompt options", e);
+      PopupLogger.warn("[LEF][prompt] failed to load prompt options", e);
       setFooterStatus(`Prompt load error: ${getErrorMessage(e)}`);
     });
   });
@@ -5154,8 +4570,8 @@ function runPopupInit() {
   messageCountDecrementEl?.addEventListener("click", async (event) => {
     event.preventDefault();
     event.stopPropagation();
-    const statusValue = getLifecycleStatusValue(dbInvitationRow);
-    const effectiveCount = getEffectiveMessageCount(dbInvitationRow);
+    const statusValue = getLifecycleStatusValue(PopupState.dbInvitationRow);
+    const effectiveCount = getEffectiveMessageCount(PopupState.dbInvitationRow);
     if (isMessageSentOrBeyondStatus(statusValue) && effectiveCount <= 1) {
       setFooterStatus(
         "To remove the last message, revert status via the process flow.",
@@ -5228,7 +4644,7 @@ function runPopupInit() {
       ).trim();
       await loadCampaignOptions({ keepSelected: true });
       setCampaignSelectValue(createdCampaignId);
-      if (dbInvitationRow?.id) {
+      if (PopupState.dbInvitationRow?.id) {
         await handleCampaignSelection(createdCampaignId);
       } else {
         setFooterStatus("Person must exist/generated first.");
@@ -5394,89 +4810,23 @@ if (document.readyState === "loading") {
   }
 }
 
-async function extractAndPersistProfileDetails() {
-  const activeTab = await getActiveTabForProfileCheck().catch(() => null);
-  const activeTabUrl = canonicalizeLinkedInUrl(activeTab?.url || "");
-  const pageInfo = detectLinkedInPageType(activeTabUrl);
-  console.log("[LEF][ai] active URL", { ts: Date.now(), url: activeTabUrl });
-  if (pageInfo.page_type === "company") {
-    const companyContext = await getFreshScrapeForPage(pageInfo, {
-      source: "llm_click",
-    });
-    console.log("[LEF][llm] using fresh company scrape", {
-      linkedin_id: pageInfo.linkedin_id,
-    });
-    currentProfileContext = companyContext;
-    lastProfileContextSent = companyContext;
-    lastProfileContextEnriched = null;
-    renderDetailHeader();
-    const extracted = await extractCompanyDetailsFromLlm(companyContext);
-    const saveResult = await sendRuntimeMessage("DB_UPSERT_COMPANY_PROFILE", {
-      payload: extracted,
-    });
-    const saveResp = saveResult.data || {};
-    if (!saveResult.ok || !saveResp?.ok) {
-      throw new Error(
-        `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(saveResult.error || saveResp?.error)}`,
-      );
-    }
-    return;
-  }
-
-  if (pageInfo.page_type !== "person") {
-    throw new Error("Active page is not a LinkedIn person profile.");
-  }
-  const profileContext = await getFreshScrapeForPage(pageInfo, {
-    source: "llm_click",
-  });
-  console.log("[LEF][llm] using fresh person scrape", {
-    linkedin_url: pageInfo.linkedin_id,
-  });
-  currentProfileContext = profileContext;
-  lastProfileContextSent = profileContext;
-  lastProfileContextEnriched = null;
-  renderDetailHeader();
-
-  const extracted = await extractProfileDetailsFromLlm(profileContext);
-
-  setFooterUpdatingStatus();
-  const saveResult = await sendRuntimeMessage(
-    "DB_UPDATE_PROFILE_DETAILS_ONLY",
-    {
-      payload: {
-        linkedin_url: extracted.linkedin_url,
-        company: extracted.company || undefined,
-        headline: extracted.headline || undefined,
-        language: extracted.language || getLanguage(),
-      },
-    },
-  );
-  const saveResp = saveResult.data || {};
-
-  if (!saveResult.ok || !saveResp?.ok) {
-    throw new Error(
-      `${UI_TEXT.dbErrorPrefix} ${getErrorMessage(saveResult.error || saveResp?.error)}`,
-    );
-  }
-}
-
 async function extractCompanyDetailsFromLlm(scrapedProfileContext = null) {
   const profileContext = scrapedProfileContext;
   if (!profileContext) {
-    console.log("[LEF][llm] blocked because scrape missing", {
+    PopupLogger.debug("[LEF][llm] blocked because scrape missing", {
       page_type: "company",
     });
     throw new Error("Missing company scrape.");
   }
-  currentProfileContext = profileContext;
-  lastProfileContextSent = profileContext;
+  PopupState.currentProfileContext = profileContext;
+  PopupState.lastProfileContextSent = profileContext;
   const linkedin_id = normalizeCompanyLinkedinId(profileContext);
   if (!linkedin_id) throw new Error("Missing linkedin_id.");
   if (!isCompanyProfileMode(profileContext)) {
     throw new Error("Active LinkedIn page is not a company profile.");
   }
-  console.log("[LEF][company profile detected]", { linkedin_id });
-  console.log("[LEF][company scrape result]", {
+  PopupLogger.debug("[LEF][company profile detected]", { linkedin_id });
+  PopupLogger.debug("[LEF][company scrape result]", {
     company_name: profileContext.company_name || "",
     employee_number: profileContext.employee_number || "",
     sector: profileContext.sector || "",
@@ -5501,7 +4851,7 @@ async function extractCompanyDetailsFromLlm(scrapedProfileContext = null) {
     throw new Error(UI_TEXT.setApiKeyInConfig);
   }
 
-  console.log("[LEF][company LLM payload]", {
+  PopupLogger.debug("[LEF][company LLM payload]", {
     linkedin_id,
     company_name: profileContext.company_name || "",
     employee_number: profileContext.employee_number || "",
@@ -5534,8 +4884,8 @@ async function extractCompanyDetailsFromLlm(scrapedProfileContext = null) {
     it_members: profileContext.it_members || "",
     company_page_excerpt: isPersonLikeExcerpt ? "" : rawExcerpt,
   };
-  console.log("[LEF][company ai] payload", companyPayload);
-  console.log("[LEF][ai] payload sent", companyPayload);
+  PopupLogger.debug("[LEF][company ai] payload", companyPayload);
+  PopupLogger.debug("[LEF][ai] payload sent", companyPayload);
   const enrichResult = await sendRuntimeMessage("ENRICH_COMPANY_PROFILE", {
     payload: {
       apiKey,
@@ -5547,7 +4897,7 @@ async function extractCompanyDetailsFromLlm(scrapedProfileContext = null) {
   if (!enrichResult.ok || !enrichResp?.ok) {
     throw new Error(getErrorMessage(enrichResult.error || enrichResp?.error));
   }
-  console.log("[LEF][company AI extraction result]", enrichResp);
+  PopupLogger.debug("[LEF][company AI extraction result]", enrichResp);
   return {
     linkedin_id,
     company_name: safeTrim(enrichResp.company_name || profileContext.company_name),
@@ -5563,17 +4913,17 @@ async function extractCompanyDetailsFromLlm(scrapedProfileContext = null) {
 async function extractProfileDetailsFromLlm(scrapedProfileContext = null) {
   const profileContext = scrapedProfileContext;
   if (!profileContext) {
-    console.log("[LEF][llm] blocked because scrape missing", {
+    PopupLogger.debug("[LEF][llm] blocked because scrape missing", {
       page_type: "person",
     });
     throw new Error("Missing person scrape.");
   }
-  currentProfileContext = profileContext;
-  lastProfileContextSent = profileContext;
-  lastProfileContextEnriched = null;
+  PopupState.currentProfileContext = profileContext;
+  PopupState.lastProfileContextSent = profileContext;
+  PopupState.lastProfileContextEnriched = null;
   renderDetailHeader();
 
-  const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
+  const linkedin_url = getLinkedinUrlFromContext(PopupState.currentProfileContext);
   if (!linkedin_url) {
     throw new Error(UI_TEXT.missingLinkedinUrl);
   }
@@ -5598,7 +4948,7 @@ async function extractProfileDetailsFromLlm(scrapedProfileContext = null) {
   }
 
   const personPayload = { ...profileContext };
-  console.log("[LEF][ai] payload sent", personPayload);
+  PopupLogger.debug("[LEF][ai] payload sent", personPayload);
   const enrichResult = await sendRuntimeMessage("ENRICH_PROFILE", {
     // prompt: buildProfileExtractionPrompt (Enrich/Register)
     payload: {
@@ -5618,11 +4968,11 @@ async function extractProfileDetailsFromLlm(scrapedProfileContext = null) {
   const llmLanguage = (enrichResp.language || "").trim();
 
   if (llmCompany) {
-    currentProfileContext.company = llmCompany;
+    PopupState.currentProfileContext.company = llmCompany;
     if (detailCompanyEl) detailCompanyEl.value = llmCompany;
   }
   if (llmHeadline) {
-    currentProfileContext.headline = llmHeadline;
+    PopupState.currentProfileContext.headline = llmHeadline;
     if (detailHeadlineEl) detailHeadlineEl.value = llmHeadline;
   }
   const normalizedLlmLanguage = normalizeLanguageValue(llmLanguage);
@@ -5630,7 +4980,7 @@ async function extractProfileDetailsFromLlm(scrapedProfileContext = null) {
     await setLanguage(normalizedLlmLanguage);
   }
 
-  const nameFromProfile = (getFullNameFromContext(currentProfileContext) || "")
+  const nameFromProfile = (getFullNameFromContext(PopupState.currentProfileContext) || "")
     .toString()
     .trim();
   const nameFromUi = (detailPersonNameEl?.value || "").trim();
@@ -5647,17 +4997,17 @@ async function extractProfileDetailsFromLlm(scrapedProfileContext = null) {
 }
 
 if (!enrichProfileBtnEl) {
-  console.error("[LEF] enrichProfileBtn element not found");
+  PopupLogger.error("[LEF] enrichProfileBtn element not found");
 } else {
   enrichProfileBtnEl.addEventListener("click", async () => {
-    console.log("[LEF][ai] button clicked", { ts: Date.now() });
+    PopupLogger.debug("[LEF][ai] button clicked", { ts: Date.now() });
     setFooterLlmStatus();
     try {
       await extractAndPersistProfileDetails();
       await refreshInvitationRowFromDb();
       renderDetailHeader();
     } catch (e) {
-      console.error("[LEF] enrichProfile failed", e);
+      PopupLogger.error("[LEF] enrichProfile failed", e);
       setFooterStatus(`${UI_TEXT.errorPrefix} ${getErrorMessage(e)}`);
     } finally {
       setFooterReady();
@@ -5679,7 +5029,7 @@ function bindProfileEditControls() {
   saveProfileFieldsBtnEl?.addEventListener("click", async () => {
     if (isProfileSaveInFlight) return;
 
-    const targetUrl = getLinkedinUrlFromContext(currentProfileContext);
+    const targetUrl = getLinkedinUrlFromContext(PopupState.currentProfileContext);
     if (!targetUrl) {
       setFooterStatus(isCompanyProfileMode() ? "Missing linkedin_id." : UI_TEXT.missingLinkedinUrl);
       return;
@@ -5698,7 +5048,27 @@ function bindProfileEditControls() {
         const linkedExistingCompanyName = safeTrim(
           selectedExistingCompanyForLink?.company_name,
         );
-        const payload = buildCompanyProfileSavePayload();
+        const isCreateFlow = !dbCompanyRow && !linkedExistingCompanyId;
+        let payload = buildCompanyProfileSavePayload();
+        if (isCreateFlow) {
+          const pageInfo = detectLinkedInPageType(targetUrl);
+          const companyContext = await getFreshScrapeForPage(pageInfo, {
+            source: "company_create",
+            force: true,
+          });
+          const enrichedPayload = await extractCompanyDetailsFromLlm(companyContext);
+          payload = {
+            ...payload,
+            ...enrichedPayload,
+            company_name: safeTrim(enrichedPayload.company_name || payload.company_name),
+            employee_number: safeTrim(
+              enrichedPayload.employee_number || payload.employee_number,
+            ),
+            sector: safeTrim(enrichedPayload.sector || payload.sector),
+            city: safeTrim(enrichedPayload.city || payload.city),
+            it_members: safeTrim(enrichedPayload.it_members || payload.it_members),
+          };
+        }
         const result = linkedExistingCompanyId
           ? await sendRuntimeMessage("DB_UPDATE_COMPANY_BY_ID", {
               payload: {
@@ -5714,12 +5084,12 @@ function bindProfileEditControls() {
         if (!result.ok || !resp?.ok) {
           throw new Error(getErrorMessage(result.error || resp?.error));
         }
-        if (currentProfileContext) {
-          currentProfileContext.company_name = payload.company_name;
-          currentProfileContext.employee_number = payload.employee_number;
-          currentProfileContext.sector = payload.sector;
-          currentProfileContext.city = payload.city;
-          currentProfileContext.it_members = payload.it_members;
+        if (PopupState.currentProfileContext) {
+          PopupState.currentProfileContext.company_name = payload.company_name;
+          PopupState.currentProfileContext.employee_number = payload.employee_number;
+          PopupState.currentProfileContext.sector = payload.sector;
+          PopupState.currentProfileContext.city = payload.city;
+          PopupState.currentProfileContext.it_members = payload.it_members;
         }
         isProfileEditMode = false;
         renderProfileEditControls();
@@ -5769,22 +5139,22 @@ function bindProfileEditControls() {
         throw new Error(getErrorMessage(result.error || resp?.error));
       }
 
-      if (currentProfileContext) {
-        currentProfileContext.name = full_name;
-        currentProfileContext.full_name = full_name;
-        currentProfileContext.company = companyToSave;
-        currentProfileContext.headline = headline;
-        currentProfileContext.comments = comments;
+      if (PopupState.currentProfileContext) {
+        PopupState.currentProfileContext.name = full_name;
+        PopupState.currentProfileContext.full_name = full_name;
+        PopupState.currentProfileContext.company = companyToSave;
+        PopupState.currentProfileContext.headline = headline;
+        PopupState.currentProfileContext.comments = comments;
       }
-      if (dbInvitationRow) {
-        dbInvitationRow.full_name = full_name;
-        dbInvitationRow.company = companyToSave;
-        if (selectedCompanyId) dbInvitationRow.company_id = selectedCompanyId;
-        dbInvitationRow.headline = headline;
-        dbInvitationRow.comments = comments;
+      if (PopupState.dbInvitationRow) {
+        PopupState.dbInvitationRow.full_name = full_name;
+        PopupState.dbInvitationRow.company = companyToSave;
+        if (selectedCompanyId) PopupState.dbInvitationRow.company_id = selectedCompanyId;
+        PopupState.dbInvitationRow.headline = headline;
+        PopupState.dbInvitationRow.comments = comments;
       }
       if (selectedCompanyId) {
-        console.log("[LEF][company dropdown] company saved", {
+        PopupLogger.debug("[LEF][company dropdown] company saved", {
           company_id: selectedCompanyId,
           company_name: companyToSave,
         });
@@ -5831,7 +5201,7 @@ function bindOpenSidePanelClickHandler() {
       setFooterStatus(UI_TEXT.openedSidePanel);
       window.close();
     } catch (e) {
-      console.error("[sidepanel] open failed", e);
+      PopupLogger.error("[sidepanel] open failed", e);
       setFooterStatus(UI_TEXT.sidePanelNotAvailable);
     } finally {
       setFooterReady();
@@ -5841,10 +5211,10 @@ function bindOpenSidePanelClickHandler() {
 
 bindOpenSidePanelClickHandler();
 
-acceptCompanySuggestionBtnEl?.addEventListener("click", async () => {
+async function handleAcceptCompanySuggestion() {
   if (isAcceptingCompanySuggestion) return;
   if (!companySuggestion?.company_id || !companySuggestion?.company_name) return;
-  const linkedin_url = getLinkedinUrlFromContext(currentProfileContext);
+  const linkedin_url = getLinkedinUrlFromContext(PopupState.currentProfileContext);
   if (!linkedin_url) {
     setFooterStatus(UI_TEXT.missingLinkedinUrl);
     return;
@@ -5865,7 +5235,7 @@ acceptCompanySuggestionBtnEl?.addEventListener("click", async () => {
     if (!result.ok || !resp?.ok) {
       throw new Error(getErrorMessage(result.error || resp?.error));
     }
-    console.log("[LEF][company suggestion accepted]", {
+    PopupLogger.debug("[LEF][company suggestion accepted]", {
       linkedin_url,
       company_id: companySuggestion.company_id,
       company_name: companySuggestion.company_name,
@@ -5877,8 +5247,11 @@ acceptCompanySuggestionBtnEl?.addEventListener("click", async () => {
   } finally {
     isAcceptingCompanySuggestion = false;
     if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.disabled = false;
+    if (companyQuickLinkBtn) companyQuickLinkBtn.disabled = false;
   }
-});
+}
+
+acceptCompanySuggestionBtnEl?.addEventListener("click", handleAcceptCompanySuggestion);
 
 companyLinkSearchInputEl?.addEventListener("input", () => {
   selectedCompanyForSave = null;
@@ -5955,6 +5328,16 @@ companyExistingLinkButtonEl?.addEventListener("click", async () => {
     updateExistingCompanyLinkUi();
     setFooterReady();
   }
+});
+
+companyQuickLinkBtn?.addEventListener("click", async () => {
+  if (isProfileEditMode || isCompanyProfileMode()) return;
+  PopupLogger.debug("[LEF][quick-link][click]", {
+    suggestionCompanyId: safeTrim(companySuggestion?.company_id),
+    suggestionCompanyName: safeTrim(companySuggestion?.company_name),
+  });
+  if (companyQuickLinkBtn) companyQuickLinkBtn.disabled = true;
+  await handleAcceptCompanySuggestion();
 });
 
 companyUrlMismatchBannerEl?.addEventListener("click", async (event) => {
@@ -6121,3 +5504,5 @@ bindCopyFreePromptHandler();
 setCopyIconDefaultState(copyInviteIconEl);
 setCopyIconDefaultState(copyFreePromptBtnEl);
 updateFreePromptCopyButtonState();
+
+
