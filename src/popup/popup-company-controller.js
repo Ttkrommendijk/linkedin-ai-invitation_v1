@@ -27,6 +27,9 @@
     companyExistingLinkStatusEl,
     companyLinkSearchInputEl,
     companyLinkSearchOptionsEl,
+    companyPeopleListEl,
+    companyPeopleSectionEl,
+    companyCampaignControlsEl,
     companyLinkedEmployeeNumberEl,
     companyLinkedIndicatorEl,
     companyLinkedNameEl,
@@ -35,7 +38,37 @@
     companySuggestionWarningEl,
     companyUrlMismatchBannerEl,
     detailCompanyEl,
+    detailCompanyLabelEl,
     detailCommentsEl,
+    detailCommentsLabelEl,
+    detailEmployeeNumberEl,
+    detailEmployeeNumberLabelEl,
+    detailHeadlineEl,
+    detailHeadlineLabelEl,
+    detailItMembersEl,
+    detailItMembersLabelEl,
+    detailCityEl,
+    detailCityLabelEl,
+    detailPersonNameEl,
+    enrichProfileBtnEl,
+    editProfileBtnEl,
+    saveProfileFieldsBtnEl,
+    cancelProfileEditBtnEl,
+    personNotRegisteredStateEl,
+    tabMain,
+    campaignGroupEl,
+    campaignDividerEl,
+    statusStepperEl,
+    stepperUnderlayEl,
+    statusDividerEl,
+    detailTabsDividerEl,
+    detailTabsRowEl,
+    detailInviteSectionEl,
+    detailMessageMountEl,
+    tabMessage,
+    tabFreePromptEl,
+    acceptedModeEl,
+    firstMessageSentModeEl,
   } = PopupDom;
   const safeTrim =
     typeof PopupUtils.safeTrim === "function"
@@ -148,11 +181,219 @@
   }
 
   function renderProfileEditControls() {
-    return requireFn("renderProfileEditControls")();
+    const isCompanyProfileMode = requireFn("isCompanyProfileMode");
+    const getDetailNameLinkedinUrl = requireFn("getDetailNameLinkedinUrl");
+    const isLinkedInProfileLikeUrl = requireFn("isLinkedInProfileLikeUrl");
+    const isCompany = isCompanyProfileMode();
+    const isProfileEditMode = Boolean(globalObj.isProfileEditMode);
+    const isProfileSaveInFlight = Boolean(globalObj.isProfileSaveInFlight);
+    const dbCompanyRow = globalObj.dbCompanyRow || null;
+    const detailNameUrl = getDetailNameLinkedinUrl();
+    const isDetailNameLinkable =
+      !isProfileEditMode && isLinkedInProfileLikeUrl(detailNameUrl);
+    if (enrichProfileBtnEl) {
+      enrichProfileBtnEl.hidden = isProfileEditMode;
+      enrichProfileBtnEl.disabled = isProfileEditMode;
+    }
+    if (editProfileBtnEl) {
+      editProfileBtnEl.hidden = isProfileEditMode;
+      editProfileBtnEl.textContent = isCompany && !dbCompanyRow ? "Create" : "\u270E";
+      editProfileBtnEl.title =
+        isCompany && !dbCompanyRow ? "Create company" : "Edit";
+      editProfileBtnEl.setAttribute(
+        "aria-label",
+        isCompany && !dbCompanyRow ? "Create company" : "Edit",
+      );
+    }
+    if (saveProfileFieldsBtnEl) {
+      saveProfileFieldsBtnEl.hidden = !isProfileEditMode;
+      saveProfileFieldsBtnEl.disabled = isProfileSaveInFlight;
+    }
+    if (cancelProfileEditBtnEl) {
+      cancelProfileEditBtnEl.hidden = !isProfileEditMode;
+      cancelProfileEditBtnEl.disabled = isProfileSaveInFlight;
+    }
+    for (const fieldEl of [
+      detailPersonNameEl,
+      detailCompanyEl,
+      detailEmployeeNumberEl,
+      detailHeadlineEl,
+      detailCommentsEl,
+      detailCityEl,
+      detailItMembersEl,
+    ]) {
+      if (!fieldEl) continue;
+      fieldEl.readOnly = !isProfileEditMode;
+    }
+    if (detailPersonNameEl) {
+      detailPersonNameEl.classList.toggle("is-linkable", isDetailNameLinkable);
+      if (isDetailNameLinkable) {
+        detailPersonNameEl.title = isCompany
+          ? "Open company page"
+          : "Open person profile";
+      } else {
+        detailPersonNameEl.removeAttribute("title");
+      }
+    }
+    if (companyLinkSearchInputEl) {
+      companyLinkSearchInputEl.hidden = !isProfileEditMode;
+    }
+    if (companyLinkedNameEl) {
+      companyLinkedNameEl.hidden = isProfileEditMode;
+    }
+    if (companyLinkedEmployeeNumberEl) {
+      companyLinkedEmployeeNumberEl.hidden =
+        isCompany ||
+        !safeTrim(PopupState.dbInvitationRow?.company_id) ||
+        !safeTrim(companyLinkedEmployeeNumberEl.textContent);
+    }
+    if (acceptCompanySuggestionBtnEl && isProfileEditMode) {
+      acceptCompanySuggestionBtnEl.hidden = true;
+    }
+    if (companyQuickLinkBtn && isProfileEditMode) {
+      companyQuickLinkBtn.hidden = true;
+    }
+    if (companyLinkedIndicatorEl) {
+      const showLinkedIndicator =
+        !isCompany &&
+        isProfileEditMode &&
+        Boolean(safeTrim(PopupState.dbInvitationRow?.company_id));
+      companyLinkedIndicatorEl.hidden = !showLinkedIndicator;
+      companyLinkedIndicatorEl.style.display = showLinkedIndicator
+        ? "inline-flex"
+        : "none";
+    }
+    if (isCompany) {
+      if (companyLinkedRowEl) companyLinkedRowEl.hidden = true;
+      if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = true;
+      if (companyLinkedNameEl) companyLinkedNameEl.hidden = true;
+      if (companyLinkedEmployeeNumberEl) companyLinkedEmployeeNumberEl.hidden = true;
+      if (companyLinkSearchInputEl) companyLinkSearchInputEl.hidden = true;
+      if (companyLinkedIndicatorEl) {
+        companyLinkedIndicatorEl.hidden = true;
+        companyLinkedIndicatorEl.style.display = "none";
+      }
+      if (companyLinkSearchOptionsEl) companyLinkSearchOptionsEl.innerHTML = "";
+      if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.hidden = true;
+      if (companyQuickLinkBtn) companyQuickLinkBtn.hidden = true;
+    }
+    applyProfileModeUi();
   }
 
   function applyProfileModeUi() {
-    return requireFn("applyProfileModeUi")();
+    const isCompanyProfileMode = requireFn("isCompanyProfileMode");
+    const isCompany = isCompanyProfileMode();
+    const isProfileEditMode = Boolean(globalObj.isProfileEditMode);
+    const dbCompanyRow = globalObj.dbCompanyRow || null;
+    const shouldShowExistingCompanyDropdown = isCompany && !dbCompanyRow;
+    const shouldShowProfileNotRegistered =
+      !isProfileEditMode &&
+      ((!isCompany && !PopupState.dbInvitationRow) || (isCompany && !dbCompanyRow));
+    document.documentElement.classList.toggle("company-profile-mode", isCompany);
+    document.body?.classList.toggle("company-profile-mode", isCompany);
+    tabMain?.classList.toggle("company-profile-mode", isCompany);
+    if (detailCompanyLabelEl) {
+      detailCompanyLabelEl.textContent = "Company:";
+      detailCompanyLabelEl.hidden =
+        isCompany ||
+        shouldShowProfileNotRegistered ||
+        (!isProfileEditMode && !isCompany);
+    }
+    if (detailCompanyEl) {
+      detailCompanyEl.hidden =
+        isCompany ||
+        shouldShowProfileNotRegistered ||
+        (!isProfileEditMode && Boolean(safeTrim(PopupState.dbInvitationRow?.company_id)));
+    }
+    if (detailEmployeeNumberLabelEl) detailEmployeeNumberLabelEl.hidden = !isCompany;
+    if (detailEmployeeNumberEl) detailEmployeeNumberEl.hidden = !isCompany;
+    if (detailHeadlineLabelEl) {
+      detailHeadlineLabelEl.textContent = isCompany ? "Sector:" : "Job title:";
+      detailHeadlineLabelEl.hidden =
+        shouldShowProfileNotRegistered || (!isCompany && !isProfileEditMode);
+    }
+    if (detailCommentsLabelEl) {
+      detailCommentsLabelEl.textContent = "Comments:";
+      detailCommentsLabelEl.hidden = isCompany || shouldShowProfileNotRegistered;
+    }
+    if (detailCommentsEl) {
+      detailCommentsEl.hidden = isCompany || shouldShowProfileNotRegistered;
+    }
+    if (detailCityLabelEl) detailCityLabelEl.hidden = !isCompany;
+    if (detailCityEl) detailCityEl.hidden = !isCompany;
+    if (detailItMembersLabelEl) detailItMembersLabelEl.hidden = !isCompany;
+    if (detailItMembersEl) detailItMembersEl.hidden = !isCompany;
+    if (detailPersonNameEl) {
+      detailPersonNameEl.placeholder = isCompany ? "Company name" : "";
+    }
+    if (detailCompanyEl) detailCompanyEl.placeholder = "";
+    if (detailEmployeeNumberEl) {
+      detailEmployeeNumberEl.placeholder = isCompany ? "Employee number" : "";
+    }
+    if (detailHeadlineEl) detailHeadlineEl.placeholder = isCompany ? "Sector" : "";
+    if (detailCommentsEl) detailCommentsEl.placeholder = "";
+    if (detailCityEl) detailCityEl.placeholder = isCompany ? "City" : "";
+    if (detailItMembersEl) detailItMembersEl.placeholder = isCompany ? "IT members" : "";
+    if (companyPeopleSectionEl) companyPeopleSectionEl.hidden = !isCompany;
+    if (personNotRegisteredStateEl) {
+      personNotRegisteredStateEl.hidden = !shouldShowProfileNotRegistered;
+      personNotRegisteredStateEl.textContent = isCompany
+        ? "Company is not yet registered"
+        : "Person is not yet registered";
+    }
+    if (!isCompany) setCompanyUrlMismatchBannerVisible(false);
+    if (companyExistingLinkSectionEl) {
+      companyExistingLinkSectionEl.hidden = !shouldShowExistingCompanyDropdown;
+      companyExistingLinkSectionEl.style.display =
+        shouldShowExistingCompanyDropdown ? "" : "none";
+    }
+    updateExistingCompanyLinkUi();
+    const hideInvitationUi = isCompany;
+    for (const el of [
+      campaignGroupEl,
+      campaignDividerEl,
+      statusStepperEl,
+      stepperUnderlayEl,
+      statusDividerEl,
+      detailTabsDividerEl,
+      detailTabsRowEl,
+      detailInviteSectionEl,
+      detailMessageMountEl,
+      tabMessage,
+      tabFreePromptEl,
+      acceptedModeEl,
+      firstMessageSentModeEl,
+    ]) {
+      if (!el) continue;
+      el.hidden = hideInvitationUi;
+      el.style.display = hideInvitationUi ? "none" : "";
+    }
+    if (companyLinkedRowEl) {
+      const hasQuickLinkSuggestion =
+        !isCompany &&
+        !isProfileEditMode &&
+        Boolean(state.companySuggestionState?.company_id);
+      const shouldForceHideLinkedRow =
+        isCompany || (shouldShowProfileNotRegistered && !hasQuickLinkSuggestion);
+      PopupLogger.debug("[LEF][quick-link][row-visibility]", {
+        isCompany,
+        isProfileEditMode,
+        shouldShowProfileNotRegistered,
+        hasQuickLinkSuggestion,
+        shouldForceHideLinkedRow,
+        companySuggestionId: safeTrim(state.companySuggestionState?.company_id),
+      });
+      if (shouldForceHideLinkedRow) companyLinkedRowEl.hidden = true;
+    }
+    if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = true;
+    if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.hidden = true;
+    if (companyQuickLinkBtn) companyQuickLinkBtn.hidden = true;
+    if (isCompany) {
+      if (companyLinkedNameEl) companyLinkedNameEl.hidden = true;
+      if (companyLinkedEmployeeNumberEl) companyLinkedEmployeeNumberEl.hidden = true;
+      if (companyLinkSearchInputEl) companyLinkSearchInputEl.hidden = true;
+      if (companyLinkSearchOptionsEl) companyLinkSearchOptionsEl.innerHTML = "";
+    }
   }
 
   function updateExistingCompanyLinkUi(statusText) {
@@ -221,20 +462,161 @@
     updateExistingCompanyLinkUi();
   }
 
-  function searchExistingCompaniesForCompanyPage(term) {
-    return requireFn("searchExistingCompaniesForCompanyPage")(term);
+  async function searchExistingCompaniesForCompanyPage(term) {
+    const sanitizeCompanySearchTerm = requireFn("sanitizeCompanySearchTerm");
+    const timingLog = requireFn("timingLog");
+    const sendRuntimeMessage = requireFn("sendRuntimeMessage");
+    const query = sanitizeCompanySearchTerm(term);
+    timingLog("DB search triggered with term", { term: query });
+    if (!query) {
+      setCompanyExistingLinkOptions([]);
+      setSelectedExistingCompanyForLinkState(null);
+      updateExistingCompanyLinkUi();
+      return;
+    }
+    const result = await sendRuntimeMessage("DB_SEARCH_UNLINKED_COMPANIES", {
+      payload: { term: query, limit: 10 },
+    });
+    const resp = result.data || {};
+    const rows = result.ok ? resp?.companies || [] : [];
+    setCompanyExistingLinkOptions(rows);
+    syncSelectedExistingCompanyFromInput();
+    updateExistingCompanyLinkUi(
+      rows.length
+        ? "Company URL not registered"
+        : "Company URL not registered. No matching unlinked company found.",
+    );
+    PopupLogger.debug("[LEF][company link search]", { term: query, count: rows.length });
   }
 
-  function prepareExistingCompanyLinkDropdown(scrapedCompanyName) {
-    return requireFn("prepareExistingCompanyLinkDropdown")(scrapedCompanyName);
+  async function prepareExistingCompanyLinkDropdown({ allowSearch = true } = {}) {
+    const isCompanyProfileMode = requireFn("isCompanyProfileMode");
+    const sanitizeCompanySearchTerm = requireFn("sanitizeCompanySearchTerm");
+    setSelectedExistingCompanyForLinkState(null);
+    setCompanyExistingLinkOptions([]);
+    if (!isCompanyProfileMode() || globalObj.dbCompanyRow) {
+      if (companyExistingLinkSectionEl) {
+        companyExistingLinkSectionEl.hidden = true;
+        companyExistingLinkSectionEl.style.display = "none";
+      }
+      if (companyExistingLinkInputEl) companyExistingLinkInputEl.value = "";
+      updateExistingCompanyLinkUi();
+      return;
+    }
+    if (companyExistingLinkSectionEl) {
+      companyExistingLinkSectionEl.hidden = false;
+      companyExistingLinkSectionEl.style.display = "";
+    }
+    const scrapedName = sanitizeCompanySearchTerm(getCompanyNameForPeopleList());
+    if (companyExistingLinkInputEl) companyExistingLinkInputEl.value = scrapedName;
+    updateExistingCompanyLinkUi();
+    if (allowSearch && !globalObj.dbCompanyRow && scrapedName) {
+      await searchExistingCompaniesForCompanyPage(scrapedName);
+    }
   }
 
   function setProfileEditMode(nextMode) {
-    return requireFn("setProfileEditMode")(nextMode);
+    const isCompanyProfileMode = requireFn("isCompanyProfileMode");
+    globalObj.isProfileEditMode = Boolean(nextMode);
+    renderProfileEditControls();
+    if (globalObj.isProfileEditMode && !isCompanyProfileMode()) {
+      prepareCompanyDropdownForEdit().catch(() => null);
+      detailPersonNameEl?.focus();
+      detailPersonNameEl?.select();
+      return;
+    }
+    if (globalObj.isProfileEditMode) {
+      detailPersonNameEl?.focus();
+      detailPersonNameEl?.select();
+      return;
+    }
+    setSelectedCompanyForEditDropdown(null);
+    renderDetailHeader({ force: true });
   }
 
   function renderDetailHeader(options) {
-    return requireFn("renderDetailHeader")(options || {});
+    const { force = false } = options || {};
+    const isCompanyProfileMode = requireFn("isCompanyProfileMode");
+    const debug = typeof globalObj.debug === "function" ? globalObj.debug : () => {};
+    const isProfileEditMode = Boolean(globalObj.isProfileEditMode);
+    if (isCompanyProfileMode()) {
+      const scraped = PopupState.currentProfileContext || {};
+      const row = globalObj.dbCompanyRow || {};
+      const companyName = coalesceDbThenScraped(
+        row.company_name,
+        scraped.company_name || scraped.name || scraped.full_name || "",
+      );
+      const employeeNumber = coalesceDbThenScraped(
+        row.employee_number,
+        scraped.employee_number || "",
+      );
+      const sector = coalesceDbThenScraped(row.sector, scraped.sector || "");
+      const city = coalesceDbThenScraped(row.city, scraped.city || "");
+      const itMembers = coalesceDbThenScraped(
+        row.it_members,
+        scraped.it_members || "",
+      );
+      if (!(isProfileEditMode && !force)) {
+        if (detailPersonNameEl) detailPersonNameEl.value = companyName.trim() || "-";
+        if (detailEmployeeNumberEl) {
+          detailEmployeeNumberEl.value = employeeNumber.trim() || "-";
+        }
+        if (detailHeadlineEl) detailHeadlineEl.value = sector.trim() || "-";
+        if (detailItMembersEl) detailItMembersEl.value = itMembers.trim() || "-";
+        if (detailCityEl) detailCityEl.value = city.trim() || "-";
+      }
+      if (PopupState.currentProfileContext) {
+        PopupState.currentProfileContext.it_members = itMembers.trim();
+      }
+      applyProfileModeUi();
+      renderProfileEditControls();
+      return;
+    }
+
+    const scrapedName = (
+      PopupState.currentProfileContext?.name ||
+      PopupState.currentProfileContext?.full_name ||
+      ""
+    ).trim();
+    const scrapedCompany = (PopupState.currentProfileContext?.company || "").trim();
+    const scrapedHeadline = (PopupState.currentProfileContext?.headline || "").trim();
+    const scrapedComments = (PopupState.currentProfileContext?.comments || "").trim();
+
+    const dbName = (
+      PopupState.dbInvitationRow?.full_name ||
+      PopupState.dbInvitationRow?.name ||
+      ""
+    ).trim();
+    const dbCompany = (PopupState.dbInvitationRow?.company || "").trim();
+    const dbHeadline = (PopupState.dbInvitationRow?.headline || "").trim();
+    const dbComments = (PopupState.dbInvitationRow?.comments || "").trim();
+
+    const name = coalesceDbThenScraped(dbName, scrapedName).trim() || "-";
+    const company =
+      coalesceDbThenScraped(dbCompany, scrapedCompany).trim() || "-";
+    const headline =
+      coalesceDbThenScraped(dbHeadline, scrapedHeadline).trim() || "-";
+    const comments =
+      coalesceDbThenScraped(dbComments, scrapedComments).trim() || "-";
+
+    debug("detail header source", {
+      nameSource: dbName ? "db" : "scraped",
+      companySource: dbCompany ? "db" : "scraped",
+      headlineSource: dbHeadline ? "db" : "scraped",
+    });
+
+    if (isProfileEditMode && !force) return;
+
+    if (detailPersonNameEl) detailPersonNameEl.value = name;
+    if (detailCompanyEl) detailCompanyEl.value = company;
+    if (detailEmployeeNumberEl) detailEmployeeNumberEl.value = "-";
+    if (detailHeadlineEl) detailHeadlineEl.value = headline;
+    if (detailCommentsEl) detailCommentsEl.value = comments;
+    if (detailCityEl) detailCityEl.value = "-";
+    if (detailItMembersEl) detailItMembersEl.value = "-";
+    autoResizeCommentsField();
+    applyProfileModeUi();
+    renderProfileEditControls();
   }
 
   function getCompanyNameForPeopleList() {
@@ -249,7 +631,179 @@
   }
 
   function renderCompanyPeopleList() {
-    return requireFn("renderCompanyPeopleList")();
+    const isCompanyProfileMode = requireFn("isCompanyProfileMode");
+    const sendRuntimeMessage = requireFn("sendRuntimeMessage");
+    const getErrorMessage = requireFn("getErrorMessage");
+    const setFooterUpdatingStatus = requireFn("setFooterUpdatingStatus");
+    const setFooterStatus = requireFn("setFooterStatus");
+    const setFooterReady = requireFn("setFooterReady");
+    const refreshCompanyPeopleListFn = refreshCompanyPeopleList;
+    const PopupCampaignController = globalObj.PopupCampaignController;
+    if (!companyPeopleSectionEl || !companyPeopleListEl) return;
+    const isCompany = isCompanyProfileMode();
+    companyPeopleSectionEl.hidden = !isCompany;
+    companyPeopleListEl.innerHTML = "";
+    if (companyCampaignControlsEl) {
+      const hasRegisteredCompany = Boolean(
+        safeTrim(globalObj.dbCompanyRow?.company_id),
+      );
+      companyCampaignControlsEl.hidden =
+        !(isCompany && hasRegisteredCompany && state.companyPeopleRows.length > 0);
+    }
+    PopupCampaignController?.renderCompanyLinkedCampaignChips?.();
+    if (!isCompany) return;
+
+    if (!state.companyPeopleRows.length) {
+      const emptyEl = document.createElement("div");
+      emptyEl.className = "company-people-empty";
+      emptyEl.textContent = "No registered people found";
+      companyPeopleListEl.appendChild(emptyEl);
+      return;
+    }
+
+    for (const row of state.companyPeopleRows) {
+      const linkedinUrl = safeTrim(row?.linkedin_url);
+      const name = safeTrim(row?.full_name || row?.name) || "-";
+      const headline = safeTrim(row?.headline) || "-";
+      const isConnected = row?.accepted === true;
+      const rowEl = document.createElement("div");
+      rowEl.className = "company-person-card";
+      rowEl.dataset.linkedinUrl = linkedinUrl;
+      if (linkedinUrl) {
+        rowEl.setAttribute("role", "button");
+        rowEl.setAttribute("tabindex", "0");
+        rowEl.title = "Open person profile";
+      }
+
+      const textEl = document.createElement("div");
+      textEl.className = "company-person-text";
+      const nameEl = document.createElement("div");
+      nameEl.className = "company-person-name";
+      const nameLabelEl = document.createElement("span");
+      nameLabelEl.className = "company-person-name-label";
+      nameLabelEl.textContent = name;
+      const statusEl = document.createElement("span");
+      statusEl.className = isConnected
+        ? "company-person-connection is-connected"
+        : "company-person-connection is-not-connected";
+      statusEl.textContent = isConnected ? "Connected" : "Not connected";
+      nameEl.appendChild(nameLabelEl);
+      nameEl.appendChild(statusEl);
+      const headlineEl = document.createElement("div");
+      headlineEl.className = "company-person-function";
+      headlineEl.textContent = headline;
+      const personCampaignsEl = document.createElement("div");
+      personCampaignsEl.className = "company-person-campaigns";
+      const personCampaignRows = Array.isArray(row?.campaign_rows)
+        ? row.campaign_rows
+        : [];
+      for (const campaignRow of personCampaignRows) {
+        const campaignId = safeTrim(campaignRow?.campaign_id);
+        const campaignName = safeTrim(campaignRow?.campaign_name);
+        const campaignColor = safeTrim(campaignRow?.color);
+        if (!campaignId || !campaignName) continue;
+        const chipEl = document.createElement("span");
+        chipEl.className = "campaign-chip";
+        if (/^#[0-9a-f]{6}$/i.test(campaignColor)) {
+          chipEl.style.backgroundColor = campaignColor;
+          chipEl.style.color =
+            PopupCampaignController?.pickCampaignTextColor?.(campaignColor) ||
+            "#111827";
+        }
+        chipEl.title = "Click to set campaign color";
+        const nameChipEl = document.createElement("span");
+        nameChipEl.className = "campaign-chip-name";
+        nameChipEl.textContent = campaignName;
+        chipEl.appendChild(nameChipEl);
+        const removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.className = "campaign-chip-remove";
+        removeBtn.textContent = "\u00d7";
+        removeBtn.title = "Remove link";
+        removeBtn.addEventListener("click", async (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const personId = safeTrim(row?.id);
+          if (!personId) return;
+          setFooterUpdatingStatus();
+          try {
+            const result = await sendRuntimeMessage("DB_UNLINK_PERSON_CAMPAIGN", {
+              payload: { person_id: personId, campaign_id: campaignId },
+            });
+            if (!result.ok) throw new Error(getErrorMessage(result.error));
+            await refreshCompanyPeopleListFn();
+            setFooterStatus("Campaign link removed.");
+          } catch (e) {
+            setFooterStatus(`DB error: ${getErrorMessage(e)}`);
+          } finally {
+            setFooterReady();
+          }
+        });
+        chipEl.appendChild(removeBtn);
+        chipEl.addEventListener("click", async (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (event.target === removeBtn) return;
+          await PopupCampaignController?.openCampaignColorPicker?.({
+            campaignId,
+            campaignColor,
+            onSaved: refreshCompanyPeopleListFn,
+          });
+        });
+        personCampaignsEl.appendChild(chipEl);
+      }
+
+      textEl.appendChild(nameEl);
+      textEl.appendChild(headlineEl);
+      textEl.appendChild(personCampaignsEl);
+      rowEl.appendChild(textEl);
+      companyPeopleListEl.appendChild(rowEl);
+    }
+  }
+
+  async function refreshCompanyPeopleList() {
+    const isCompanyProfileMode = requireFn("isCompanyProfileMode");
+    const sendRuntimeMessage = requireFn("sendRuntimeMessage");
+    const PopupCampaignController = globalObj.PopupCampaignController;
+    state.companyPeopleRows = [];
+    PopupCampaignController?.setCompanyLinkedCampaignRows?.([]);
+    renderCompanyPeopleList();
+    if (!isCompanyProfileMode()) return;
+    const company_id = safeTrim(globalObj.dbCompanyRow?.company_id);
+    if (!company_id) return;
+    const result = await sendRuntimeMessage("DB_LIST_INVITATIONS_BY_COMPANY", {
+      payload: { company_id },
+    });
+    const resp = result.data || {};
+    const baseRows = result.ok && Array.isArray(resp?.rows) ? resp.rows : [];
+    const enrichedRows = await Promise.all(
+      baseRows.map(async (row) => {
+        const personId = safeTrim(row?.id);
+        if (!personId) return { ...row, campaign_rows: [] };
+        const campaignsResult = await sendRuntimeMessage("DB_LIST_PERSON_CAMPAIGNS", {
+          payload: { person_id: personId },
+        });
+        const campaignsResp = campaignsResult.data || {};
+        return {
+          ...row,
+          campaign_rows:
+            campaignsResult.ok && Array.isArray(campaignsResp?.rows)
+              ? campaignsResp.rows
+              : [],
+        };
+      }),
+    );
+    state.companyPeopleRows = enrichedRows;
+    PopupCampaignController?.setCompanyLinkedCampaignRows?.(Array.from(
+      new Map(
+        enrichedRows
+          .flatMap((row) => (Array.isArray(row?.campaign_rows) ? row.campaign_rows : []))
+          .map((row) => [safeTrim(row?.campaign_id), row])
+          .filter(([id]) => Boolean(id)),
+      ).values(),
+    ));
+    renderCompanyPeopleList();
+    PopupCampaignController?.rebuildCompanyCampaignSelectOptions?.();
   }
 
   function buildCompanyProfileSavePayload() {
@@ -351,8 +905,70 @@
     if (companyQuickLinkBtn) companyQuickLinkBtn.hidden = true;
   }
 
-  function refreshCompanySuggestionUiForCurrentInvitation() {
-    return requireFn("refreshCompanySuggestionUiForCurrentInvitation")();
+  async function refreshCompanySuggestionUiForCurrentInvitation() {
+    const sendRuntimeMessage = requireFn("sendRuntimeMessage");
+    const getErrorMessage = requireFn("getErrorMessage");
+    hideCompanySuggestionUi();
+    const savedCompany = safeTrim(
+      PopupState.dbInvitationRow?.company ||
+        PopupState.currentProfileContext?.company ||
+        detailCompanyEl?.value ||
+        companyLinkedNameEl?.textContent,
+    );
+    const savedCompanyId = safeTrim(PopupState.dbInvitationRow?.company_id);
+    PopupLogger.debug("[LEF][quick-link][refresh-start]", {
+      savedCompany,
+      savedCompanyId,
+      dbCompany: safeTrim(PopupState.dbInvitationRow?.company),
+      ctxCompany: safeTrim(PopupState.currentProfileContext?.company),
+      detailCompany: safeTrim(detailCompanyEl?.value),
+      linkedNameText: safeTrim(companyLinkedNameEl?.textContent),
+    });
+    if (!savedCompany || savedCompany === "-") return;
+
+    if (savedCompanyId) {
+      PopupLogger.debug("[LEF][quick-link][skip-existing-link]", { savedCompanyId });
+      const result = await sendRuntimeMessage("DB_GET_COMPANY_BY_ID", {
+        payload: { company_id: savedCompanyId },
+      });
+      const companyRow = result.ok ? result.data?.company || null : null;
+      renderLinkedCompanyName(
+        safeTrim(companyRow?.company_name) || savedCompany,
+        safeTrim(companyRow?.linkedin_id),
+        safeTrim(companyRow?.employee_number),
+      );
+      return;
+    }
+    if (detailCompanyEl) detailCompanyEl.hidden = false;
+
+    const result = await sendRuntimeMessage("DB_FIND_COMPANY_BY_NAME", {
+      payload: { company_name: savedCompany },
+    });
+    const companyRow = result.ok ? result.data?.company || null : null;
+    PopupLogger.debug("[LEF][quick-link][find-by-name-result]", {
+      query: savedCompany,
+      ok: result.ok,
+      matchedCompanyId: safeTrim(companyRow?.company_id),
+      matchedCompanyName: safeTrim(companyRow?.company_name),
+      error: result.ok ? "" : getErrorMessage(result.error),
+    });
+    if (companyRow?.company_id && safeTrim(companyRow?.company_name)) {
+      PopupLogger.debug("[LEF][company suggestion] exact match found", {
+        company_id: companyRow.company_id,
+        company_name: companyRow.company_name,
+      });
+      renderCompanySuggestionFound({
+        company_id: companyRow.company_id,
+        company_name: companyRow.company_name,
+        linkedin_id: companyRow.linkedin_id || "",
+        employee_number: companyRow.employee_number || "",
+      });
+      return;
+    }
+    PopupLogger.debug("[LEF][company suggestion] no exact match found", {
+      company_name: savedCompany,
+    });
+    renderCompanySuggestionNotFound();
   }
 
   function setCompanyLinkSearchOptions(rows) {
@@ -384,8 +1000,85 @@
     });
   }
 
-  function prepareCompanyDropdownForEdit() {
-    return requireFn("prepareCompanyDropdownForEdit")();
+  async function searchCompaniesForEditDropdown(term) {
+    const sendRuntimeMessage = requireFn("sendRuntimeMessage");
+    const query = safeTrim(term);
+    if (!query) {
+      setCompanyLinkSearchOptions([]);
+      return;
+    }
+    const result = await sendRuntimeMessage("DB_SEARCH_COMPANIES", {
+      payload: { term: query, limit: 10 },
+    });
+    const resp = result.data || {};
+    const rows = result.ok ? resp?.companies || [] : [];
+    setCompanyLinkSearchOptions(rows);
+    PopupLogger.debug("[LEF][company dropdown] company search results", {
+      term: query,
+      count: rows.length,
+    });
+  }
+
+  async function prepareCompanyDropdownForEdit() {
+    const sendRuntimeMessage = requireFn("sendRuntimeMessage");
+    const getErrorMessage = requireFn("getErrorMessage");
+    if (!PopupState.dbInvitationRow || !companyLinkedRowEl || !companyLinkSearchInputEl) return;
+    const savedCompany = safeTrim(PopupState.dbInvitationRow?.company);
+    const savedCompanyId = safeTrim(PopupState.dbInvitationRow?.company_id);
+    setSelectedCompanyForEditDropdown(null);
+    setCompanyLinkSearchOptions([]);
+    companyLinkedRowEl.hidden = false;
+    companyLinkSearchInputEl.hidden = false;
+    companyLinkSearchInputEl.value = "";
+    if (companyLinkedNameEl) companyLinkedNameEl.hidden = true;
+    if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.hidden = true;
+    if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = true;
+
+    PopupLogger.debug("[LEF][company dropdown] initial load", {
+      company_id: savedCompanyId,
+      company_name: savedCompany,
+    });
+
+    if (savedCompanyId) {
+      const result = await sendRuntimeMessage("DB_GET_COMPANY_BY_ID", {
+        payload: { company_id: savedCompanyId },
+      });
+      const companyRow = result.ok ? result.data?.company || null : null;
+      if (
+        isActiveCompanyOptionRow(companyRow) &&
+        companyRow?.company_id &&
+        safeTrim(companyRow?.company_name)
+      ) {
+        setCompanyDropdownSelected(companyRow);
+        setCompanyLinkSearchOptions([companyRow]);
+      }
+      return;
+    }
+
+    if (!savedCompany) return;
+    const result = await sendRuntimeMessage("DB_FIND_COMPANY_BY_NAME", {
+      payload: { company_name: savedCompany },
+    });
+    const companyRow = result.ok ? result.data?.company || null : null;
+    PopupLogger.debug("[LEF][quick-link][find-by-name-result]", {
+      query: savedCompany,
+      ok: result.ok,
+      matchedCompanyId: safeTrim(companyRow?.company_id),
+      matchedCompanyName: safeTrim(companyRow?.company_name),
+      error: result.ok ? "" : getErrorMessage(result.error),
+    });
+    if (companyRow?.company_id && safeTrim(companyRow?.company_name)) {
+      PopupLogger.debug("[LEF][company dropdown] exact match found", {
+        company_id: companyRow.company_id,
+        company_name: companyRow.company_name,
+      });
+      setCompanyDropdownSelected(companyRow);
+      setCompanyLinkSearchOptions([companyRow]);
+      return;
+    }
+    PopupLogger.debug("[LEF][company dropdown] no exact match found", {
+      company_name: savedCompany,
+    });
   }
 
   function syncSelectedCompanyFromDropdownInput() {
@@ -403,7 +1096,7 @@
   }
 
   function renderCurrentCompany() {
-    return requireFn("renderDetailHeader")({ force: true });
+    return renderDetailHeader({ force: true });
   }
 
   function refreshCurrentCompanyContext() {
@@ -433,7 +1126,7 @@
   }
 
   function renderCompanySuggestions(term = "") {
-    return requireFn("searchCompaniesForEditDropdown")(term);
+    return searchCompaniesForEditDropdown(term);
   }
 
   globalObj.PopupCompanyController = Object.freeze({
@@ -463,6 +1156,7 @@
     renderDetailHeader,
     getCompanyNameForPeopleList,
     renderCompanyPeopleList,
+    refreshCompanyPeopleList,
     buildCompanyProfileSavePayload,
     renderCurrentCompany,
     refreshCurrentCompanyContext,
@@ -477,6 +1171,7 @@
     refreshCompanySuggestionUiForCurrentInvitation,
     setCompanyLinkSearchOptions,
     setCompanyDropdownSelected,
+    searchCompaniesForEditDropdown,
     searchExistingCompaniesForCompanyPage,
     prepareCompanyDropdownForEdit,
     syncSelectedCompanyFromDropdownInput,

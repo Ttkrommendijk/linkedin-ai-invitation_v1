@@ -217,7 +217,9 @@ const POPUP_MESSAGE_TYPES = globalThis.PopupMessageTypes;
 const POPUP_STORAGE_KEYS = globalThis.PopupStorageKeys;
 const POPUP_STATUS_CONSTANTS = globalThis.PopupStatusConstants;
 if (!POPUP_MESSAGE_TYPES || !POPUP_STORAGE_KEYS || !POPUP_STATUS_CONSTANTS) {
-  throw new Error("Popup shared constants must be loaded before popup modules.");
+  throw new Error(
+    "Popup shared constants must be loaded before popup modules.",
+  );
 }
 const STORAGE_KEY_MESSAGE_LANGUAGE = POPUP_STORAGE_KEYS.messageLanguage;
 const STORAGE_KEY_LAST_ACTIVE_CAMPAIGN = "last_active_campaign";
@@ -267,7 +269,10 @@ if (!PopupProfileController || typeof PopupProfileController !== "object") {
   throw new Error("PopupProfileController must be loaded before popup.js.");
 }
 const PopupInvitationController = globalThis.PopupInvitationController;
-if (!PopupInvitationController || typeof PopupInvitationController !== "object") {
+if (
+  !PopupInvitationController ||
+  typeof PopupInvitationController !== "object"
+) {
   throw new Error("PopupInvitationController must be loaded before popup.js.");
 }
 const PopupOverviewController = globalThis.PopupOverviewController;
@@ -294,7 +299,8 @@ const updateOverviewCampaignFilterTitle =
 const updateDetailCampaignSelectTitle =
   PopupCampaignController.updateDetailCampaignSelectTitle;
 const setCampaignSelectValue = PopupCampaignController.setCampaignSelectValue;
-const setNewCampaignRowVisible = PopupCampaignController.setNewCampaignRowVisible;
+const setNewCampaignRowVisible =
+  PopupCampaignController.setNewCampaignRowVisible;
 const setRenameCampaignRowVisible =
   PopupCampaignController.setRenameCampaignRowVisible;
 const setCompanyNewCampaignRowVisible =
@@ -311,7 +317,8 @@ const rebuildOverviewCampaignFilterOptions =
   PopupCampaignController.rebuildOverviewCampaignFilterOptions;
 const rebuildCompanyCampaignFilterOptions =
   PopupCampaignController.rebuildCompanyCampaignFilterOptions;
-const renderLinkedCampaignChips = PopupCampaignController.renderLinkedCampaignChips;
+const renderLinkedCampaignChips =
+  PopupCampaignController.renderLinkedCampaignChips;
 const renderCompanyLinkedCampaignChips =
   PopupCampaignController.renderCompanyLinkedCampaignChips;
 const PopupCompanyController = globalThis.PopupCompanyController;
@@ -326,7 +333,8 @@ const coalesceDbThenScraped = PopupCompanyController.coalesceDbThenScraped;
 const autoResizeCommentsField = PopupCompanyController.autoResizeCommentsField;
 const updateExistingCompanyLinkUi =
   PopupCompanyController.updateExistingCompanyLinkUi;
-const isActiveCompanyOptionRow = PopupCompanyController.isActiveCompanyOptionRow;
+const isActiveCompanyOptionRow =
+  PopupCompanyController.isActiveCompanyOptionRow;
 const setCompanyExistingLinkOptions =
   PopupCompanyController.setCompanyExistingLinkOptions;
 const setSelectedExistingCompanyForLink =
@@ -340,20 +348,40 @@ const setCompanyDropdownSelected =
 const syncSelectedCompanyFromDropdownInput =
   PopupCompanyController.syncSelectedCompanyFromDropdownInput;
 const hideCompanySuggestionUi = PopupCompanyController.hideCompanySuggestionUi;
-const renderLinkedCompanyName =
-  PopupCompanyController.renderLinkedCompanyName;
+const renderLinkedCompanyName = PopupCompanyController.renderLinkedCompanyName;
 const renderCompanySuggestionFound =
   PopupCompanyController.renderCompanySuggestionFound;
 const renderCompanySuggestionNotFound =
   PopupCompanyController.renderCompanySuggestionNotFound;
 const getCompanyNameForPeopleList =
   PopupCompanyController.getCompanyNameForPeopleList;
+const renderProfileEditControls =
+  PopupCompanyController.renderProfileEditControls;
+const applyProfileModeUi = PopupCompanyController.applyProfileModeUi;
+const setProfileEditMode = PopupCompanyController.setProfileEditMode;
+const renderDetailHeader = PopupCompanyController.renderDetailHeader;
+const renderCompanyPeopleList = PopupCompanyController.renderCompanyPeopleList;
+const refreshCompanyPeopleList =
+  PopupCompanyController.refreshCompanyPeopleList;
+const searchExistingCompaniesForCompanyPage =
+  PopupCompanyController.searchExistingCompaniesForCompanyPage;
+const prepareExistingCompanyLinkDropdown =
+  PopupCompanyController.prepareExistingCompanyLinkDropdown;
+const searchCompaniesForEditDropdown =
+  PopupCompanyController.searchCompaniesForEditDropdown;
+const prepareCompanyDropdownForEdit =
+  PopupCompanyController.prepareCompanyDropdownForEdit;
+const refreshCompanySuggestionUiForCurrentInvitation =
+  PopupCompanyController.refreshCompanySuggestionUiForCurrentInvitation;
 const PopupAuthController = globalThis.PopupAuthController;
 if (!PopupAuthController || typeof PopupAuthController !== "object") {
   throw new Error("PopupAuthController must be loaded before popup.js.");
 }
 const PopupFreePromptController = globalThis.PopupFreePromptController;
-if (!PopupFreePromptController || typeof PopupFreePromptController !== "object") {
+if (
+  !PopupFreePromptController ||
+  typeof PopupFreePromptController !== "object"
+) {
   throw new Error("PopupFreePromptController must be loaded before popup.js.");
 }
 const DEBUG_EMPTY_STATE = false;
@@ -618,8 +646,7 @@ function timingLog(eventName, details = {}) {
 
 const getLifecycleStatusValue =
   PopupLifecycleController.getLifecycleStatusValue;
-const applyLifecycleUiState =
-  PopupLifecycleController.applyLifecycleUiState;
+const applyLifecycleUiState = PopupLifecycleController.applyLifecycleUiState;
 const renderMessageTab = PopupLifecycleController.renderMessageTab;
 
 function getMessageCountValue(dbRow) {
@@ -678,11 +705,9 @@ function restoreActiveTabState(tabState) {
 
 const normalizeSupabaseUrl = PopupConfigController.normalizeSupabaseUrl;
 const getEffectiveSupabaseUrl = PopupConfigController.getEffectiveSupabaseUrl;
-const saveSupabaseUrlOverride =
-  PopupConfigController.saveSupabaseUrlOverride;
+const saveSupabaseUrlOverride = PopupConfigController.saveSupabaseUrlOverride;
 const mergeNavPacingConfig = PopupConfigController.mergeNavPacingConfig;
-const loadNavPacingConfigForUi =
-  PopupConfigController.loadNavPacingConfigForUi;
+const loadNavPacingConfigForUi = PopupConfigController.loadNavPacingConfigForUi;
 const saveNavPacingEnabled = PopupConfigController.saveNavPacingEnabled;
 
 function updateFilterClearButton(inputEl, clearBtnEl) {
@@ -717,7 +742,9 @@ function collectCompanyFilterUiState() {
     search: companySearchEl?.value || companyOverviewSearch || "",
     sort_key: companyOverviewSortField || "company_name",
     sort_dir: companyOverviewSortDir === "asc" ? "asc" : "desc",
-    page_size: String(companyOverviewPageSizeEl?.value || companyOverviewPageSize || 25),
+    page_size: String(
+      companyOverviewPageSizeEl?.value || companyOverviewPageSize || 25,
+    ),
   };
 }
 
@@ -841,30 +868,41 @@ async function restoreOverviewFiltersFromStorage() {
       const archivedOptionExists = Array.from(
         companyArchivedFilterEl.options || [],
       ).some((option) => option.value === companyArchived);
-      companyArchivedFilterEl.value = archivedOptionExists ? companyArchived : "";
+      companyArchivedFilterEl.value = archivedOptionExists
+        ? companyArchived
+        : "";
     }
     if (companyCampaignFilterEl) {
-      const selectedOption = Array.from(companyCampaignFilterEl.options || []).find(
-        (option) => String(option?.dataset?.campaignName || "") === companyCampaign,
+      const selectedOption = Array.from(
+        companyCampaignFilterEl.options || [],
+      ).find(
+        (option) =>
+          String(option?.dataset?.campaignName || "") === companyCampaign,
       );
-      companyCampaignFilterEl.value = selectedOption ? selectedOption.value : "";
+      companyCampaignFilterEl.value = selectedOption
+        ? selectedOption.value
+        : "";
     }
     if (companySearchEl) {
       companySearchEl.value = companySearch;
     }
     if (companyOverviewPageSizeEl && Number.isFinite(companyPageSize)) {
       const pageSizeValue = String(companyPageSize);
-      const hasPageSize = Array.from(companyOverviewPageSizeEl.options || []).some(
-        (option) => option.value === pageSizeValue,
-      );
+      const hasPageSize = Array.from(
+        companyOverviewPageSizeEl.options || [],
+      ).some((option) => option.value === pageSizeValue);
       if (hasPageSize) {
         companyOverviewPageSizeEl.value = pageSizeValue;
       }
     }
 
     companyOverviewFilters.archived = companyArchivedFilterEl?.value || "";
-    companyOverviewFilters.campaign = companyCampaignFilterEl?.selectedOptions?.[0]
-      ? String(companyCampaignFilterEl.selectedOptions[0].dataset?.campaignName || "")
+    companyOverviewFilters.campaign = companyCampaignFilterEl
+      ?.selectedOptions?.[0]
+      ? String(
+          companyCampaignFilterEl.selectedOptions[0].dataset?.campaignName ||
+            "",
+        )
       : "";
     companyOverviewSearch = companySearchEl?.value || "";
     updateFilterClearButton(companySearchEl, companySearchClearBtnEl);
@@ -879,572 +917,6 @@ async function restoreOverviewFiltersFromStorage() {
 }
 
 const isPostSendMode = PopupLifecycleController.isPostSendMode;
-
-function renderProfileEditControls() {
-  const isCompany = isCompanyProfileMode();
-  const detailNameUrl = getDetailNameLinkedinUrl();
-  const isDetailNameLinkable =
-    !isProfileEditMode && isLinkedInProfileLikeUrl(detailNameUrl);
-  if (enrichProfileBtnEl) {
-    enrichProfileBtnEl.hidden = isProfileEditMode;
-    enrichProfileBtnEl.disabled = isProfileEditMode;
-  }
-  if (editProfileBtnEl) {
-    editProfileBtnEl.hidden = isProfileEditMode;
-    editProfileBtnEl.textContent = isCompany && !dbCompanyRow ? "Create" : "\u270E";
-    editProfileBtnEl.title =
-      isCompany && !dbCompanyRow ? "Create company" : "Edit";
-    editProfileBtnEl.setAttribute(
-      "aria-label",
-      isCompany && !dbCompanyRow ? "Create company" : "Edit",
-    );
-  }
-  if (saveProfileFieldsBtnEl) {
-    saveProfileFieldsBtnEl.hidden = !isProfileEditMode;
-    saveProfileFieldsBtnEl.disabled = isProfileSaveInFlight;
-  }
-  if (cancelProfileEditBtnEl) {
-    cancelProfileEditBtnEl.hidden = !isProfileEditMode;
-    cancelProfileEditBtnEl.disabled = isProfileSaveInFlight;
-  }
-  for (const fieldEl of [
-    detailPersonNameEl,
-    detailCompanyEl,
-    detailEmployeeNumberEl,
-    detailHeadlineEl,
-    detailCommentsEl,
-    detailCityEl,
-    detailItMembersEl,
-  ]) {
-    if (!fieldEl) continue;
-    fieldEl.readOnly = !isProfileEditMode;
-  }
-  if (detailPersonNameEl) {
-    detailPersonNameEl.classList.toggle("is-linkable", isDetailNameLinkable);
-    if (isDetailNameLinkable) {
-      detailPersonNameEl.title = isCompany
-        ? "Open company page"
-        : "Open person profile";
-    } else {
-      detailPersonNameEl.removeAttribute("title");
-    }
-  }
-  if (companyLinkSearchInputEl) {
-    companyLinkSearchInputEl.hidden = !isProfileEditMode;
-  }
-  if (companyLinkedNameEl) {
-    companyLinkedNameEl.hidden = isProfileEditMode;
-  }
-  if (companyLinkedEmployeeNumberEl) {
-    companyLinkedEmployeeNumberEl.hidden =
-      isCompany ||
-      !safeTrim(PopupState.dbInvitationRow?.company_id) ||
-      !safeTrim(companyLinkedEmployeeNumberEl.textContent);
-  }
-  if (acceptCompanySuggestionBtnEl && isProfileEditMode) {
-    acceptCompanySuggestionBtnEl.hidden = true;
-  }
-  if (companyQuickLinkBtn && isProfileEditMode) {
-    companyQuickLinkBtn.hidden = true;
-  }
-  if (companyLinkedIndicatorEl) {
-    const showLinkedIndicator =
-      !isCompany && isProfileEditMode && Boolean(safeTrim(PopupState.dbInvitationRow?.company_id));
-    companyLinkedIndicatorEl.hidden = !showLinkedIndicator;
-    companyLinkedIndicatorEl.style.display = showLinkedIndicator
-      ? "inline-flex"
-      : "none";
-  }
-  if (isCompany) {
-    if (companyLinkedRowEl) companyLinkedRowEl.hidden = true;
-    if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = true;
-    if (companyLinkedNameEl) companyLinkedNameEl.hidden = true;
-    if (companyLinkedEmployeeNumberEl) companyLinkedEmployeeNumberEl.hidden = true;
-    if (companyLinkSearchInputEl) companyLinkSearchInputEl.hidden = true;
-    if (companyLinkedIndicatorEl) {
-      companyLinkedIndicatorEl.hidden = true;
-      companyLinkedIndicatorEl.style.display = "none";
-    }
-    if (companyLinkSearchOptionsEl) companyLinkSearchOptionsEl.innerHTML = "";
-    if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.hidden = true;
-    if (companyQuickLinkBtn) companyQuickLinkBtn.hidden = true;
-  }
-  applyProfileModeUi();
-}
-
-function applyProfileModeUi() {
-  const isCompany = isCompanyProfileMode();
-  const shouldShowExistingCompanyDropdown = isCompany && !dbCompanyRow;
-  const shouldShowProfileNotRegistered =
-    !isProfileEditMode &&
-    ((!isCompany && !PopupState.dbInvitationRow) || (isCompany && !dbCompanyRow));
-  document.documentElement.classList.toggle("company-profile-mode", isCompany);
-  document.body?.classList.toggle("company-profile-mode", isCompany);
-  tabMain?.classList.toggle("company-profile-mode", isCompany);
-  if (detailCompanyLabelEl) {
-    detailCompanyLabelEl.textContent = "Company:";
-    detailCompanyLabelEl.hidden =
-      isCompany ||
-      shouldShowProfileNotRegistered ||
-      (!isProfileEditMode && !isCompany);
-  }
-  if (detailCompanyEl) {
-    detailCompanyEl.hidden =
-      isCompany ||
-      shouldShowProfileNotRegistered ||
-      (!isProfileEditMode && Boolean(safeTrim(PopupState.dbInvitationRow?.company_id)));
-  }
-  if (detailEmployeeNumberLabelEl) {
-    detailEmployeeNumberLabelEl.hidden = !isCompany;
-  }
-  if (detailEmployeeNumberEl) {
-    detailEmployeeNumberEl.hidden = !isCompany;
-  }
-  if (detailHeadlineLabelEl) {
-    detailHeadlineLabelEl.textContent = isCompany ? "Sector:" : "Job title:";
-    detailHeadlineLabelEl.hidden =
-      shouldShowProfileNotRegistered || (!isCompany && !isProfileEditMode);
-  }
-  if (detailCommentsLabelEl) {
-    detailCommentsLabelEl.textContent = "Comments:";
-    detailCommentsLabelEl.hidden = isCompany || shouldShowProfileNotRegistered;
-  }
-  if (detailCommentsEl) {
-    detailCommentsEl.hidden = isCompany || shouldShowProfileNotRegistered;
-  }
-  if (detailCityLabelEl) {
-    detailCityLabelEl.hidden = !isCompany;
-  }
-  if (detailCityEl) {
-    detailCityEl.hidden = !isCompany;
-  }
-  if (detailItMembersLabelEl) {
-    detailItMembersLabelEl.hidden = !isCompany;
-  }
-  if (detailItMembersEl) {
-    detailItMembersEl.hidden = !isCompany;
-  }
-  if (detailPersonNameEl) detailPersonNameEl.placeholder = isCompany ? "Company name" : "";
-  if (detailCompanyEl) detailCompanyEl.placeholder = "";
-  if (detailEmployeeNumberEl) {
-    detailEmployeeNumberEl.placeholder = isCompany ? "Employee number" : "";
-  }
-  if (detailHeadlineEl) detailHeadlineEl.placeholder = isCompany ? "Sector" : "";
-  if (detailCommentsEl) detailCommentsEl.placeholder = "";
-  if (detailCityEl) detailCityEl.placeholder = isCompany ? "City" : "";
-  if (detailItMembersEl) detailItMembersEl.placeholder = isCompany ? "IT members" : "";
-  if (companyPeopleSectionEl) {
-    companyPeopleSectionEl.hidden = !isCompany;
-  }
-  if (personNotRegisteredStateEl) {
-    personNotRegisteredStateEl.hidden = !shouldShowProfileNotRegistered;
-    personNotRegisteredStateEl.textContent = isCompany
-      ? "Company is not yet registered"
-      : "Person is not yet registered";
-  }
-  if (!isCompany) {
-    setCompanyUrlMismatchBannerVisible(false);
-  }
-  if (companyExistingLinkSectionEl) {
-    companyExistingLinkSectionEl.hidden = !shouldShowExistingCompanyDropdown;
-    companyExistingLinkSectionEl.style.display =
-      shouldShowExistingCompanyDropdown ? "" : "none";
-  }
-  updateExistingCompanyLinkUi();
-
-  const hideInvitationUi = isCompany;
-  for (const el of [
-    campaignGroupEl,
-    campaignDividerEl,
-    statusStepperEl,
-    stepperUnderlayEl,
-    statusDividerEl,
-    detailTabsDividerEl,
-    detailTabsRowEl,
-    detailInviteSectionEl,
-    detailMessageMountEl,
-    tabMessage,
-    tabFreePromptEl,
-    acceptedModeEl,
-    firstMessageSentModeEl,
-  ]) {
-    if (!el) continue;
-    el.hidden = hideInvitationUi;
-    el.style.display = hideInvitationUi ? "none" : "";
-  }
-  if (companyLinkedRowEl) {
-    const hasQuickLinkSuggestion =
-      !isCompany &&
-      !isProfileEditMode &&
-      Boolean(PopupCompanyController.getCompanySuggestionState()?.company_id);
-    const shouldForceHideLinkedRow =
-      isCompany || (shouldShowProfileNotRegistered && !hasQuickLinkSuggestion);
-    PopupLogger.debug("[LEF][quick-link][row-visibility]", {
-      isCompany,
-      isProfileEditMode,
-      shouldShowProfileNotRegistered,
-      hasQuickLinkSuggestion,
-      shouldForceHideLinkedRow,
-      companySuggestionId: safeTrim(
-        PopupCompanyController.getCompanySuggestionState()?.company_id,
-      ),
-    });
-    if (shouldForceHideLinkedRow) {
-      companyLinkedRowEl.hidden = true;
-    }
-  }
-  if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = true;
-  if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.hidden = true;
-  if (companyQuickLinkBtn) companyQuickLinkBtn.hidden = true;
-  if (isCompany) {
-    if (companyLinkedNameEl) companyLinkedNameEl.hidden = true;
-    if (companyLinkedEmployeeNumberEl) companyLinkedEmployeeNumberEl.hidden = true;
-    if (companyLinkSearchInputEl) companyLinkSearchInputEl.hidden = true;
-    if (companyLinkSearchOptionsEl) companyLinkSearchOptionsEl.innerHTML = "";
-  }
-}
-
-async function searchExistingCompaniesForCompanyPage(term) {
-  const query = sanitizeCompanySearchTerm(term);
-  timingLog("DB search triggered with term", { term: query });
-  if (!query) {
-    setCompanyExistingLinkOptions([]);
-    PopupCompanyController.setSelectedExistingCompanyForLinkState(null);
-    updateExistingCompanyLinkUi();
-    return;
-  }
-  const result = await sendRuntimeMessage("DB_SEARCH_UNLINKED_COMPANIES", {
-    payload: { term: query, limit: 10 },
-  });
-  const resp = result.data || {};
-  const rows = result.ok ? resp?.companies || [] : [];
-  setCompanyExistingLinkOptions(rows);
-  syncSelectedExistingCompanyFromInput();
-  updateExistingCompanyLinkUi(
-    rows.length
-      ? "Company URL not registered"
-      : "Company URL not registered. No matching unlinked company found.",
-  );
-  PopupLogger.debug("[LEF][company link search]", { term: query, count: rows.length });
-}
-
-async function prepareExistingCompanyLinkDropdown({ allowSearch = true } = {}) {
-  PopupCompanyController.setSelectedExistingCompanyForLinkState(null);
-  setCompanyExistingLinkOptions([]);
-  if (!isCompanyProfileMode() || dbCompanyRow) {
-    if (companyExistingLinkSectionEl) {
-      companyExistingLinkSectionEl.hidden = true;
-      companyExistingLinkSectionEl.style.display = "none";
-    }
-    if (companyExistingLinkInputEl) companyExistingLinkInputEl.value = "";
-    updateExistingCompanyLinkUi();
-    return;
-  }
-  if (companyExistingLinkSectionEl) {
-    companyExistingLinkSectionEl.hidden = false;
-    companyExistingLinkSectionEl.style.display = "";
-  }
-  const scrapedName = sanitizeCompanySearchTerm(getCompanyNameForPeopleList());
-  if (companyExistingLinkInputEl) companyExistingLinkInputEl.value = scrapedName;
-  updateExistingCompanyLinkUi();
-  if (allowSearch && !dbCompanyRow && scrapedName) {
-    await searchExistingCompaniesForCompanyPage(scrapedName);
-  }
-}
-
-function setProfileEditMode(nextMode) {
-  isProfileEditMode = Boolean(nextMode);
-  renderProfileEditControls();
-  if (isProfileEditMode && !isCompanyProfileMode()) {
-    prepareCompanyDropdownForEdit().catch(() => null);
-    detailPersonNameEl?.focus();
-    detailPersonNameEl?.select();
-    return;
-  }
-  if (isProfileEditMode) {
-    detailPersonNameEl?.focus();
-    detailPersonNameEl?.select();
-    return;
-  }
-  PopupCompanyController.setSelectedCompanyForEditDropdown(null);
-  renderDetailHeader({ force: true });
-}
-
-function renderDetailHeader({ force = false } = {}) {
-  if (isCompanyProfileMode()) {
-    const scraped = PopupState.currentProfileContext || {};
-    const row = dbCompanyRow || {};
-    const companyName = coalesceDbThenScraped(
-      row.company_name,
-      scraped.company_name || scraped.name || scraped.full_name || "",
-    );
-    const employeeNumber = coalesceDbThenScraped(
-      row.employee_number,
-      scraped.employee_number || "",
-    );
-    const sector = coalesceDbThenScraped(row.sector, scraped.sector || "");
-    const city = coalesceDbThenScraped(row.city, scraped.city || "");
-    const itMembers = coalesceDbThenScraped(
-      row.it_members,
-      scraped.it_members || "",
-    );
-    if (!(isProfileEditMode && !force)) {
-      if (detailPersonNameEl) detailPersonNameEl.value = companyName.trim() || "-";
-      if (detailEmployeeNumberEl) {
-        detailEmployeeNumberEl.value = employeeNumber.trim() || "-";
-      }
-      if (detailHeadlineEl) detailHeadlineEl.value = sector.trim() || "-";
-      if (detailItMembersEl) detailItMembersEl.value = itMembers.trim() || "-";
-      if (detailCityEl) detailCityEl.value = city.trim() || "-";
-    }
-    if (PopupState.currentProfileContext) PopupState.currentProfileContext.it_members = itMembers.trim();
-    applyProfileModeUi();
-    renderProfileEditControls();
-    return;
-  }
-
-  const scrapedName = (
-    PopupState.currentProfileContext?.name ||
-    PopupState.currentProfileContext?.full_name ||
-    ""
-  ).trim();
-  const scrapedCompany = (PopupState.currentProfileContext?.company || "").trim();
-  const scrapedHeadline = (PopupState.currentProfileContext?.headline || "").trim();
-  const scrapedComments = (PopupState.currentProfileContext?.comments || "").trim();
-
-  const dbName = (
-    PopupState.dbInvitationRow?.full_name ||
-    PopupState.dbInvitationRow?.name ||
-    ""
-  ).trim();
-  const dbCompany = (PopupState.dbInvitationRow?.company || "").trim();
-  const dbHeadline = (PopupState.dbInvitationRow?.headline || "").trim();
-  const dbComments = (PopupState.dbInvitationRow?.comments || "").trim();
-
-  const name = coalesceDbThenScraped(dbName, scrapedName).trim() || "-";
-  const company =
-    coalesceDbThenScraped(dbCompany, scrapedCompany).trim() || "-";
-  const headline =
-    coalesceDbThenScraped(dbHeadline, scrapedHeadline).trim() || "-";
-  const comments =
-    coalesceDbThenScraped(dbComments, scrapedComments).trim() || "-";
-
-  debug("detail header source", {
-    nameSource: dbName ? "db" : "scraped",
-    companySource: dbCompany ? "db" : "scraped",
-    headlineSource: dbHeadline ? "db" : "scraped",
-  });
-
-  if (isProfileEditMode && !force) return;
-
-  if (detailPersonNameEl) detailPersonNameEl.value = name;
-  if (detailCompanyEl) detailCompanyEl.value = company;
-  if (detailEmployeeNumberEl) detailEmployeeNumberEl.value = "-";
-  if (detailHeadlineEl) detailHeadlineEl.value = headline;
-  if (detailCommentsEl) detailCommentsEl.value = comments;
-  if (detailCityEl) detailCityEl.value = "-";
-  if (detailItMembersEl) detailItMembersEl.value = "-";
-  autoResizeCommentsField();
-  applyProfileModeUi();
-  renderProfileEditControls();
-}
-
-function renderCompanyPeopleList() {
-  if (!companyPeopleSectionEl || !companyPeopleListEl) return;
-  const isCompany = isCompanyProfileMode();
-  companyPeopleSectionEl.hidden = !isCompany;
-  companyPeopleListEl.innerHTML = "";
-  if (companyCampaignControlsEl) {
-    const hasRegisteredCompany = Boolean(safeTrim(dbCompanyRow?.company_id));
-    companyCampaignControlsEl.hidden =
-      !(
-        isCompany &&
-        hasRegisteredCompany &&
-        PopupCompanyController.getCompanyPeopleRows().length > 0
-      );
-  }
-  renderCompanyLinkedCampaignChips();
-  if (!isCompany) return;
-
-  if (!PopupCompanyController.getCompanyPeopleRows().length) {
-    const emptyEl = document.createElement("div");
-    emptyEl.className = "company-people-empty";
-    emptyEl.textContent = "No registered people found";
-    companyPeopleListEl.appendChild(emptyEl);
-    return;
-  }
-
-  for (const row of PopupCompanyController.getCompanyPeopleRows()) {
-    const linkedinUrl = safeTrim(row?.linkedin_url);
-    const name = safeTrim(row?.full_name || row?.name) || "-";
-    const headline = safeTrim(row?.headline) || "-";
-    const isConnected = row?.accepted === true;
-    const rowEl = document.createElement("div");
-    rowEl.className = "company-person-card";
-    rowEl.dataset.linkedinUrl = linkedinUrl;
-    if (linkedinUrl) {
-      rowEl.setAttribute("role", "button");
-      rowEl.setAttribute("tabindex", "0");
-      rowEl.title = "Open person profile";
-    }
-
-    const textEl = document.createElement("div");
-    textEl.className = "company-person-text";
-    const nameEl = document.createElement("div");
-    nameEl.className = "company-person-name";
-    const nameLabelEl = document.createElement("span");
-    nameLabelEl.className = "company-person-name-label";
-    nameLabelEl.textContent = name;
-    const statusEl = document.createElement("span");
-    statusEl.className = isConnected
-      ? "company-person-connection is-connected"
-      : "company-person-connection is-not-connected";
-    statusEl.textContent = isConnected ? "Connected" : "Not connected";
-    nameEl.appendChild(nameLabelEl);
-    nameEl.appendChild(statusEl);
-    const headlineEl = document.createElement("div");
-    headlineEl.className = "company-person-function";
-    headlineEl.textContent = headline;
-    const personCampaignsEl = document.createElement("div");
-    personCampaignsEl.className = "company-person-campaigns";
-    const personCampaignRows = Array.isArray(row?.campaign_rows)
-      ? row.campaign_rows
-      : [];
-    for (const campaignRow of personCampaignRows) {
-      const campaignId = safeTrim(campaignRow?.campaign_id);
-      const campaignName = safeTrim(campaignRow?.campaign_name);
-      const campaignColor = safeTrim(campaignRow?.color);
-      if (!campaignId || !campaignName) continue;
-      const chipEl = document.createElement("span");
-      chipEl.className = "campaign-chip";
-      if (/^#[0-9a-f]{6}$/i.test(campaignColor)) {
-        chipEl.style.backgroundColor = campaignColor;
-        chipEl.style.color = pickCampaignTextColor(campaignColor);
-      }
-      chipEl.title = "Click to set campaign color";
-      const nameChipEl = document.createElement("span");
-      nameChipEl.className = "campaign-chip-name";
-      nameChipEl.textContent = campaignName;
-      chipEl.appendChild(nameChipEl);
-      const removeBtn = document.createElement("button");
-      removeBtn.type = "button";
-      removeBtn.className = "campaign-chip-remove";
-      removeBtn.textContent = "\u00d7";
-      removeBtn.title = "Remove link";
-      removeBtn.addEventListener("click", async (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        const personId = safeTrim(row?.id);
-        if (!personId) return;
-        setFooterUpdatingStatus();
-        try {
-          const result = await sendRuntimeMessage("DB_UNLINK_PERSON_CAMPAIGN", {
-            payload: { person_id: personId, campaign_id: campaignId },
-          });
-          if (!result.ok) throw new Error(getErrorMessage(result.error));
-          await refreshCompanyPeopleList();
-          setFooterStatus("Campaign link removed.");
-        } catch (e) {
-          setFooterStatus(`${UI_TEXT.dbErrorPrefix} ${getErrorMessage(e)}`);
-        } finally {
-          setFooterReady();
-        }
-      });
-      chipEl.appendChild(removeBtn);
-      chipEl.addEventListener("click", async (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        if (event.target === removeBtn) return;
-        await PopupCampaignController.openCampaignColorPicker({
-          campaignId,
-          campaignColor,
-          onSaved: refreshCompanyPeopleList,
-        });
-      });
-      personCampaignsEl.appendChild(chipEl);
-    }
-
-    textEl.appendChild(nameEl);
-    textEl.appendChild(headlineEl);
-    textEl.appendChild(personCampaignsEl);
-    rowEl.appendChild(textEl);
-    companyPeopleListEl.appendChild(rowEl);
-  }
-}
-
-async function refreshCompanyPeopleList() {
-  PopupCompanyController.setCompanyPeopleRows([]);
-  PopupCampaignController.setCompanyLinkedCampaignRows([]);
-  renderCompanyPeopleList();
-  if (!isCompanyProfileMode()) return;
-  const company_id = safeTrim(dbCompanyRow?.company_id);
-  if (!company_id) return;
-  const result = await sendRuntimeMessage("DB_LIST_INVITATIONS_BY_COMPANY", {
-    payload: { company_id },
-  });
-  const resp = result.data || {};
-  const baseRows = result.ok && Array.isArray(resp?.rows) ? resp.rows : [];
-  const enrichedRows = await Promise.all(
-    baseRows.map(async (row) => {
-      const personId = safeTrim(row?.id);
-      if (!personId) return { ...row, campaign_rows: [] };
-      const campaignsResult = await sendRuntimeMessage("DB_LIST_PERSON_CAMPAIGNS", {
-        payload: { person_id: personId },
-      });
-      const campaignsResp = campaignsResult.data || {};
-      return {
-        ...row,
-        campaign_rows:
-          campaignsResult.ok && Array.isArray(campaignsResp?.rows)
-            ? campaignsResp.rows
-            : [],
-      };
-    }),
-  );
-  PopupCompanyController.setCompanyPeopleRows(enrichedRows);
-  PopupCampaignController.setCompanyLinkedCampaignRows(Array.from(
-    new Map(
-      enrichedRows
-        .flatMap((row) => (Array.isArray(row?.campaign_rows) ? row.campaign_rows : []))
-        .map((row) => [safeTrim(row?.campaign_id), row])
-        .filter(([id]) => Boolean(id)),
-    ).values(),
-  ));
-  renderCompanyPeopleList();
-  rebuildCompanyCampaignSelectOptions();
-}
-
-function buildCompanyProfileSavePayload() {
-  const payload = {
-    linkedin_id: normalizeCompanyLinkedinId(PopupState.currentProfileContext),
-    company_name: normalizeWhitespace(
-      (detailPersonNameEl?.value || "").trim() === "-"
-        ? ""
-        : detailPersonNameEl?.value || "",
-    ),
-    employee_number: normalizeWhitespace(
-      (detailEmployeeNumberEl?.value || "").trim() === "-"
-        ? ""
-        : detailEmployeeNumberEl?.value || "",
-    ),
-    sector: normalizeWhitespace(
-      (detailHeadlineEl?.value || "").trim() === "-"
-        ? ""
-        : detailHeadlineEl?.value || "",
-    ),
-    city: normalizeWhitespace(
-      (detailCityEl?.value || "").trim() === "-"
-        ? ""
-        : detailCityEl?.value || "",
-    ),
-    it_members: normalizeWhitespace(
-      (detailItMembersEl?.value || "").trim() === "-"
-        ? ""
-        : detailItMembersEl?.value || "",
-    ),
-  };
-  return payload;
-}
 
 async function linkSelectedExistingCompany() {
   syncSelectedExistingCompanyFromInput();
@@ -1481,148 +953,6 @@ async function linkSelectedExistingCompany() {
   await refreshCompanyRowFromDb();
   setFooterStatus("Linked.");
   return true;
-}
-
-async function refreshCompanySuggestionUiForCurrentInvitation() {
-  hideCompanySuggestionUi();
-  const savedCompany = safeTrim(
-    PopupState.dbInvitationRow?.company ||
-      PopupState.currentProfileContext?.company ||
-      detailCompanyEl?.value ||
-      companyLinkedNameEl?.textContent,
-  );
-  const savedCompanyId = safeTrim(PopupState.dbInvitationRow?.company_id);
-  PopupLogger.debug("[LEF][quick-link][refresh-start]", {
-    savedCompany,
-    savedCompanyId,
-    dbCompany: safeTrim(PopupState.dbInvitationRow?.company),
-    ctxCompany: safeTrim(PopupState.currentProfileContext?.company),
-    detailCompany: safeTrim(detailCompanyEl?.value),
-    linkedNameText: safeTrim(companyLinkedNameEl?.textContent),
-  });
-  if (!savedCompany || savedCompany === "-") return;
-
-  if (savedCompanyId) {
-    PopupLogger.debug("[LEF][quick-link][skip-existing-link]", { savedCompanyId });
-    const result = await sendRuntimeMessage("DB_GET_COMPANY_BY_ID", {
-      payload: { company_id: savedCompanyId },
-    });
-    const companyRow = result.ok ? result.data?.company || null : null;
-    renderLinkedCompanyName(
-      safeTrim(companyRow?.company_name) || savedCompany,
-      safeTrim(companyRow?.linkedin_id),
-      safeTrim(companyRow?.employee_number),
-    );
-    return;
-  }
-  if (detailCompanyEl) detailCompanyEl.hidden = false;
-
-  const result = await sendRuntimeMessage("DB_FIND_COMPANY_BY_NAME", {
-    payload: { company_name: savedCompany },
-  });
-  const companyRow = result.ok ? result.data?.company || null : null;
-  PopupLogger.debug("[LEF][quick-link][find-by-name-result]", {
-    query: savedCompany,
-    ok: result.ok,
-    matchedCompanyId: safeTrim(companyRow?.company_id),
-    matchedCompanyName: safeTrim(companyRow?.company_name),
-    error: result.ok ? "" : getErrorMessage(result.error),
-  });
-  if (companyRow?.company_id && safeTrim(companyRow?.company_name)) {
-    PopupLogger.debug("[LEF][company suggestion] exact match found", {
-      company_id: companyRow.company_id,
-      company_name: companyRow.company_name,
-    });
-    renderCompanySuggestionFound({
-      company_id: companyRow.company_id,
-      company_name: companyRow.company_name,
-      linkedin_id: companyRow.linkedin_id || "",
-      employee_number: companyRow.employee_number || "",
-    });
-    return;
-  }
-  PopupLogger.debug("[LEF][company suggestion] no exact match found", {
-    company_name: savedCompany,
-  });
-  renderCompanySuggestionNotFound();
-}
-
-async function searchCompaniesForEditDropdown(term) {
-  const query = safeTrim(term);
-  if (!query) {
-    setCompanyLinkSearchOptions([]);
-    return;
-  }
-  const result = await sendRuntimeMessage("DB_SEARCH_COMPANIES", {
-    payload: { term: query, limit: 10 },
-  });
-  const resp = result.data || {};
-  const rows = result.ok ? resp?.companies || [] : [];
-  setCompanyLinkSearchOptions(rows);
-  PopupLogger.debug("[LEF][company dropdown] company search results", {
-    term: query,
-    count: rows.length,
-  });
-}
-
-async function prepareCompanyDropdownForEdit() {
-  if (!PopupState.dbInvitationRow || !companyLinkedRowEl || !companyLinkSearchInputEl) return;
-  const savedCompany = safeTrim(PopupState.dbInvitationRow?.company);
-  const savedCompanyId = safeTrim(PopupState.dbInvitationRow?.company_id);
-  PopupCompanyController.setSelectedCompanyForEditDropdown(null);
-  setCompanyLinkSearchOptions([]);
-  companyLinkedRowEl.hidden = false;
-  companyLinkSearchInputEl.hidden = false;
-  companyLinkSearchInputEl.value = "";
-  if (companyLinkedNameEl) companyLinkedNameEl.hidden = true;
-  if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.hidden = true;
-  if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = true;
-
-  PopupLogger.debug("[LEF][company dropdown] initial load", {
-    company_id: savedCompanyId,
-    company_name: savedCompany,
-  });
-
-  if (savedCompanyId) {
-    const result = await sendRuntimeMessage("DB_GET_COMPANY_BY_ID", {
-      payload: { company_id: savedCompanyId },
-    });
-    const companyRow = result.ok ? result.data?.company || null : null;
-    if (
-      isActiveCompanyOptionRow(companyRow) &&
-      companyRow?.company_id &&
-      safeTrim(companyRow?.company_name)
-    ) {
-      setCompanyDropdownSelected(companyRow);
-      setCompanyLinkSearchOptions([companyRow]);
-    }
-    return;
-  }
-
-  if (!savedCompany) return;
-  const result = await sendRuntimeMessage("DB_FIND_COMPANY_BY_NAME", {
-    payload: { company_name: savedCompany },
-  });
-  const companyRow = result.ok ? result.data?.company || null : null;
-  PopupLogger.debug("[LEF][quick-link][find-by-name-result]", {
-    query: savedCompany,
-    ok: result.ok,
-    matchedCompanyId: safeTrim(companyRow?.company_id),
-    matchedCompanyName: safeTrim(companyRow?.company_name),
-    error: result.ok ? "" : getErrorMessage(result.error),
-  });
-  if (companyRow?.company_id && safeTrim(companyRow?.company_name)) {
-    PopupLogger.debug("[LEF][company dropdown] exact match found", {
-      company_id: companyRow.company_id,
-      company_name: companyRow.company_name,
-    });
-    setCompanyDropdownSelected(companyRow);
-    setCompanyLinkSearchOptions([companyRow]);
-    return;
-  }
-  PopupLogger.debug("[LEF][company dropdown] no exact match found", {
-    company_name: savedCompany,
-  });
 }
 
 function updateStepperInteractivity() {
@@ -1751,7 +1081,9 @@ function updateStepperInteractivity() {
   if (messageCountDecrementEl) {
     messageCountDecrementEl.disabled =
       messageCount <= 0 ||
-      (isMessageSentOrBeyondStatus(getLifecycleStatusValue(PopupState.dbInvitationRow)) &&
+      (isMessageSentOrBeyondStatus(
+        getLifecycleStatusValue(PopupState.dbInvitationRow),
+      ) &&
         messageCount <= 1);
   }
   positionMessageCountControls();
@@ -1942,8 +1274,9 @@ const formatLocalDateTime = POPUP_UTILS.formatLocalDateTime;
 function buildOverviewQueryState() {
   const selectedCampaignOption =
     filterCampaignEl?.options?.[filterCampaignEl.selectedIndex] || null;
-  const selectedCampaignName =
-    String(selectedCampaignOption?.dataset?.campaignName || "").trim();
+  const selectedCampaignName = String(
+    selectedCampaignOption?.dataset?.campaignName || "",
+  ).trim();
   const campaignFilterValue =
     overviewFilters.campaign === "__no_campaign__"
       ? ""
@@ -2253,7 +1586,10 @@ function renderCompanyOverviewPagination() {
       ? 0
       : (companyOverviewPage - 1) * companyOverviewPageSize + 1;
   const end = totalKnown
-    ? Math.min(companyOverviewPage * companyOverviewPageSize, companyOverviewTotal)
+    ? Math.min(
+        companyOverviewPage * companyOverviewPageSize,
+        companyOverviewTotal,
+      )
     : companyOverviewPage * companyOverviewPageSize;
   if (companyOverviewCountLabelEl) {
     companyOverviewCountLabelEl.textContent = totalKnown
@@ -2396,10 +1732,14 @@ function bindCompanyNameDetailsActions(rows) {
         });
         const companyRow = result.ok ? result.data?.company || null : null;
         if (!companyRow) {
-          throw new Error(getErrorMessage(result.error) || "Company not found.");
+          throw new Error(
+            getErrorMessage(result.error) || "Company not found.",
+          );
         }
         dbCompanyRow = companyRow;
-        const linkedinId = safeTrim(companyRow?.linkedin_id || row?.linkedin_url || "");
+        const linkedinId = safeTrim(
+          companyRow?.linkedin_id || row?.linkedin_url || "",
+        );
         selectedCompanyFromListLinkedinUrl = linkedinId;
         PopupState.currentProfileContext = {
           url: linkedinId,
@@ -2701,7 +2041,11 @@ function scheduleOverviewAutoSize() {
 }
 
 function scheduleCompanyOverviewAutoSize() {
-  scheduleGridAutoSize("companies", companyOverviewTableEl, companyOverviewTbodyEl);
+  scheduleGridAutoSize(
+    "companies",
+    companyOverviewTableEl,
+    companyOverviewTbodyEl,
+  );
 }
 
 async function fetchOverviewPage() {
@@ -2842,7 +2186,9 @@ async function openLinkedIn(url, { newTab = false } = {}) {
   const isLinkedInTarget =
     typeof LEF_UTILS.isLinkedInProfileLikeUrl === "function"
       ? LEF_UTILS.isLinkedInProfileLikeUrl(targetUrl)
-    : /^https:\/\/www\.linkedin\.com\/(in|company|school)\/[^/?#]+/i.test(targetUrl);
+      : /^https:\/\/www\.linkedin\.com\/(in|company|school)\/[^/?#]+/i.test(
+          targetUrl,
+        );
   if (!isLinkedInTarget) return;
   if (overviewContextRefreshPromise) {
     try {
@@ -3027,7 +2373,8 @@ function wireOverviewEvents() {
       const field = btn.getAttribute("data-company-sort");
       if (!field) return;
       if (companyOverviewSortField === field) {
-        companyOverviewSortDir = companyOverviewSortDir === "asc" ? "desc" : "asc";
+        companyOverviewSortDir =
+          companyOverviewSortDir === "asc" ? "desc" : "asc";
       } else {
         companyOverviewSortField = field;
         companyOverviewSortDir =
@@ -3054,7 +2401,9 @@ function wireOverviewEvents() {
   companyCampaignFilterEl?.addEventListener("change", () => {
     const selectedOption =
       companyCampaignFilterEl.options[companyCampaignFilterEl.selectedIndex];
-    const campaignName = String(selectedOption?.dataset?.campaignName || "").trim();
+    const campaignName = String(
+      selectedOption?.dataset?.campaignName || "",
+    ).trim();
     companyOverviewFilters.campaign = campaignName;
     companyGridState.filters.campaign = campaignName;
     persistOverviewFiltersToStorage().catch(() => null);
@@ -3162,15 +2511,21 @@ const getProfileForGeneration =
         return out;
       };
 
-function isCompanyProfileMode(profileContext = PopupState.currentProfileContext) {
+function isCompanyProfileMode(
+  profileContext = PopupState.currentProfileContext,
+) {
   if (safeTrim(dbCompanyRow?.company_id)) return true;
   const url = String(getLinkedinUrlFromContext(profileContext) || "");
   return /linkedin\.com\/(company|school)\//i.test(url);
 }
 
-function normalizeCompanyLinkedinId(profileContext = PopupState.currentProfileContext) {
+function normalizeCompanyLinkedinId(
+  profileContext = PopupState.currentProfileContext,
+) {
   const raw =
-    profileContext?.linkedin_id || getLinkedinUrlFromContext(profileContext) || "";
+    profileContext?.linkedin_id ||
+    getLinkedinUrlFromContext(profileContext) ||
+    "";
   return canonicalizeLinkedInUrl(raw);
 }
 
@@ -3182,7 +2537,8 @@ function getDetailNameLinkedinUrl() {
     );
   }
   return safeTrim(
-    PopupState.dbInvitationRow?.linkedin_url || getLinkedinUrlFromContext(PopupState.currentProfileContext),
+    PopupState.dbInvitationRow?.linkedin_url ||
+      getLinkedinUrlFromContext(PopupState.currentProfileContext),
   );
 }
 
@@ -3191,7 +2547,9 @@ function isLinkedInProfileLikeUrl(url) {
     return LEF_UTILS.isLinkedInProfileLikeUrl(url);
   }
   if (!url || typeof url !== "string") return false;
-  return /^https:\/\/www\.linkedin\.com\/(in|company|school)\/[^/?#]+/i.test(url);
+  return /^https:\/\/www\.linkedin\.com\/(in|company|school)\/[^/?#]+/i.test(
+    url,
+  );
 }
 
 function canonicalizeLinkedInUrl(rawUrl) {
@@ -3202,13 +2560,8 @@ function canonicalizeLinkedInUrl(rawUrl) {
   if (!input) return "";
   try {
     const parsed = new URL(input);
-    const parts = (parsed.pathname || "")
-      .split("/")
-      .filter(Boolean);
-    if (
-      parts.length >= 2 &&
-      /^(company|school)$/i.test(parts[0])
-    ) {
+    const parts = (parsed.pathname || "").split("/").filter(Boolean);
+    if (parts.length >= 2 && /^(company|school)$/i.test(parts[0])) {
       return `https://www.linkedin.com/${parts[0].toLowerCase()}/${parts[1]}/`;
     }
     const pathname = (parsed.pathname || "").replace(/\/+$/, "") || "/";
@@ -3237,7 +2590,11 @@ function detectLinkedInPageType(rawUrl) {
     result.page_type = "person";
     return result;
   }
-  if (/^https:\/\/www\.linkedin\.com\/(company|school)\/[^/?#]+/i.test(linkedin_id)) {
+  if (
+    /^https:\/\/www\.linkedin\.com\/(company|school)\/[^/?#]+/i.test(
+      linkedin_id,
+    )
+  ) {
     result.page_type = "company";
     return result;
   }
@@ -3263,12 +2620,14 @@ function getProfileMatchForUrl(url) {
   const inRule = /^https:\/\/www\.linkedin\.com\/in\/[^/?#]+/i.test(
     normalizedUrl,
   );
-  const companyRule = /^https:\/\/www\.linkedin\.com\/(company|school)\/[^/?#]+/i.test(
-    normalizedUrl,
-  );
+  const companyRule =
+    /^https:\/\/www\.linkedin\.com\/(company|school)\/[^/?#]+/i.test(
+      normalizedUrl,
+    );
   const fallbackMatch = isLinkedInProfileLikeUrl(normalizedUrl);
   if (inRule) return { isProfileOpen: true, matchedRule: "/in/" };
-  if (companyRule) return { isProfileOpen: true, matchedRule: "/company|school/" };
+  if (companyRule)
+    return { isProfileOpen: true, matchedRule: "/company|school/" };
   return {
     isProfileOpen: Boolean(fallbackMatch),
     matchedRule: fallbackMatch ? "fallback" : "none",
@@ -3279,7 +2638,8 @@ const getActiveTabForProfileCheck =
   PopupProfileController.getActiveTabForProfileCheck;
 const logEmptyStateDebugOnce = PopupProfileController.logEmptyStateDebugOnce;
 const findNoProfileEl = PopupProfileController.findNoProfileEl;
-const setNoProfileStateVisible = PopupProfileController.setNoProfileStateVisible;
+const setNoProfileStateVisible =
+  PopupProfileController.setNoProfileStateVisible;
 const getNoProfileDomDebugInfo =
   PopupProfileController.getNoProfileDomDebugInfo;
 const ensureNoProfileStateUi = PopupProfileController.ensureNoProfileStateUi;
@@ -3287,7 +2647,8 @@ const ensureNoProfileStateUi = PopupProfileController.ensureNoProfileStateUi;
 const getFullNameFromContext =
   typeof POPUP_UTILS.getFullNameFromContext === "function"
     ? POPUP_UTILS.getFullNameFromContext
-    : (profileContext) => profileContext?.name || profileContext?.full_name || null;
+    : (profileContext) =>
+        profileContext?.name || profileContext?.full_name || null;
 globalThis.UI_TEXT = UI_TEXT;
 globalThis.IS_SIDE_PANEL_CONTEXT = IS_SIDE_PANEL_CONTEXT;
 globalThis.safeTrim = safeTrim;
@@ -3308,7 +2669,8 @@ const clearFreePromptPreview = PopupFreePromptController.clearFreePromptPreview;
 const applyProfileExtractionFailureState =
   PopupProfileController.applyProfileExtractionFailureState;
 const refreshAll = PopupProfileController.refreshAll;
-const loadProfileContextOnOpen = PopupProfileController.loadProfileContextOnOpen;
+const loadProfileContextOnOpen =
+  PopupProfileController.loadProfileContextOnOpen;
 
 function normalizeLanguageValue(value) {
   const raw = String(value || "").trim();
@@ -3424,6 +2786,11 @@ function runPopupInit() {
   globalThis.isCompanyProfileMode = isCompanyProfileMode;
   globalThis.getScrapeUrl = getScrapeUrl;
   globalThis.getProfileMatchForUrl = getProfileMatchForUrl;
+  globalThis.getActiveTabForProfileCheck = getActiveTabForProfileCheck;
+  globalThis.getDetailNameLinkedinUrl = getDetailNameLinkedinUrl;
+  globalThis.isLinkedInProfileLikeUrl = isLinkedInProfileLikeUrl;
+  globalThis.sanitizeCompanySearchTerm = sanitizeCompanySearchTerm;
+  globalThis.debug = debug;
   globalThis.timingLog = timingLog;
   globalThis.clearFreePromptPreview = clearFreePromptPreview;
   globalThis.updatePhaseButtons = updatePhaseButtons;
@@ -3431,7 +2798,8 @@ function runPopupInit() {
   globalThis.linkSelectedExistingCompany = linkSelectedExistingCompany;
   globalThis.searchCompaniesForEditDropdown = searchCompaniesForEditDropdown;
   globalThis.bindCompanyEvents = bindCompanyEvents;
-  globalThis.setCompanyUrlMismatchBannerVisible = setCompanyUrlMismatchBannerVisible;
+  globalThis.setCompanyUrlMismatchBannerVisible =
+    setCompanyUrlMismatchBannerVisible;
   globalThis.refreshCompanyUrlMismatchBanner = refreshCompanyUrlMismatchBanner;
   globalThis.coalesceDbThenScraped = coalesceDbThenScraped;
   globalThis.autoResizeCommentsField = autoResizeCommentsField;
@@ -3440,10 +2808,14 @@ function runPopupInit() {
   globalThis.updateExistingCompanyLinkUi = updateExistingCompanyLinkUi;
   globalThis.isActiveCompanyOptionRow = isActiveCompanyOptionRow;
   globalThis.setCompanyExistingLinkOptions = setCompanyExistingLinkOptions;
-  globalThis.setSelectedExistingCompanyForLink = setSelectedExistingCompanyForLink;
-  globalThis.syncSelectedExistingCompanyFromInput = syncSelectedExistingCompanyFromInput;
-  globalThis.searchExistingCompaniesForCompanyPage = searchExistingCompaniesForCompanyPage;
-  globalThis.prepareExistingCompanyLinkDropdown = prepareExistingCompanyLinkDropdown;
+  globalThis.setSelectedExistingCompanyForLink =
+    setSelectedExistingCompanyForLink;
+  globalThis.syncSelectedExistingCompanyFromInput =
+    syncSelectedExistingCompanyFromInput;
+  globalThis.searchExistingCompaniesForCompanyPage =
+    searchExistingCompaniesForCompanyPage;
+  globalThis.prepareExistingCompanyLinkDropdown =
+    prepareExistingCompanyLinkDropdown;
   globalThis.setProfileEditMode = setProfileEditMode;
   globalThis.renderDetailHeader = renderDetailHeader;
   globalThis.getCompanyNameForPeopleList = getCompanyNameForPeopleList;
@@ -3459,7 +2831,8 @@ function runPopupInit() {
   globalThis.setCompanyLinkSearchOptions = setCompanyLinkSearchOptions;
   globalThis.setCompanyDropdownSelected = setCompanyDropdownSelected;
   globalThis.prepareCompanyDropdownForEdit = prepareCompanyDropdownForEdit;
-  globalThis.syncSelectedCompanyFromDropdownInput = syncSelectedCompanyFromDropdownInput;
+  globalThis.syncSelectedCompanyFromDropdownInput =
+    syncSelectedCompanyFromDropdownInput;
   globalThis.loadProfileContextOnOpen = loadProfileContextOnOpen;
   globalThis.sendRuntimeMessage = sendRuntimeMessage;
   globalThis.getErrorMessage = getErrorMessage;
@@ -3476,7 +2849,8 @@ function runPopupInit() {
   globalThis.renderMessageTab = renderMessageTab;
   globalThis.setCopyIconDefaultState = setCopyIconDefaultState;
   globalThis.setCopyIconSuccessState = setCopyIconSuccessState;
-  globalThis.updateFollowupCopyIconVisibility = updateFollowupCopyIconVisibility;
+  globalThis.updateFollowupCopyIconVisibility =
+    updateFollowupCopyIconVisibility;
   // Temporary interop for incremental campaign extraction.
   globalThis.applyCampaignSelectionFromProfile =
     PopupCampaignController.applyCampaignSelectionFromProfile;
@@ -3495,13 +2869,15 @@ function runPopupInit() {
   globalThis.fetchOverviewPage = fetchOverviewPage;
   globalThis.fetchCompaniesOverviewPage = fetchCompaniesOverviewPage;
   globalThis.setActiveListTab = setActiveListTab;
-  globalThis.restoreOverviewFiltersFromStorage = restoreOverviewFiltersFromStorage;
+  globalThis.restoreOverviewFiltersFromStorage =
+    restoreOverviewFiltersFromStorage;
   globalThis.loadOverviewColumnPrefs = loadOverviewColumnPrefs;
   globalThis.scheduleOverviewAutoSize = scheduleOverviewAutoSize;
   globalThis.scheduleCompanyOverviewAutoSize = scheduleCompanyOverviewAutoSize;
   globalThis.renderOverviewSortIndicators = renderOverviewSortIndicators;
   globalThis.renderOverviewPagination = renderOverviewPagination;
-  globalThis.renderCompanyOverviewSortIndicators = renderCompanyOverviewSortIndicators;
+  globalThis.renderCompanyOverviewSortIndicators =
+    renderCompanyOverviewSortIndicators;
   globalThis.renderCompanyOverviewPagination = renderCompanyOverviewPagination;
   initPopupModules();
   tabMainBtn?.addEventListener("click", async () => {
@@ -3532,7 +2908,9 @@ function runPopupInit() {
   tabSupabaseAuthBtn?.addEventListener("click", () =>
     setActiveTab("supabase_login", { userInitiated: true }),
   );
-  configGeneralTabBtnEl?.addEventListener("click", () => setConfigInnerTab("general"));
+  configGeneralTabBtnEl?.addEventListener("click", () =>
+    setConfigInnerTab("general"),
+  );
   configSupabaseTabBtnEl?.addEventListener("click", () =>
     setConfigInnerTab("supabase"),
   );
@@ -3781,7 +3159,9 @@ async function extractCompanyDetailsFromLlm(scrapedProfileContext = null) {
   PopupLogger.debug("[LEF][company AI extraction result]", enrichResp);
   return {
     linkedin_id,
-    company_name: safeTrim(enrichResp.company_name || profileContext.company_name),
+    company_name: safeTrim(
+      enrichResp.company_name || profileContext.company_name,
+    ),
     employee_number: safeTrim(
       enrichResp.employee_number || profileContext.employee_number,
     ),
@@ -3804,7 +3184,9 @@ async function extractProfileDetailsFromLlm(scrapedProfileContext = null) {
   PopupState.lastProfileContextEnriched = null;
   renderDetailHeader();
 
-  const linkedin_url = getLinkedinUrlFromContext(PopupState.currentProfileContext);
+  const linkedin_url = getLinkedinUrlFromContext(
+    PopupState.currentProfileContext,
+  );
   if (!linkedin_url) {
     throw new Error(UI_TEXT.missingLinkedinUrl);
   }
@@ -3861,7 +3243,9 @@ async function extractProfileDetailsFromLlm(scrapedProfileContext = null) {
     await setLanguage(normalizedLlmLanguage);
   }
 
-  const nameFromProfile = (getFullNameFromContext(PopupState.currentProfileContext) || "")
+  const nameFromProfile = (
+    getFullNameFromContext(PopupState.currentProfileContext) || ""
+  )
     .toString()
     .trim();
   const nameFromUi = (detailPersonNameEl?.value || "").trim();
@@ -3910,9 +3294,15 @@ function bindProfileEditControls() {
   saveProfileFieldsBtnEl?.addEventListener("click", async () => {
     if (isProfileSaveInFlight) return;
 
-    const targetUrl = getLinkedinUrlFromContext(PopupState.currentProfileContext);
+    const targetUrl = getLinkedinUrlFromContext(
+      PopupState.currentProfileContext,
+    );
     if (!targetUrl) {
-      setFooterStatus(isCompanyProfileMode() ? "Missing linkedin_id." : UI_TEXT.missingLinkedinUrl);
+      setFooterStatus(
+        isCompanyProfileMode()
+          ? "Missing linkedin_id."
+          : UI_TEXT.missingLinkedinUrl,
+      );
       return;
     }
 
@@ -3924,10 +3314,12 @@ function bindProfileEditControls() {
       if (isCompanyProfileMode()) {
         syncSelectedExistingCompanyFromInput();
         const linkedExistingCompanyId = safeTrim(
-          PopupCompanyController.getSelectedExistingCompanyForLink()?.company_id,
+          PopupCompanyController.getSelectedExistingCompanyForLink()
+            ?.company_id,
         );
         const linkedExistingCompanyName = safeTrim(
-          PopupCompanyController.getSelectedExistingCompanyForLink()?.company_name,
+          PopupCompanyController.getSelectedExistingCompanyForLink()
+            ?.company_name,
         );
         const isCreateFlow = !dbCompanyRow && !linkedExistingCompanyId;
         let payload = buildCompanyProfileSavePayload();
@@ -3937,17 +3329,22 @@ function bindProfileEditControls() {
             source: "company_create",
             force: true,
           });
-          const enrichedPayload = await extractCompanyDetailsFromLlm(companyContext);
+          const enrichedPayload =
+            await extractCompanyDetailsFromLlm(companyContext);
           payload = {
             ...payload,
             ...enrichedPayload,
-            company_name: safeTrim(enrichedPayload.company_name || payload.company_name),
+            company_name: safeTrim(
+              enrichedPayload.company_name || payload.company_name,
+            ),
             employee_number: safeTrim(
               enrichedPayload.employee_number || payload.employee_number,
             ),
             sector: safeTrim(enrichedPayload.sector || payload.sector),
             city: safeTrim(enrichedPayload.city || payload.city),
-            it_members: safeTrim(enrichedPayload.it_members || payload.it_members),
+            it_members: safeTrim(
+              enrichedPayload.it_members || payload.it_members,
+            ),
           };
         }
         const result = linkedExistingCompanyId
@@ -3967,7 +3364,8 @@ function bindProfileEditControls() {
         }
         if (PopupState.currentProfileContext) {
           PopupState.currentProfileContext.company_name = payload.company_name;
-          PopupState.currentProfileContext.employee_number = payload.employee_number;
+          PopupState.currentProfileContext.employee_number =
+            payload.employee_number;
           PopupState.currentProfileContext.sector = payload.sector;
           PopupState.currentProfileContext.city = payload.city;
           PopupState.currentProfileContext.it_members = payload.it_members;
@@ -4003,7 +3401,9 @@ function bindProfileEditControls() {
       const selectedCompanyForSave =
         PopupCompanyController.getSelectedCompanyForEditDropdown();
       const selectedCompanyId = safeTrim(selectedCompanyForSave?.company_id);
-      const selectedCompanyName = safeTrim(selectedCompanyForSave?.company_name);
+      const selectedCompanyName = safeTrim(
+        selectedCompanyForSave?.company_name,
+      );
       const companyToSave = selectedCompanyName || company;
 
       const result = await sendRuntimeMessage("DB_UPDATE_PROFILE_FIELDS", {
@@ -4032,7 +3432,8 @@ function bindProfileEditControls() {
       if (PopupState.dbInvitationRow) {
         PopupState.dbInvitationRow.full_name = full_name;
         PopupState.dbInvitationRow.company = companyToSave;
-        if (selectedCompanyId) PopupState.dbInvitationRow.company_id = selectedCompanyId;
+        if (selectedCompanyId)
+          PopupState.dbInvitationRow.company_id = selectedCompanyId;
         PopupState.dbInvitationRow.headline = headline;
         PopupState.dbInvitationRow.comments = comments;
       }
@@ -4099,15 +3500,19 @@ bindOpenSidePanelClickHandler();
 async function handleAcceptCompanySuggestion() {
   if (isAcceptingCompanySuggestion) return;
   const companySuggestion = PopupCompanyController.getCompanySuggestionState();
-  if (!companySuggestion?.company_id || !companySuggestion?.company_name) return;
-  const linkedin_url = getLinkedinUrlFromContext(PopupState.currentProfileContext);
+  if (!companySuggestion?.company_id || !companySuggestion?.company_name)
+    return;
+  const linkedin_url = getLinkedinUrlFromContext(
+    PopupState.currentProfileContext,
+  );
   if (!linkedin_url) {
     setFooterStatus(UI_TEXT.missingLinkedinUrl);
     return;
   }
 
   isAcceptingCompanySuggestion = true;
-  if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.disabled = true;
+  if (acceptCompanySuggestionBtnEl)
+    acceptCompanySuggestionBtnEl.disabled = true;
   setFooterUpdatingStatus();
   try {
     const result = await sendRuntimeMessage("DB_CONFIRM_COMPANY_LINK", {
@@ -4132,12 +3537,16 @@ async function handleAcceptCompanySuggestion() {
     setFooterStatus(`${UI_TEXT.dbErrorPrefix} ${getErrorMessage(e)}`);
   } finally {
     isAcceptingCompanySuggestion = false;
-    if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.disabled = false;
+    if (acceptCompanySuggestionBtnEl)
+      acceptCompanySuggestionBtnEl.disabled = false;
     if (companyQuickLinkBtn) companyQuickLinkBtn.disabled = false;
   }
 }
 
-acceptCompanySuggestionBtnEl?.addEventListener("click", handleAcceptCompanySuggestion);
+acceptCompanySuggestionBtnEl?.addEventListener(
+  "click",
+  handleAcceptCompanySuggestion,
+);
 
 companyLinkSearchInputEl?.addEventListener("input", () => {
   PopupCompanyController.setSelectedCompanyForEditDropdown(null);
@@ -4206,7 +3615,8 @@ companyExistingLinkInputEl?.addEventListener("change", () => {
 
 companyExistingLinkButtonEl?.addEventListener("click", async () => {
   try {
-    if (companyExistingLinkButtonEl) companyExistingLinkButtonEl.disabled = true;
+    if (companyExistingLinkButtonEl)
+      companyExistingLinkButtonEl.disabled = true;
     await linkSelectedExistingCompany();
   } catch (e) {
     setFooterStatus(`${UI_TEXT.dbErrorPrefix} ${getErrorMessage(e)}`);
@@ -4267,5 +3677,3 @@ detailCommentsEl?.addEventListener("input", () => {
 setCopyIconDefaultState(copyInviteIconEl);
 setCopyIconDefaultState(copyFreePromptBtnEl);
 updateFreePromptCopyButtonState();
-
-
