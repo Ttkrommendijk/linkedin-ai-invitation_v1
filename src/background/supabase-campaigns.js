@@ -12,7 +12,7 @@
   async function supabaseListCampaigns() {
     const { supabaseUrl, supabaseAnonKey, accessToken } =
       await getSupabaseRequestContext();
-    const url = `${supabaseUrl}/rest/v1/campaign?select=campaign_id,campaign_name&order=campaign_name.asc`;
+    const url = `${supabaseUrl}/rest/v1/campaign?select=campaign_id,campaign_name&archived=eq.false&order=campaign_name.asc`;
     const res = await fetchWithTimeout(
       url,
       {
@@ -109,6 +109,43 @@
     const rows = await res.json();
     return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
   }
+
+  
+  async function supabaseArchiveCampaign({ campaign_id }) {
+    const { supabaseUrl, supabaseAnonKey, accessToken } =
+      await getSupabaseRequestContext();
+    const targetId = normalizeProfileField(campaign_id);
+    if (!targetId) {
+      throw new Error("Campaign id is required.");
+    }
+
+    const url = `${supabaseUrl}/rest/v1/campaign?campaign_id=eq.${encodeURIComponent(targetId)}`;
+
+    const res = await fetchWithTimeout(
+      url,
+      {
+        method: "PATCH",
+        headers: {
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          Prefer: "return=representation",
+        },
+        body: JSON.stringify({ archived: true }),
+      },
+      15000,
+      "Supabase request",
+    );
+
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      throw createProviderHttpError("supabase", res.status, txt);
+    }
+
+    const rows = await res.json();
+    return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+  }
+
 
   async function supabaseListPersonCampaigns({ person_id }) {
     const { supabaseUrl, supabaseAnonKey, accessToken } =
@@ -234,6 +271,7 @@
   }
 
   globalObj.LEFSupabaseCampaigns = Object.freeze({
+    supabaseArchiveCampaign,
     supabaseListCampaigns,
     supabaseCreateCampaign,
     supabaseUpdateCampaign,
