@@ -417,6 +417,8 @@
           linkedin_id: pageInfo.linkedin_id,
           allowNameSearch: false,
         });
+        globalObj.PopupCompanyController?.setCompanyDetailTab?.("persons");
+        globalObj.PopupNotesController?.onProfileContextChanged?.();
         popupLogger.debug(globalObj.dbCompanyRow ? "[LEF][db] load found" : "[LEF][db] load not found", {
           page_type: "company",
           linkedin_id: pageInfo.linkedin_id,
@@ -456,6 +458,7 @@
       globalObj.PopupState.lastProfileContextEnriched = null;
       globalObj.updateMessageTabControls();
       await globalObj.refreshInvitationRowFromDb();
+      globalObj.PopupNotesController?.onProfileContextChanged?.();
       popupLogger.debug(globalObj.PopupState.dbInvitationRow ? "[LEF][db] load found" : "[LEF][db] load not found", {
         page_type: "person",
         linkedin_url: pageInfo.linkedin_id,

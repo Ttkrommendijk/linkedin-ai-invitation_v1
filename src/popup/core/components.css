@@ -978,3 +978,12 @@
 .note-actions .btn-small-secondary {
     margin: 0;
 }
+
+
+.company-profile-tabs {
+    margin-top: 12px;
+}
+
+.company-profile-mode .notes-filter-group {
+    display: none !important;
+}

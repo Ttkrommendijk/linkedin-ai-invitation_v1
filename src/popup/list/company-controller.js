@@ -12,6 +12,7 @@ companyExistingLinkInputEl, companyExistingLinkOptionsEl,
 companyExistingLinkSectionEl, companyExistingLinkStatusEl,
 companyLinkSearchInputEl, companyLinkSearchOptionsEl,
 companyPeopleListEl, companyPeopleSectionEl,
+companyProfileTabsRowEl, companyPersonsTabBtnEl, companyNotesTabBtnEl,
 companyCampaignControlsEl, companyLinkedEmployeeNumberEl,
 companyLinkedIndicatorEl, companyLinkedNameEl,
 companyLinkedRowEl, companyQuickLinkBtn,
@@ -130,13 +131,31 @@ companyLinkedIndicatorEl.hidden = true; companyLinkedIndicatorEl.style.display =
 } if (companyLinkSearchOptionsEl) companyLinkSearchOptionsEl.innerHTML = "";
 if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.hidden = true; if (companyQuickLinkBtn) companyQuickLinkBtn.hidden = true;
 } applyProfileModeUi();
+}
+function setCompanyDetailTab(which = "persons") {
+const isCompanyProfileMode = requireFn("isCompanyProfileMode");
+const isCompany = isCompanyProfileMode();
+const showNotes = isCompany && which === "notes";
+if (companyPersonsTabBtnEl) companyPersonsTabBtnEl.classList.toggle("active", !showNotes);
+if (companyNotesTabBtnEl) companyNotesTabBtnEl.classList.toggle("active", showNotes);
+if (companyPeopleSectionEl) companyPeopleSectionEl.hidden = !isCompany || showNotes;
+if (PopupDom.detailNotesPanelEl) PopupDom.detailNotesPanelEl.hidden = !isCompany || !showNotes;
+if (PopupDom.notesFilterCompanyEl?.parentElement) {
+  PopupDom.notesFilterCompanyEl.parentElement.hidden = isCompany;
+}
+if (showNotes) {
+  globalObj.refreshNotes?.({ force: true });
+}
+}
+function getActiveCompanyDetailTab() {
+return companyNotesTabBtnEl?.classList.contains("active") ? "notes" : "persons";
 } function applyProfileModeUi() {
 const isCompanyProfileMode = requireFn("isCompanyProfileMode"); const isCompany = isCompanyProfileMode();
 const isProfileEditMode = Boolean(globalObj.isProfileEditMode); const dbCompanyRow = globalObj.dbCompanyRow || null;
 const shouldShowExistingCompanyDropdown = isCompany && !dbCompanyRow; const shouldShowProfileNotRegistered =
 !isProfileEditMode && ((!isCompany && !PopupState.dbInvitationRow) || (isCompany && !dbCompanyRow));
 document.documentElement.classList.toggle("company-profile-mode", isCompany); document.body?.classList.toggle("company-profile-mode", isCompany);
-tabMain?.classList.toggle("company-profile-mode", isCompany); if (detailCompanyLabelEl) {
+tabMain?.classList.toggle("company-profile-mode", isCompany); if (companyProfileTabsRowEl) companyProfileTabsRowEl.hidden = !isCompany; if (detailCompanyLabelEl) {
 detailCompanyLabelEl.textContent = "Company:"; detailCompanyLabelEl.hidden =
 isCompany || shouldShowProfileNotRegistered ||
 (!isProfileEditMode && !isCompany); }
@@ -174,7 +193,7 @@ tabMessage, tabFreePromptEl,
 acceptedModeEl, firstMessageSentModeEl,
 ]) { if (!el) continue;
 el.hidden = hideInvitationUi; el.style.display = hideInvitationUi ? "none" : "";
-} if (companyLinkedRowEl) {
+} if (isCompany) { setCompanyDetailTab(getActiveCompanyDetailTab()); } else { if (companyProfileTabsRowEl) companyProfileTabsRowEl.hidden = true; if (PopupDom.notesFilterCompanyEl?.parentElement) PopupDom.notesFilterCompanyEl.parentElement.hidden = false; } if (companyLinkedRowEl) {
 const hasQuickLinkSuggestion = !isCompany &&
 !isProfileEditMode && Boolean(state.companySuggestionState?.company_id);
 const shouldForceHideLinkedRow = isCompany || (shouldShowProfileNotRegistered && !hasQuickLinkSuggestion);
@@ -519,7 +538,9 @@ return; }
 const matched = state.companyLinkSearchResults.find( (row) => safeTrim(row?.company_name).toLowerCase() === typed.toLowerCase(),
 ); if (matched?.company_id) {
 setCompanyDropdownSelected(matched); }
-} function renderCurrentCompany() {
+} companyPersonsTabBtnEl?.addEventListener("click", () => setCompanyDetailTab("persons"));
+companyNotesTabBtnEl?.addEventListener("click", () => setCompanyDetailTab("notes"));
+function renderCurrentCompany() {
 return renderDetailHeader({ force: true });
 } function refreshCurrentCompanyContext() {
 return requireFn("refreshCompanyRowFromDb")();
@@ -543,7 +564,7 @@ setCompanySuggestionState, getCompanyPeopleRows,
 setCompanyPeopleRows, setCompanyUrlMismatchBannerVisible,
 refreshCompanyUrlMismatchBanner, coalesceDbThenScraped,
 autoResizeCommentsField, renderProfileEditControls,
-applyProfileModeUi, updateExistingCompanyLinkUi,
+applyProfileModeUi, setCompanyDetailTab, updateExistingCompanyLinkUi,
 isActiveCompanyOptionRow, setCompanyExistingLinkOptions,
 setSelectedExistingCompanyForLink, syncSelectedExistingCompanyFromInput,
 searchExistingCompaniesForCompanyPage, prepareExistingCompanyLinkDropdown,

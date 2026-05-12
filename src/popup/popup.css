@@ -2,3 +2,14 @@
 @import url("core/base-layout.css");
 @import url("core/components.css");
 @import url("core/tabs-panels.css");
+
+
+.sub-tabs {
+    display:flex;
+    gap:8px;
+    margin:10px 0;
+}
+
+.notes-hidden {
+    display:none !important;
+}

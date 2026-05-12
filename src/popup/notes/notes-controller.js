@@ -25,9 +25,26 @@
     );
   }
 
-  function getPersonContext() {
-    const row = state.dbInvitationRow || {};
+  function isCompanyNotesContext() {
+    return typeof globalObj.isCompanyProfileMode === "function" && globalObj.isCompanyProfileMode();
+  }
+
+  function getActiveNotesContext() {
     const profile = state.currentProfileContext || {};
+    if (isCompanyNotesContext()) {
+      const companyRow = globalObj.dbCompanyRow || {};
+      const companyId = safeTrim(companyRow.company_id || profile.company_id);
+      return {
+        contextType: "company",
+        personId: "",
+        companyId,
+        dealId: "",
+        personName: "",
+        companyName: safeTrim(companyRow.company_name || profile.company_name || profile.name || profile.full_name),
+      };
+    }
+
+    const row = state.dbInvitationRow || {};
     const personId = safeTrim(row.id || row.person_id);
     const companyId = safeTrim(row.company_id || profile.company_id);
     return {
@@ -38,6 +55,10 @@
       personName: safeTrim(row.full_name || profile.full_name || profile.name),
       companyName: safeTrim(row.company || profile.company || profile.company_name),
     };
+  }
+
+  function getPersonContext() {
+    return getActiveNotesContext();
   }
 
   function getContextKey(ctx) {
@@ -112,6 +133,10 @@
   }
 
   function setFilter(nextFilter) {
+    if (isCompanyNotesContext()) {
+      localState.filter = "company";
+      return;
+    }
     localState.filter = nextFilter === "person" ? "person" : "company";
     dom.notesFilterCompanyEl?.classList.toggle("active", localState.filter === "company");
     dom.notesFilterPersonEl?.classList.toggle("active", localState.filter === "person");
@@ -212,9 +237,9 @@
         date: dateInput.value,
         status: deriveStatus(dateInput.value, statusSelect.value),
         notes_type: typeSelect.value,
-        main_person_id: ctx.personId,
+        main_person_id: ctx.contextType === "person" ? ctx.personId : "",
         company_id: ctx.companyId,
-        deal_id: "",
+        deal_id: ctx.dealId || "",
       };
       try {
         saveBtn.disabled = true;
@@ -287,7 +312,9 @@
     card.className = "note-card note-card-new";
     const header = document.createElement("div");
     header.className = "note-card-header note-card-header-static";
-    header.textContent = `New note for ${ctx.personName || "person"}`;
+    header.textContent = ctx.contextType === "company"
+      ? `New note for ${ctx.companyName || "company"}`
+      : `New note for ${ctx.personName || "person"}`;
     card.appendChild(header);
     card.appendChild(
       renderEditor(
@@ -316,7 +343,9 @@
     if (!localState.notes.length && !localState.isCreating) {
       const empty = document.createElement("div");
       empty.className = "notes-empty";
-      empty.textContent = ctx.personId ? "No notes found." : "Save or register this person before adding notes.";
+      empty.textContent = ctx.contextType === "company"
+        ? (ctx.companyId ? "No notes found." : "Save or register this company before adding notes.")
+        : (ctx.personId ? "No notes found." : "Save or register this person before adding notes.");
       dom.notesListEl.appendChild(empty);
       return;
     }
@@ -334,7 +363,14 @@
       renderNotes();
       return;
     }
-    if (!ctx.personId) {
+    if (ctx.contextType === "company" && !ctx.companyId) {
+      localState.notes = [];
+      localState.loadedContextKey = key;
+      setNotesStatus("Company must exist before notes can be loaded.");
+      renderNotes();
+      return;
+    }
+    if (ctx.contextType === "person" && !ctx.personId) {
       localState.notes = [];
       localState.loadedContextKey = key;
       setNotesStatus("Person must exist before notes can be loaded.");
@@ -345,9 +381,10 @@
       setNotesStatus("Loading notes...");
       const result = await sendRuntimeMessage("DB_LIST_NOTES", {
         payload: {
-          filter: localState.filter,
+          filter: ctx.contextType === "company" ? "company" : localState.filter,
           person_id: ctx.personId,
           company_id: ctx.companyId,
+          context_type: ctx.contextType,
         },
       });
       const resp = result.data || {};
@@ -378,6 +415,22 @@
     });
   }
 
+  function onProfileContextChanged() {
+    localState.loadedContextKey = "";
+    localState.expandedNoteId = null;
+    localState.isCreating = false;
+    if (isCompanyNotesContext()) {
+      localState.filter = "company";
+      if (globalObj.PopupCompanyController?.setCompanyDetailTab) {
+        // Keep the company tab state, but make sure notes refresh when active.
+        const notesActive = dom.companyNotesTabBtnEl?.classList.contains("active");
+        if (notesActive) refreshNotes({ force: true });
+      }
+      return;
+    }
+    if (!dom.detailNotesPanelEl?.hidden) refreshNotes({ force: true });
+  }
+
   function init() {
     bindEvents();
     setActiveSubtab("notes");
@@ -388,6 +441,7 @@
     refreshNotes,
     renderNotes,
     setActiveSubtab,
+    onProfileContextChanged,
   };
 
   globalObj.PopupNotesController = Object.freeze(api);
