@@ -22,7 +22,7 @@ type="button"
 Supabase Login
 </button></div></div><div id="innerContentContainer" class="app-content-scroll"><div id="tabMain" class="tab-panel active"><div class="detail-person"><div class="detail-person-top"><input
 id="detailPersonName"
-class="detail-person-name readonly-text form-control--profile-name"
+class="form-control detail-person-name readonly-text form-control--profile-name"
 type="text"
 value="-"
 readonly
@@ -79,7 +79,7 @@ class="company-display-label"
 Company:
 </div><input
 id="detailCompany"
-class="detail-person-company readonly-text"
+class="form-control detail-person-company readonly-text"
 type="text"
 value="-"
 readonly
@@ -97,7 +97,7 @@ class="company-linked-employee-number"
 hidden
 ></span><input
 id="companyLinkSearchInput"
-class="company-link-search"
+class="form-control company-link-search"
 list="companyLinkSearchOptions"
 placeholder="Search company"
 hidden
@@ -153,7 +153,7 @@ hidden
 Employee number:
 </div><input
 id="detailEmployeeNumber"
-class="detail-person-company readonly-text"
+class="form-control detail-person-company readonly-text"
 type="text"
 value="-"
 readonly
@@ -165,7 +165,7 @@ class="company-display-label"
 IT members:
 </div><input
 id="detailItMembers"
-class="detail-person-headline readonly-text"
+class="form-control detail-person-headline readonly-text"
 type="text"
 value="-"
 readonly
@@ -177,7 +177,7 @@ class="company-display-label"
 Job title:
 </div><input
 id="detailHeadline"
-class="detail-person-headline readonly-text"
+class="form-control detail-person-headline readonly-text"
 type="text"
 value="-"
 readonly
@@ -188,7 +188,7 @@ class="company-display-label"
 Comments:
 </div><textarea
 id="detailComments"
-class="detail-person-comments readonly-text comments-readonly"
+class="form-control detail-person-comments readonly-text comments-readonly"
 rows="1"
 readonly
 ></textarea><div
@@ -199,7 +199,7 @@ hidden
 City:
 </div><input
 id="detailCity"
-class="detail-person-headline readonly-text"
+class="form-control detail-person-headline readonly-text"
 type="text"
 value="-"
 readonly
@@ -217,7 +217,7 @@ class="company-existing-link-status"
 Company URL not registered
 </div><div class="company-existing-link-row"><input
 id="companyExistingLinkInput"
-class="company-existing-link-input"
+class="form-control company-existing-link-input"
 list="companyExistingLinkOptions"
 placeholder="Search existing company"
 /><button
@@ -242,10 +242,10 @@ id="companyLinkedCampaignsList"
 class="linked-campaigns-list"
 ></div><div class="campaign-main-row filter-field campaign-combo-row"><select
 id="companyCampaignSelect"
-class="campaign-select campaign-hidden-select"
+class="form-control campaign-select campaign-hidden-select"
 aria-hidden="true"
 tabindex="-1"
-><option value="">Select campaign</option></select><button id="companyCampaignComboToggle" class="campaign-add-chip" type="button">+ Add campaign</button><div id="companyCampaignComboPanel" class="campaign-combo-panel" hidden><input id="companyCampaignComboInput" class="campaign-combo-input" type="text" placeholder="Search campaign" autocomplete="off"/><div id="companyCampaignComboList" class="campaign-combo-list"></div></div><button
+><option value="">Select campaign</option></select><button id="companyCampaignComboToggle" class="campaign-add-chip" type="button">+ Add campaign</button><div id="companyCampaignComboPanel" class="campaign-combo-panel" hidden><input id="companyCampaignComboInput" class="form-control campaign-combo-input" type="text" placeholder="Search campaign" autocomplete="off"/><div id="companyCampaignComboList" class="campaign-combo-list"></div></div><button
 id="companyRenameCampaign"
 class="btn-link campaign-legacy-action"
 type="button"
@@ -265,7 +265,7 @@ hidden
 id="companyRenameCampaignRow"
 class="campaign-new-row"
 hidden
-><input
+><input class="form-control"
 id="companyRenameCampaignName"
 type="text"
 placeholder="Campaign name"
@@ -285,7 +285,7 @@ Cancel
 id="companyNewCampaignRow"
 class="campaign-new-row"
 hidden
-><input
+><input class="form-control"
 id="companyNewCampaignName"
 type="text"
 placeholder="New campaign name"
@@ -309,7 +309,7 @@ class="company-people-list"
 ></div></div></div><div id="campaignDivider" class="section-divider"></div><div id="campaignGroup" class="form-group campaign-group"><div
 id="linkedCampaignsList"
 class="linked-campaigns-list"
-></div><div class="campaign-main-row filter-field campaign-combo-row"><select id="campaignSelect" class="campaign-select campaign-hidden-select" aria-hidden="true" tabindex="-1"><option value="">(no campaign)</option></select><button id="campaignComboToggle" class="campaign-add-chip" type="button">+ Add campaign</button><div id="campaignComboPanel" class="campaign-combo-panel" hidden><input id="campaignComboInput" class="campaign-combo-input" type="text" placeholder="Search campaign" autocomplete="off"/><div id="campaignComboList" class="campaign-combo-list"></div></div><button
+></div><div class="campaign-main-row filter-field campaign-combo-row"><select id="campaignSelect" class="form-control campaign-select campaign-hidden-select" aria-hidden="true" tabindex="-1"><option value="">(no campaign)</option></select><button id="campaignComboToggle" class="campaign-add-chip" type="button">+ Add campaign</button><div id="campaignComboPanel" class="campaign-combo-panel" hidden><input id="campaignComboInput" class="form-control campaign-combo-input" type="text" placeholder="Search campaign" autocomplete="off"/><div id="campaignComboList" class="campaign-combo-list"></div></div><button
 id="renameCampaign"
 class="btn-link campaign-legacy-action"
 type="button"
@@ -329,7 +329,7 @@ hidden
 id="renameCampaignRow"
 class="campaign-new-row"
 hidden
-><input
+><input class="form-control"
 id="renameCampaignName"
 type="text"
 placeholder="Campaign name"
@@ -349,7 +349,7 @@ Cancel
 id="newCampaignRow"
 class="campaign-new-row"
 hidden
-><input
+><input class="form-control"
 id="newCampaignName"
 type="text"
 placeholder="New campaign name"
@@ -411,7 +411,7 @@ aria-label="Increase message count"
 +
 </button></div></div><div class="section-divider"></div><div id="detailTabsDivider" class="detail-tabs-divider"></div><div id="detailTabsRow" class="row inline detail-tabs"><button id="detailNotesTabBtn" class="detail-tab-btn active" type="button">Notes</button><button id="detailPromptsTabBtn" class="detail-tab-btn" type="button">Prompts</button></div><div id="detailNotesPanel" class="detail-inner-panel"><div class="notes-toolbar"><div class="notes-filter-group" role="group" aria-label="Notes filter"><button id="notesFilterCompany" class="notes-filter-btn active" type="button">All company notes</button><button id="notesFilterPerson" class="notes-filter-btn" type="button">Only this person</button></div><button id="addNoteBtn" class="btn-small-primary notes-add-btn" type="button">+ Add note</button></div><div id="notesStatus" class="notes-status">Loading notes...</div><div id="notesList" class="notes-list"></div></div><div id="detailPromptsPanel" class="detail-inner-panel" hidden><div id="tabFreePrompt"><div class="row"><label><small>Prompt</small></label><div class="campaign-main-row filter-field"><select
 id="promptSelect"
-class="campaign-select"
+class="form-control campaign-select"
 ><option value="">(no prompt)</option></select><button
 id="renamePrompt"
 class="btn-link"
@@ -431,7 +431,7 @@ type="button"
 id="renamePromptRow"
 class="campaign-new-row"
 hidden
-><input
+><input class="form-control"
 id="renamePromptName"
 type="text"
 placeholder="Prompt name"
@@ -451,7 +451,7 @@ Cancel
 id="newPromptRow"
 class="campaign-new-row"
 hidden
-><input
+><input class="form-control"
 id="newPromptName"
 type="text"
 placeholder="New prompt name"
@@ -467,7 +467,7 @@ class="btn-small-secondary"
 type="button"
 >
 Cancel
-</button></div></div><div class="row"><label><small>Language</small></label><select id="freePromptLanguage"><option value="Portuguese" selected>
+</button></div></div><div class="row"><label><small>Language</small></label><select class="form-control" id="freePromptLanguage"><option value="Portuguese" selected>
 Portuguese
 </option><option value="English">English</option><option value="Dutch">Dutch</option><option value="Spanish">Spanish</option></select></div><div class="row"><div class="invite-preview-header"><label><small>Prompt</small></label><button
 id="savePromptTextBtn"
@@ -485,7 +485,7 @@ fill="currentColor"
 aria-hidden="true"
 ><path
 d="M11 1H2a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V5L11 1Zm0 1.5L13.5 5H11V2.5ZM2 2h8v4h4v8H2V2Zm3 6a1 1 0 0 0-1 1v4h8V9a1 1 0 0 0-1-1H5Zm0 1h6v3H5V9Z"
-/></svg></button></div><textarea
+/></svg></button></div><textarea class="form-control"
 id="freePromptInput"
 placeholder="Write your instruction here..."
 ></textarea></div><div class="row inline"><label class="checkbox-row"><input
@@ -514,16 +514,16 @@ aria-label="Copy to clipboard"
 </button></div><pre
 id="freePromptPreview"
 class="invite-preview-content"
-></pre></div></div></div></div><div style="display: none" aria-hidden="true"><select id="inviteLanguage"></select><textarea id="focus"></textarea><button id="generate" type="button"></button><button id="saveInviteBtn" type="button"></button><button id="copyInviteIcon" type="button"></button><pre id="preview"></pre><button id="detailTabInviteBtn" type="button"></button><button
+></pre></div></div></div></div><div style="display: none" aria-hidden="true"><select class="form-control" id="inviteLanguage"></select><textarea class="form-control" id="focus"></textarea><button id="generate" type="button"></button><button id="saveInviteBtn" type="button"></button><button id="copyInviteIcon" type="button"></button><pre id="preview"></pre><button id="detailTabInviteBtn" type="button"></button><button
 id="detailTabFirstMessageBtn"
 type="button"
-></button><button id="detailTabFollowBtn" type="button"></button><button id="tabFreePromptBtn" type="button"></button><div id="detailInviteSection"></div><div id="detailMessageMount"></div><div id="tabMessage"></div><div id="acceptedMode"></div><div id="firstMessageSentMode"></div><textarea id="firstMessageAdditionalPrompt"></textarea><button
+></button><button id="detailTabFollowBtn" type="button"></button><button id="tabFreePromptBtn" type="button"></button><div id="detailInviteSection"></div><div id="detailMessageMount"></div><div id="tabMessage"></div><div id="acceptedMode"></div><div id="firstMessageSentMode"></div><textarea class="form-control" id="firstMessageAdditionalPrompt"></textarea><button
 id="generateFirstMessage"
 type="button"
 ></button><button
 id="saveFirstMessageIcon"
 type="button"
-></button><button id="copyFirstMessage" type="button"></button><pre id="firstMessagePreview"></pre><button id="markMessageSent" type="button"></button><textarea id="followupObjective"></textarea><input id="includeStrategy" type="checkbox" /><button id="generateFollowup" type="button"></button><textarea id="followupPreview"></textarea><button id="copyFollowup" type="button"></button></div></div><div id="tabOverview" class="tab-panel"><div class="row inline detail-tabs" id="listTabsRow"><button
+></button><button id="copyFirstMessage" type="button"></button><pre id="firstMessagePreview"></pre><button id="markMessageSent" type="button"></button><textarea class="form-control" id="followupObjective"></textarea><input id="includeStrategy" type="checkbox" /><button id="generateFollowup" type="button"></button><textarea class="form-control" id="followupPreview"></textarea><button id="copyFollowup" type="button"></button></div></div><div id="tabOverview" class="tab-panel"><div class="row inline detail-tabs" id="listTabsRow"><button
 id="listPersonsTabBtn"
 class="detail-tab-btn active"
 type="button"
@@ -537,19 +537,19 @@ type="button"
 Companies
 </button></div><div id="personsListPanel" class="detail-inner-panel"><div class="overview-filters list-filters row"><div class="filter-field"><label for="filterCampaign"
 ><small>Campaign</small></label
-><select id="filterCampaign" class="campaign-select"><option value="">All campaigns</option></select></div><div class="filter-field"><label for="overviewArchivedFilter"
+><select id="filterCampaign" class="form-control campaign-select"><option value="">All campaigns</option></select></div><div class="filter-field"><label for="overviewArchivedFilter"
 ><small>Archived</small></label
-><select id="overviewArchivedFilter"><option value="">All</option><option value="0">0</option><option value="1">1</option></select></div><div class="filter-field"><label for="overviewStatusFilter"
+><select class="form-control" id="overviewArchivedFilter"><option value="">All</option><option value="0">0</option><option value="1">1</option></select></div><div class="filter-field"><label for="overviewStatusFilter"
 ><small>Status</small></label
-><select id="overviewStatusFilter"><option value="">All</option><option value="registered">registered</option><option value="invited">invited</option><option value="first message sent">
+><select class="form-control" id="overviewStatusFilter"><option value="">All</option><option value="registered">registered</option><option value="invited">invited</option><option value="first message sent">
 first message sent
 </option><option value="message responded">
 message responded
 </option></select></div><div class="filter-field"><label for="filterAccepted"
 ><small>Accepted</small></label
-><select id="filterAccepted"><option value="">All</option><option value="true">Accepted</option><option value="false">Not accepted</option></select></div><div class="filter-field"><label for="overviewSearch"
+><select class="form-control" id="filterAccepted"><option value="">All</option><option value="true">Accepted</option><option value="false">Not accepted</option></select></div><div class="filter-field"><label for="overviewSearch"
 ><small>Search</small></label
-><div class="filter-input-wrap"><input
+><div class="filter-input-wrap"><input class="form-control"
 id="overviewSearch"
 placeholder="Search name/company"
 /><button
@@ -615,13 +615,13 @@ Campaign
 <span
 class="sort-indicator"
 data-overview-sort-indicator="campaigns"
-></span></button></th></tr></thead><tbody id="overviewTbody"></tbody></table></div><div class="overview-pagination row"><select id="overviewPageSize"><option value="10">10</option><option value="25" selected>25</option><option value="50">50</option></select><button id="overviewPrevBtn" type="button">Prev</button><button id="overviewNextBtn" type="button">Next</button><div id="overviewCountLabel">Total: ?</div></div></div><div id="companiesListPanel" class="detail-inner-panel" hidden><div class="overview-filters list-filters row"><div class="filter-field"><label for="companyCampaignFilter"
+></span></button></th></tr></thead><tbody id="overviewTbody"></tbody></table></div><div class="overview-pagination row"><select class="form-control" id="overviewPageSize"><option value="10">10</option><option value="25" selected>25</option><option value="50">50</option></select><button id="overviewPrevBtn" type="button">Prev</button><button id="overviewNextBtn" type="button">Next</button><div id="overviewCountLabel">Total: ?</div></div></div><div id="companiesListPanel" class="detail-inner-panel" hidden><div class="overview-filters list-filters row"><div class="filter-field"><label for="companyCampaignFilter"
 ><small>Campaign</small></label
-><select id="companyCampaignFilter" class="campaign-select"><option value="">All campaigns</option></select></div><div class="filter-field"><label for="companyArchivedFilter"
+><select id="companyCampaignFilter" class="form-control campaign-select"><option value="">All campaigns</option></select></div><div class="filter-field"><label for="companyArchivedFilter"
 ><small>Archived</small></label
-><select id="companyArchivedFilter"><option value="">All</option><option value="0">0</option><option value="1">1</option></select></div><div class="filter-field"><label for="companySearch"
+><select class="form-control" id="companyArchivedFilter"><option value="">All</option><option value="0">0</option><option value="1">1</option></select></div><div class="filter-field"><label for="companySearch"
 ><small>Search</small></label
-><div class="filter-input-wrap"><input
+><div class="filter-input-wrap"><input class="form-control"
 id="companySearch"
 placeholder="Search company/campaign"
 /><button
@@ -687,7 +687,7 @@ Campaigns
 <span
 class="sort-indicator"
 data-company-sort-indicator="campaigns"
-></span></button></th></tr></thead><tbody id="companyOverviewTbody"></tbody></table></div><div class="overview-pagination row"><select id="companyOverviewPageSize"><option value="10">10</option><option value="25" selected>25</option><option value="50">50</option></select><button id="companyOverviewPrevBtn" type="button">
+></span></button></th></tr></thead><tbody id="companyOverviewTbody"></tbody></table></div><div class="overview-pagination row"><select class="form-control" id="companyOverviewPageSize"><option value="10">10</option><option value="25" selected>25</option><option value="50">50</option></select><button id="companyOverviewPrevBtn" type="button">
 Prev
 </button><button id="companyOverviewNextBtn" type="button">
 Next
@@ -706,11 +706,11 @@ Supabase login
 </button></div><div
 id="configGeneralPanel"
 class="config-sub-panel active"
-><div class="row"><label><small>OpenAI API key (saved)</small></label><input
+><div class="row"><label><small>OpenAI API key (saved)</small></label><input class="form-control"
 id="apiKey"
 type="password"
 placeholder="sk-..."
-/></div><div class="row"><label><small>Model (saved)</small></label><input id="model" placeholder="gpt-4.1" /></div><div class="row"><label><small>Strategy (saved)</small></label><textarea
+/></div><div class="row"><label><small>Model (saved)</small></label><input class="form-control" id="model" placeholder="gpt-4.1" /></div><div class="row"><label><small>Strategy (saved)</small></label><textarea class="form-control"
 id="strategy"
 placeholder="Paste your strategy core here (saved)."
 ></textarea></div><div class="row"><label class="checkbox-row"><input
@@ -718,7 +718,7 @@ id="navPacingEnabled"
 type="checkbox"
 class="strategy-checkbox"
 checked
-/><small>Navigation pacing</small></label></div></div><div id="tabSupabaseAuth" class="config-sub-panel" hidden><div class="row"><label><small>Supabase URL</small></label><input
+/><small>Navigation pacing</small></label></div></div><div id="tabSupabaseAuth" class="config-sub-panel" hidden><div class="row"><label><small>Supabase URL</small></label><input class="form-control"
 id="webhookBaseUrl"
 placeholder="https://yourdomain.com"
 /></div><div id="supabaseAuthForms" hidden><div class="row inline auth-inner-tabs"><button
@@ -733,15 +733,15 @@ class="detail-tab-btn"
 type="button"
 >
 Login
-</button></div><div id="authSignupPanel" hidden><div class="row"><label><small>Name</small></label><input
+</button></div><div id="authSignupPanel" hidden><div class="row"><label><small>Name</small></label><input class="form-control"
 id="supabaseSignupName"
 type="text"
 placeholder="Your name"
-/></div><div class="row"><label><small>Email</small></label><input
+/></div><div class="row"><label><small>Email</small></label><input class="form-control"
 id="supabaseSignupEmail"
 type="email"
 placeholder="you@example.com"
-/></div><div class="row"><label><small>Password</small></label><input
+/></div><div class="row"><label><small>Password</small></label><input class="form-control"
 id="supabaseSignupPassword"
 type="password"
 placeholder="Password"
@@ -751,11 +751,11 @@ class="btn btn-primary"
 type="button"
 >
 Signup
-</button></div><div id="authLoginPanel" hidden><div class="row"><label><small>Email</small></label><input
+</button></div><div id="authLoginPanel" hidden><div class="row"><label><small>Email</small></label><input class="form-control"
 id="supabaseLoginEmail"
 type="email"
 placeholder="you@example.com"
-/></div><div class="row"><label><small>Password</small></label><input
+/></div><div class="row"><label><small>Password</small></label><input class="form-control"
 id="supabaseLoginPassword"
 type="password"
 placeholder="Password"

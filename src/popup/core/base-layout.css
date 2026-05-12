@@ -59,17 +59,43 @@ body {
     overflow-y: auto;
     overflow-x: hidden;
 }
+.form-control {
+    width: 100%;
+    min-height: 26px;
+    box-sizing: border-box;
+    padding: 4px 6px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--text);
+    font: inherit;
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #93c5fd;
+    box-shadow: 0 0 0 1px rgba(147, 197, 253, 0.35);
+}
+
+.form-control[readonly],
+.form-control:disabled {
+    background: #fff;
+    color: #111827;
+    opacity: 1;
+}
+
+textarea.form-control {
+    min-height: 90px;
+    resize: vertical;
+}
+
 input,
 select,
 textarea {
     width: 100%;
     box-sizing: border-box;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    color: var(--text);
-}
-textarea {
-    height: 90px;
 }
 .btn {
     width: 100%;
@@ -119,15 +145,11 @@ button:disabled {
 .detail-person-headline,
 .detail-person-comments {
     width: 100%;
-    padding: 0;
-    border: 1px solid transparent;
-    background: transparent;
-    box-shadow: none;
 }
 .detail-person-name {
     flex: 1 1 auto;
     min-width: 0;
-    font-size: 18px;
+    font-size: 18px !important;
     font-weight: 700;
     margin: 0;
     color: #1f1f1f;
@@ -352,20 +374,6 @@ button:disabled {
 .detail-person-headline[readonly],
 .detail-person-comments[readonly] {
     cursor: default;
-}
-.detail-person-name:not([readonly]),
-.detail-person-company:not([readonly]),
-.detail-person-headline:not([readonly]),
-.detail-person-comments:not([readonly]) {
-    padding: 4px 6px;
-    border-color: #93c5fd;
-    background: #eff6ff;
-}
-.detail-person-name:focus,
-.detail-person-company:focus,
-.detail-person-headline:focus,
-.detail-person-comments:focus {
-    outline: none;
 }
 .btn-enrich {
     width: 28px;
@@ -674,33 +682,9 @@ pre {
     text-decoration-style: dotted;
 }
 
-
-/* Shared form exceptions */
-.readonly-text,
-textarea[readonly].readonly-text,
-input[readonly].readonly-text {
-    min-height: 0;
-    height: auto;
-    padding: 0;
-    font-family: Arial, sans-serif;
-    font-size: 13px;
-    line-height: 1.4;
-    color: #111827;
-    background: transparent;
-    border: 0;
-    border-radius: 0;
-    box-shadow: none;
-    resize: none;
-    overflow: hidden;
+/* Shared form modifiers */
+.readonly-text {
     cursor: default;
-}
-
-.readonly-text:focus,
-textarea[readonly].readonly-text:focus,
-input[readonly].readonly-text:focus {
-    border: 0;
-    box-shadow: none;
-    outline: none;
 }
 
 .form-control--profile-name,
@@ -708,28 +692,16 @@ input[readonly].readonly-text:focus {
 .person-name-input,
 .company-name-input {
     min-height: 42px;
-    padding: 6px 0;
-    font-size: 22px;
+    font-size: 18px;
     font-weight: 700;
     line-height: 1.2;
-    background: transparent;
-    border: 0;
-    box-shadow: none;
-}
-
-.form-control--profile-name:focus,
-.profile-name-input:focus,
-.person-name-input:focus,
-.company-name-input:focus {
-    border: 0;
-    box-shadow: none;
-    outline: none;
 }
 
 .comments-readonly,
 textarea[readonly].comments-readonly {
+    min-height: 26px;
     height: auto;
-    min-height: 0;
     max-height: none;
     overflow: hidden;
+    resize: none;
 }
