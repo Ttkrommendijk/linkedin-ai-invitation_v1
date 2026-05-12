@@ -1,5 +1,3 @@
-// Owns active profile loading, profile refresh, and profile enrichment orchestration.
-// Does not own invitation generation or message generation.
 (function initPopupProfileController(globalObj) {
   const dom = globalObj.PopupDom;
   if (!dom || typeof dom !== "object") {
@@ -39,32 +37,26 @@
     );
   }
   let emptyStateDebugLogged = false;
-
   function logEmptyStateDebugOnce(payload) {
     if (!globalObj.DEBUG_EMPTY_STATE || emptyStateDebugLogged) return;
     emptyStateDebugLogged = true;
     popupLogger.debug("[LEF][empty-state]", payload);
   }
-
   function findNoProfileEl() {
     return document.getElementById("noProfileState");
   }
-
   function setNoProfileStateVisible(visible) {
     ensureNoProfileStateUi();
     const noProfileEl = findNoProfileEl();
     if (!noProfileEl) return;
-
     if (visible) noProfileEl.classList.remove("hidden");
     else noProfileEl.classList.add("hidden");
-
     const detailContentEl = document.getElementById("detailProfileContent");
     if (detailContentEl) {
       if (visible) detailContentEl.classList.add("hidden");
       else detailContentEl.classList.remove("hidden");
     }
   }
-
   function getNoProfileDomDebugInfo() {
     const localEl = document.getElementById("noProfileState");
     const frameEl = document.querySelector("iframe");
@@ -79,11 +71,9 @@
       hasClassHidden: targetEl ? targetEl.classList.contains("hidden") : null,
     };
   }
-
   function ensureNoProfileStateUi() {
     const tabMainEl = document.getElementById("tabMain");
     if (!tabMainEl) return;
-
     let detailProfileContentEl = document.getElementById("detailProfileContent");
     if (!detailProfileContentEl) {
       const existing = document.getElementById("detailProfileContent");
@@ -99,43 +89,35 @@
         detailProfileContentEl = wrapper;
       }
     }
-
     const noProfileMatches = tabMainEl.querySelectorAll("#noProfileState");
     if (noProfileMatches.length > 1) {
       for (let i = 1; i < noProfileMatches.length; i += 1) {
         noProfileMatches[i].remove();
       }
     }
-
     const noProfileStateEl = document.getElementById("noProfileState");
     if (!noProfileStateEl) {
       const existing = document.getElementById("noProfileState");
       if (existing) return;
-
       const stateEl = document.createElement("div");
       stateEl.id = "noProfileState";
       stateEl.className = "empty-state hidden";
       stateEl.setAttribute("aria-live", "polite");
-
       const innerEl = document.createElement("div");
       innerEl.className = "empty-state-inner";
-
       const iconEl = document.createElement("div");
       iconEl.className = "empty-state-icon";
       iconEl.setAttribute("aria-hidden", "true");
       iconEl.textContent = "\u{1F464}";
-
       const textEl = document.createElement("div");
       textEl.className = "empty-state-text";
       textEl.textContent = "Please open a profile in linkedin";
-
       innerEl.appendChild(iconEl);
       innerEl.appendChild(textEl);
       stateEl.appendChild(innerEl);
       tabMainEl.insertBefore(stateEl, detailProfileContentEl);
     }
   }
-
   async function getActiveTabForProfileCheck() {
     const [queriedTab] = await chrome.tabs.query({
       active: true,
@@ -150,7 +132,6 @@
       return queriedTab;
     }
   }
-
   async function extractProfileContextFromActiveTab({ source = "" } = {}) {
     const activeTab = await getActiveTabForProfileCheck().catch(() => null);
     if (!Number.isInteger(activeTab?.id)) {
@@ -160,7 +141,6 @@
     if (globalObj.detectLinkedInPageType(activeTabUrl).page_type !== "person") {
       throw new Error("Active page is not a LinkedIn person profile.");
     }
-
     let resp = null;
     try {
       resp = await chrome.tabs.sendMessage(activeTab.id, {
@@ -171,7 +151,6 @@
         globalObj.getErrorMessage(e) || globalObj.UI_TEXT.couldNotExtractProfileContext,
       );
     }
-
     if (!resp || !resp?.ok || !resp?.profile) {
       throw new Error(
         globalObj.getErrorMessage(resp?.error) || globalObj.UI_TEXT.couldNotExtractProfileContext,
@@ -194,7 +173,6 @@
     });
     return profile;
   }
-
   async function extractCompanyContextFromActiveTab({ source = "" } = {}) {
     const activeTab = await getActiveTabForProfileCheck().catch(() => null);
     if (!Number.isInteger(activeTab?.id)) {
@@ -208,14 +186,12 @@
       source,
       url: activeTabUrl,
     });
-
     const startedAt = Date.now();
     const timeoutMs = 3000;
     const retryDelayMs = 180;
     let resp = null;
     let lastErrorMessage = "";
     let contentBootstrapAttempted = false;
-
     const isMissingReceiverError = (errorLike) => {
       const text = String(globalObj.getErrorMessage(errorLike) || "").toLowerCase();
       return (
@@ -223,7 +199,6 @@
         text.includes("could not establish connection")
       );
     };
-
     const ensureCompanyContentScriptReady = async () => {
       if (contentBootstrapAttempted) return;
       contentBootstrapAttempted = true;
@@ -244,7 +219,6 @@
         });
       }
     };
-
     while (Date.now() - startedAt < timeoutMs) {
       try {
         resp = await chrome.tabs.sendMessage(activeTab.id, {
@@ -258,17 +232,14 @@
         await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
         continue;
       }
-
       if (resp?.ok && resp?.company) break;
       lastErrorMessage =
         globalObj.getErrorMessage(resp?.error) || "Could not extract company context.";
       await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
     }
-
     if (!resp || !resp?.ok || !resp?.company) {
       throw new Error(lastErrorMessage || "Could not extract company context.");
     }
-
     const company = resp.company || {};
     const linkedin_id = globalObj.canonicalizeLinkedInUrl(company.linkedin_id || company.url || "");
     const companyContext = {
@@ -288,7 +259,6 @@
     popupLogger.debug("[LEF][scrape] company saved", { linkedin_id });
     return companyContext;
   }
-
   async function getFreshScrapeForPage(pageInfo, { source = "", force = false } = {}) {
     if (pageInfo?.page_type === "person") {
       if (!force && globalObj.getScrapeUrl(globalObj.latestPersonScrape) === pageInfo.linkedin_id) {
@@ -341,7 +311,6 @@
     });
     throw new Error("Unsupported LinkedIn page.");
   }
-
   function applyProfileExtractionFailureState(statusText) {
     globalObj.isProfileEditMode = false;
     globalObj.isProfileSaveInFlight = false;
@@ -371,7 +340,6 @@
     globalObj.renderDetailHeader();
     globalObj.updatePhaseButtons();
   }
-
   async function refreshAll() {
     globalObj.selectedCompanyFromListLinkedinUrl = "";
     globalObj.setCompanyUrlMismatchBannerVisible(false);
@@ -384,7 +352,6 @@
       tab_url: tabUrl,
     });
     const { isProfileOpen, matchedRule } = globalObj.getProfileMatchForUrl(tabUrl);
-
     if (!isProfileOpen) {
       setNoProfileStateVisible(true);
       logEmptyStateDebugOnce({
@@ -419,7 +386,6 @@
       globalObj.updatePhaseButtons();
       return false;
     }
-
     try {
       setNoProfileStateVisible(false);
       logEmptyStateDebugOnce({
@@ -469,11 +435,9 @@
         }
         return true;
       }
-
       if (pageInfo.page_type !== "person") {
         throw new Error(globalObj.UI_TEXT.couldNotExtractProfileContext);
       }
-
       popupLogger.debug("[LEF][db] load requested", {
         page_type: "person",
         linkedin_url: pageInfo.linkedin_id,
@@ -525,7 +489,6 @@
       return false;
     }
   }
-
   async function loadProfileContextOnOpen() {
     try {
       return await refreshAll();
@@ -535,7 +498,6 @@
       return false;
     }
   }
-
   async function extractCompanyDetailsFromLlm(scrapedProfileContext = null) {
     const profileContext = scrapedProfileContext;
     if (!profileContext) {
@@ -559,7 +521,6 @@
       city: profileContext.city || "",
       it_members: profileContext.it_members || "",
     });
-
     const [{ apiKey: apiKeyLocal }, { model }] = await Promise.all([
       chrome.storage.local.get(["apiKey"]),
       chrome.storage.sync.get(["model"]),
@@ -576,7 +537,6 @@
       globalObj.setActiveTab("config");
       throw new Error(globalObj.UI_TEXT.setApiKeyInConfig);
     }
-
     popupLogger.debug("[LEF][company LLM payload]", {
       linkedin_id,
       company_name: profileContext.company_name || "",
@@ -635,7 +595,6 @@
       it_members: safeTrim(enrichResp.it_members || profileContext.it_members),
     };
   }
-
   async function extractProfileDetailsFromLlm(scrapedProfileContext = null) {
     const profileContext = scrapedProfileContext;
     if (!profileContext) {
@@ -648,17 +607,14 @@
     state.lastProfileContextSent = profileContext;
     state.lastProfileContextEnriched = null;
     globalObj.renderDetailHeader();
-
     const linkedin_url = globalObj.getLinkedinUrlFromContext(state.currentProfileContext);
     if (!linkedin_url) {
       throw new Error(globalObj.UI_TEXT.missingLinkedinUrl);
     }
-
     const [{ apiKey: apiKeyLocal }, { model }] = await Promise.all([
       chrome.storage.local.get(["apiKey"]),
       chrome.storage.sync.get(["model"]),
     ]);
-
     let apiKey = (apiKeyLocal || "").trim();
     if (!apiKey) {
       const typed = (dom.apiKeyEl?.value || "").trim();
@@ -667,12 +623,10 @@
         await chrome.storage.local.set({ apiKey });
       }
     }
-
     if (!apiKey) {
       globalObj.setActiveTab("config");
       throw new Error(globalObj.UI_TEXT.setApiKeyInConfig);
     }
-
     const personPayload = { ...profileContext };
     popupLogger.debug("[LEF][ai] payload sent", personPayload);
     const enrichResult = await globalObj.sendRuntimeMessage("ENRICH_PROFILE", {
@@ -683,15 +637,12 @@
       },
     });
     const enrichResp = enrichResult.data || {};
-
     if (!enrichResult.ok || !enrichResp?.ok) {
       throw new Error(globalObj.getErrorMessage(enrichResult.error || enrichResp?.error));
     }
-
     const llmCompany = (enrichResp.company || "").trim();
     const llmHeadline = sanitizeHeadlineJobTitle(enrichResp.headline || "");
     const llmLanguage = (enrichResp.language || "").trim();
-
     if (llmCompany) {
       state.currentProfileContext.company = llmCompany;
       if (dom.detailCompanyEl) dom.detailCompanyEl.value = llmCompany;
@@ -704,14 +655,12 @@
     if (normalizedLlmLanguage) {
       await globalObj.setLanguage(normalizedLlmLanguage);
     }
-
     const nameFromProfile = (utils.getFullNameFromContext(state.currentProfileContext) || "")
       .toString()
       .trim();
     const nameFromUi = (dom.detailPersonNameEl?.value || "").trim();
     const full_name =
       nameFromProfile || (nameFromUi && nameFromUi !== "-" ? nameFromUi : "");
-
     return {
       linkedin_url,
       full_name,
@@ -720,7 +669,6 @@
       language: globalObj.getLanguage(),
     };
   }
-
   async function extractAndPersistProfileDetails() {
     const activeTab = await getActiveTabForProfileCheck().catch(() => null);
     const activeTabUrl = globalObj.canonicalizeLinkedInUrl(activeTab?.url || "");
@@ -749,7 +697,6 @@
       }
       return;
     }
-
     if (pageInfo.page_type !== "person") {
       throw new Error("Active page is not a LinkedIn person profile.");
     }
@@ -763,9 +710,7 @@
     state.lastProfileContextSent = profileContext;
     state.lastProfileContextEnriched = null;
     globalObj.renderDetailHeader();
-
     const extracted = await extractProfileDetailsFromLlm(profileContext);
-
     globalObj.setFooterUpdatingStatus();
     const saveResult = await globalObj.sendRuntimeMessage(
       "DB_UPDATE_PROFILE_DETAILS_ONLY",
@@ -779,14 +724,12 @@
       },
     );
     const saveResp = saveResult.data || {};
-
     if (!saveResult.ok || !saveResp?.ok) {
       throw new Error(
         `${globalObj.UI_TEXT.dbErrorPrefix} ${globalObj.getErrorMessage(saveResult.error || saveResp?.error)}`,
       );
     }
   }
-
   globalObj.PopupProfileController = Object.freeze({
     logEmptyStateDebugOnce,
     findNoProfileEl,
@@ -805,4 +748,3 @@
     loadProfileContextOnOpen,
   });
 })(typeof globalThis !== "undefined" ? globalThis : self);
-

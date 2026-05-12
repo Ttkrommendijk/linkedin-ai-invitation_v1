@@ -1,16 +1,13 @@
 (function initOpenAIService(globalObj) {
   const LEF_UTILS = globalObj.LEFUtils || {};
   const LEF_PROMPTS = globalObj.LEFPrompts || {};
-
   const normalizeProfileField = LEF_UTILS.normalizeProfileField;
   const clampText = LEF_UTILS.clampText;
   const sanitizeHeadlineJobTitle =
     LEF_UTILS.sanitizeHeadlineJobTitle || normalizeProfileField;
-
   function profileContextBlock(profile) {
     return LEF_PROMPTS.buildFirstMessageUserInput({ profile });
   }
-
   async function fetchWithTimeout(
     url,
     options,
@@ -20,11 +17,9 @@
     const controller = new AbortController();
     const externalSignal = options?.signal;
     let timeoutId;
-
     const forwardExternalAbort = () => {
       controller.abort(externalSignal?.reason);
     };
-
     if (externalSignal) {
       if (externalSignal.aborted) {
         forwardExternalAbort();
@@ -34,11 +29,9 @@
         });
       }
     }
-
     timeoutId = setTimeout(() => {
       controller.abort("__timeout__");
     }, timeoutMs);
-
     try {
       return await fetch(url, { ...options, signal: controller.signal });
     } catch (err) {
@@ -56,7 +49,6 @@
       }
     }
   }
-
   async function fetchOpenAIWithRetry(url, options) {
     let attempt = 0;
     while (attempt < 2) {
@@ -78,7 +70,6 @@
         const isAbort = e && typeof e === "object" && e.name === "AbortError";
         const isNetwork =
           e instanceof TypeError || /failed to fetch|network/i.test(message);
-
         if (!isTimeout && !isAbort && isNetwork && attempt === 0) {
           attempt += 1;
           continue;
@@ -87,7 +78,6 @@
       }
     }
   }
-
   function createProviderHttpError(provider, status, body) {
     const providerLabel = provider === "openai" ? "OpenAI" : "Supabase";
     const err = new Error(`${providerLabel} request failed (${status}).`);
@@ -98,18 +88,15 @@
     };
     return err;
   }
-
   function extractRawModelText(data) {
     const direct = normalizeProfileField(data?.output_text || "");
     if (direct) return direct;
-
     const contentText =
       data?.output?.[0]?.content?.find((c) => c.type === "output_text")?.text ||
       data?.output?.[0]?.content?.find((c) => c.type === "text")?.text ||
       "";
     return normalizeProfileField(contentText);
   }
-
   function buildPromptContextInput({
     language,
     profile,
@@ -123,39 +110,31 @@
     include_strategy,
   }) {
     const requestedLanguage = normalizeProfileField(language) || "Portuguese";
-
     const includeProfileFlag =
       typeof include_profile === "boolean"
         ? include_profile
         : Boolean(includeProfile);
-
     const includeStrategyFlag =
       typeof include_strategy === "boolean"
         ? include_strategy
         : Boolean(includeStrategy);
-
     const sections = [`Language:\n${requestedLanguage}`];
-
     const normalizedObjective = normalizeProfileField(objective);
     if (normalizedObjective) {
       sections.push(`Objective:\n${normalizedObjective}`);
     }
-
     if (includeProfileFlag && profile) {
       sections.push(`Profile context:\n${profileContextBlock(profile)}`);
     }
-
     if (includeStrategyFlag) {
       sections.push(
         `Strategy context:\n${normalizeProfileField(strategyCore) || "(none)"}`,
       );
     }
-
     const normalizedChatHistory = normalizeProfileField(chatHistory);
     if (normalizedChatHistory) {
       sections.push(`Chat history:\n${normalizedChatHistory}`);
     }
-
     const contextBlock = (Array.isArray(contextLast10) ? contextLast10 : [])
       .slice(-10)
       .map((m) => {
@@ -170,16 +149,12 @@
       })
       .filter(Boolean)
       .join("\n");
-
     if (contextBlock) {
       sections.push(`Last messages:\n${contextBlock}`);
     }
-
     sections.push("Return only the final message text.");
-
     return sections.join("\n\n");
   }
-
   async function callOpenAIFromPrompt({
     apiKey,
     model,
@@ -201,7 +176,6 @@
     if (!dbPrompt) {
       throw new Error("Prompt is required.");
     }
-
     const res = await fetchOpenAIWithRetry(
       "https://api.openai.com/v1/responses",
       {
@@ -255,7 +229,6 @@
         }),
       },
     );
-
     if (!res.ok) {
       const txt = await res.text().catch(() => "");
       throw createProviderHttpError(
@@ -264,42 +237,33 @@
         txt || res.statusText,
       );
     }
-
     const data = await res.json();
     const text = extractRawModelText(data);
     if (!text) {
       throw new Error("Model returned empty output.");
     }
-
     return clampText(text, maxChars);
   }
-
   function parseProfileEnrichmentJson(rawText) {
     let parsed;
-
     try {
       parsed = JSON.parse(rawText);
     } catch (_e) {
       const firstBrace = rawText.indexOf("{");
       const lastBrace = rawText.lastIndexOf("}");
-
       if (firstBrace < 0 || lastBrace <= firstBrace) {
         throw new Error("Model returned invalid profile enrichment JSON.");
       }
-
       parsed = JSON.parse(rawText.slice(firstBrace, lastBrace + 1));
     }
-
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
       throw new Error("Model returned invalid profile enrichment object.");
     }
-
     return {
       company: normalizeProfileField(parsed.company),
       headline: normalizeProfileField(parsed.headline),
     };
   }
-
   function parseProfileExtractionJson(rawText) {
     let parsed;
     try {
@@ -309,32 +273,27 @@
       err.details = { reason: "invalid_json" };
       throw err;
     }
-
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
       const err = new Error("Model returned invalid JSON object.");
       err.details = { reason: "invalid_json" };
       throw err;
     }
-
     const allowedKeys = new Set(["company", "headline", "language"]);
     const keys = Object.keys(parsed);
     const hasInvalidKeys = keys.some((k) => !allowedKeys.has(k));
     const hasRequiredKeys =
       "company" in parsed && "headline" in parsed && "language" in parsed;
-
     if (hasInvalidKeys || !hasRequiredKeys) {
       const err = new Error("Model returned unexpected JSON schema.");
       err.details = { reason: "invalid_json" };
       throw err;
     }
-
     return {
       company: normalizeProfileField(parsed.company),
       headline: sanitizeHeadlineJobTitle(parsed.headline),
       language: normalizeProfileField(parsed.language),
     };
   }
-
   function parseCompanyExtractionJson(rawText) {
     let parsed;
     try {
@@ -371,7 +330,6 @@
       it_members: normalizeProfileField(parsed.it_members),
     };
   }
-
   function parseProfileExtractionFromResponseData(data) {
     const primaryText = normalizeProfileField(
       data?.output?.[0]?.content?.[0]?.text || "",
@@ -393,7 +351,6 @@
         throw err;
       }
     }
-
     if (data?.output_parsed && typeof data.output_parsed === "object") {
       const parsed = {
         company: data.output_parsed.company,
@@ -406,14 +363,12 @@
         usedOutputParsed: true,
       };
     }
-
     const rawText = extractRawModelText(data);
     if (!rawText) {
       const err = new Error("Model returned empty output.");
       err.details = { reason: "empty_output" };
       throw err;
     }
-
     try {
       return {
         parsed: parseProfileExtractionJson(rawText),
@@ -434,14 +389,12 @@
       throw _directErr;
     }
   }
-
   function buildStandardInvitePrompt(focus) {
     return LEF_PROMPTS.buildInviteTextPrompt({
       language: "Portuguese",
       additionalPrompt: normalizeProfileField(focus),
     });
   }
-
   async function callOpenAIProfileExtraction({ apiKey, model, profile }) {
     const res = await fetchOpenAIWithRetry(
       "https://api.openai.com/v1/responses",
@@ -475,7 +428,6 @@
             {
               role: "system",
               content: [
-                // prompt: buildProfileExtractionPrompt (Enrich)
                 {
                   type: "input_text",
                   text: LEF_PROMPTS.buildProfileExtractionPrompt(),
@@ -495,7 +447,6 @@
         }),
       },
     );
-
     if (!res.ok) {
       const txt = await res.text().catch(() => "");
       throw createProviderHttpError(
@@ -504,12 +455,10 @@
         txt || res.statusText,
       );
     }
-
     const data = await res.json();
     const result = parseProfileExtractionFromResponseData(data);
     return result.parsed;
   }
-
   async function callOpenAICompanyExtraction({ apiKey, model, profile }) {
     const res = await fetchOpenAIWithRetry(
       "https://api.openai.com/v1/responses",
@@ -582,7 +531,6 @@
     const rawText = extractRawModelText(data);
     return parseCompanyExtractionJson(rawText || "{}");
   }
-
   async function callOpenAIProfileEnrichment({ apiKey, model, profile }) {
     const res = await fetchOpenAIWithRetry(
       "https://api.openai.com/v1/responses",
@@ -651,7 +599,6 @@
         }),
       },
     );
-
     if (!res.ok) {
       const txt = await res.text().catch(() => "");
       throw createProviderHttpError(
@@ -660,12 +607,10 @@
         txt || res.statusText,
       );
     }
-
     const data = await res.json();
     const rawText = extractRawModelText(data);
     return parseProfileEnrichmentJson(rawText || "{}");
   }
-
   async function callOpenAIInviteGeneration({
     apiKey,
     model,
@@ -681,11 +626,9 @@
       normalizeProfileField(prompt) ||
       normalizeProfileField(dbPrompt) ||
       normalizeProfileField(invitationPrompt);
-
     if (!selectedPrompt) {
       throw new Error("Invitation prompt is required.");
     }
-
     const [inviteText, enrichment] = await Promise.all([
       callOpenAIFromPrompt({
         apiKey,
@@ -706,14 +649,12 @@
         profile,
       }),
     ]);
-
     return {
       invite_text: inviteText,
       company: enrichment.company || "",
       headline: enrichment.headline || "",
     };
   }
-
   async function callOpenAIFirstMessage({
     apiKey,
     model,
@@ -728,11 +669,9 @@
       normalizeProfileField(prompt) ||
       normalizeProfileField(dbPrompt) ||
       normalizeProfileField(firstMessagePrompt);
-
     if (!selectedPrompt) {
       throw new Error("First message prompt is required.");
     }
-
     const firstMessage = await callOpenAIFromPrompt({
       apiKey,
       model,
@@ -745,10 +684,8 @@
       maxOutputTokens: 220,
       maxChars: 600,
     });
-
     return firstMessage;
   }
-
   async function callOpenAIFollowupMessage({
     apiKey,
     model,
@@ -768,15 +705,12 @@
       normalizeProfileField(prompt) ||
       normalizeProfileField(dbPrompt) ||
       normalizeProfileField(followupPrompt);
-
     if (!selectedPrompt) {
       throw new Error("Follow-up prompt is required.");
     }
-
     const selectedProfile = profileContext || profile || {};
     const selectedStrategy =
       normalizeProfileField(strategy) || normalizeProfileField(strategyCore);
-
     const followupMessage = await callOpenAIFromPrompt({
       apiKey,
       model,
@@ -791,10 +725,8 @@
       maxOutputTokens: 260,
       maxChars: 1000,
     });
-
     return followupMessage;
   }
-
   async function callOpenAIFreePrompt(payload = {}) {
     return callOpenAIFromPrompt({
       ...payload,
@@ -802,13 +734,11 @@
       maxChars: 1200,
     });
   }
-
   globalObj.LEFOpenAIService = Object.freeze({
     fetchWithTimeout,
     fetchOpenAIWithRetry,
     createProviderHttpError,
     extractRawModelText,
-
     callOpenAIFromPrompt,
     callOpenAIInviteGeneration,
     callOpenAIProfileEnrichment,

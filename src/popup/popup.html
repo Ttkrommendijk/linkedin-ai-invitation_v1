@@ -1,1326 +1,785 @@
-﻿<!doctype html>
-<html>
-    <head>
-        <meta charset="UTF-8" />
-        <link rel="stylesheet" href="popup.css" />
-    </head>
-    <body>
-        <div id="sidePanelRoot">
-            <div id="topTabs">
-                <button
-                    id="openSidePanel"
-                    type="button"
-                    class="btn-small-secondary"
-                >
-                    Open in side panel
-                </button>
-                <div class="tabs">
-                    <button
-                        id="tabMainBtn"
-                        class="tab-btn active"
-                        type="button"
-                    >
-                        Detail
-                    </button>
-                    <button id="tabOverviewBtn" class="tab-btn" type="button">
-                        List
-                    </button>
-                    <button id="tabConfigBtn" class="tab-btn" type="button">
-                        Configuration
-                    </button>
-                    <button
-                        id="tabSupabaseAuthBtn"
-                        class="tab-btn hidden"
-                        type="button"
-                    >
-                        Supabase Login
-                    </button>
-                </div>
-            </div>
-
-            <div id="innerContentContainer" class="app-content-scroll">
-                <div id="tabMain" class="tab-panel active">
-                    <div class="detail-person">
-                        <div class="detail-person-top">
-                            <input
-                                id="detailPersonName"
-                                class="detail-person-name"
-                                type="text"
-                                value="-"
-                                readonly
-                            />
-                            <div class="detail-person-actions">
-                                <button
-                                    id="enrichProfileBtn"
-                                    type="button"
-                                    class="btn-enrich"
-                                    title="Enrich data with AI"
-                                    aria-label="Enrich data with AI"
-                                >
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        viewBox="0 0 16 16"
-                                        width="14"
-                                        height="14"
-                                        aria-hidden="true"
-                                    >
-                                        <path
-                                            d="M7.2 1.2 8.6 4.3l3.1 1.4-3.1 1.4-1.4 3.1-1.4-3.1L2.7 5.7l3.1-1.4L7.2 1.2Zm5.1 5.6.8 1.8 1.8.8-1.8.8-.8 1.8-.8-1.8-1.8-.8 1.8-.8.8-1.8Zm-8.1 4 .8 1.8 1.8.8-1.8.8-.8 1.8-.8-1.8-1.8-.8 1.8-.8.8-1.8Z"
-                                            fill="currentColor"
-                                        />
-                                    </svg>
-                                </button>
-                                <button
-                                    id="editProfileBtn"
-                                    type="button"
-                                    class="btn-small-secondary detail-edit-btn"
-                                >
-                                    Edit
-                                </button>
-                                <button
-                                    id="saveProfileFieldsBtn"
-                                    type="button"
-                                    class="btn-icon invite-save-icon detail-save-icon"
-                                    hidden
-                                    title="Save"
-                                    aria-label="Save"
-                                >
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        width="14"
-                                        height="14"
-                                        viewBox="0 0 16 16"
-                                        fill="currentColor"
-                                        aria-hidden="true"
-                                    >
-                                        <path
-                                            d="M11 1H2a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V5L11 1Zm0 1.5L13.5 5H11V2.5ZM2 2h8v4h4v8H2V2Zm3 6a1 1 0 0 0-1 1v4h8V9a1 1 0 0 0-1-1H5Zm0 1h6v3H5V9Z"
-                                        />
-                                    </svg>
-                                </button>
-                                <button
-                                    id="cancelProfileEditBtn"
-                                    type="button"
-                                    class="btn-icon detail-cancel-icon"
-                                    hidden
-                                    title="Cancel edit"
-                                    aria-label="Cancel edit"
-                                >
-                                    &times;
-                                </button>
-                            </div>
-                        </div>
-                        <div
-                            id="detailCompanyLabel"
-                            class="company-display-label"
-                        >
-                            Company:
-                        </div>
-                        <input
-                            id="detailCompany"
-                            class="detail-person-company"
-                            type="text"
-                            value="-"
-                            readonly
-                        />
-                        <div
-                            id="companyLinkedRow"
-                            class="company-suggestion-row"
-                            hidden
-                        >
-                            <span
-                                id="companyLinkedName"
-                                class="company-link-name"
-                                >-</span
-                            >
-                            <span
-                                id="companyLinkedEmployeeNumber"
-                                class="company-linked-employee-number"
-                                hidden
-                            ></span>
-                            <input
-                                id="companyLinkSearchInput"
-                                class="company-link-search"
-                                list="companyLinkSearchOptions"
-                                placeholder="Search company"
-                                hidden
-                            />
-                            <span
-                                id="companyLinkedIndicator"
-                                class="company-linked-indicator"
-                                title="Company linked"
-                                aria-label="Company linked"
-                                hidden
-                            >
-                                &#10003;
-                            </span>
-                            <datalist id="companyLinkSearchOptions"></datalist>
-                            <button
-                                id="companyQuickLinkBtn"
-                                type="button"
-                                class="btn-icon company-suggestion-accept"
-                                title="Link company"
-                                aria-label="Link company"
-                                hidden
-                            >
-                                &#128279;
-                            </button>
-                            <button
-                                id="acceptCompanySuggestionBtn"
-                                type="button"
-                                class="btn-icon company-suggestion-accept"
-                                title="Link company"
-                                aria-label="Link company"
-                                hidden
-                            >
-                                &#10003;
-                            </button>
-                        </div>
-                        <div
-                            id="companySuggestionWarning"
-                            class="company-suggestion-warning"
-                            hidden
-                        >
-                            No linked company found
-                        </div>
-                        <div
-                            id="personNotRegisteredState"
-                            class="person-not-registered-state"
-                            hidden
-                        >
-                            Person is not yet registered
-                        </div>
-                        <div
-                            id="companyUrlMismatchBanner"
-                            class="company-url-mismatch-banner"
-                            hidden
-                        >
-                            linkedin company does not correspond with selected company.
-                        </div>
-                        <div
-                            id="detailEmployeeNumberLabel"
-                            class="company-display-label"
-                            hidden
-                        >
-                            Employee number:
-                        </div>
-                        <input
-                            id="detailEmployeeNumber"
-                            class="detail-person-company"
-                            type="text"
-                            value="-"
-                            readonly
-                            hidden
-                        />
-                        <div
-                            id="detailItMembersLabel"
-                            class="company-display-label"
-                        >
-                            IT members:
-                        </div>
-                        <input
-                            id="detailItMembers"
-                            class="detail-person-headline"
-                            type="text"
-                            value="-"
-                            readonly
-                            hidden
-                        />
-                        <div
-                            id="detailHeadlineLabel"
-                            class="company-display-label"
-                        >
-                            Job title:
-                        </div>
-                        <input
-                            id="detailHeadline"
-                            class="detail-person-headline"
-                            type="text"
-                            value="-"
-                            readonly
-                        />
-                        <div
-                            id="detailCommentsLabel"
-                            class="company-display-label"
-                        >
-                            Comments:
-                        </div>
-                        <textarea
-                            id="detailComments"
-                            class="detail-person-comments"
-                            rows="1"
-                            readonly
-                        ></textarea>
-                        <div
-                            id="detailCityLabel"
-                            class="company-display-label"
-                            hidden
-                        >
-                            City:
-                        </div>
-                        <input
-                            id="detailCity"
-                            class="detail-person-headline"
-                            type="text"
-                            value="-"
-                            readonly
-                            hidden
-                        />
-                        <div
-                            id="companyExistingLinkSection"
-                            class="company-existing-link-section"
-                            hidden
-                        >
-                            <div class="company-display-label">
-                                Existing company:
-                            </div>
-                            <div
-                                id="companyExistingLinkStatus"
-                                class="company-existing-link-status"
-                            >
-                                Company URL not registered
-                            </div>
-                            <div class="company-existing-link-row">
-                                <input
-                                    id="companyExistingLinkInput"
-                                    class="company-existing-link-input"
-                                    list="companyExistingLinkOptions"
-                                    placeholder="Search existing company"
-                                />
-                                <button
-                                    id="companyExistingLinkButton"
-                                    type="button"
-                                    class="btn-small-secondary company-existing-link-button"
-                                    disabled
-                                >
-                                    Link
-                                </button>
-                            </div>
-                            <datalist
-                                id="companyExistingLinkOptions"
-                            ></datalist>
-                        </div>
-                        <div
-                            id="companyPeopleSection"
-                            class="company-people-section"
-                            hidden
-                        >
-                            <div
-                                id="companyCampaignControls"
-                                class="company-campaign-controls"
-                                hidden
-                            >
-                                <div
-                                    id="companyLinkedCampaignsList"
-                                    class="linked-campaigns-list"
-                                ></div>
-                                <div class="campaign-main-row filter-field">
-                                    <select
-                                        id="companyCampaignSelect"
-                                        class="campaign-select"
-                                    >
-                                        <option value="">Select campaign</option>
-                                    </select>
-                                    <button
-                                        id="companyRenameCampaign"
-                                        class="btn-link"
-                                        type="button"
-                                        title="Rename campaign"
-                                        aria-label="Rename campaign"
-                                        hidden
-                                    >
-                                        ✎
-                                    </button>
-                                    <button
-                                        id="companyToggleNewCampaign"
-                                        class="btn-link"
-                                        type="button"
-                                    >
-                                        + New
-                                    </button>
-                                </div>
-                                <div
-                                    id="companyRenameCampaignRow"
-                                    class="campaign-new-row"
-                                    hidden
-                                >
-                                    <input
-                                        id="companyRenameCampaignName"
-                                        type="text"
-                                        placeholder="Campaign name"
-                                    />
-                                    <button
-                                        id="companySaveRenameCampaign"
-                                        class="btn-small-primary"
-                                        type="button"
-                                    >
-                                        Save
-                                    </button>
-                                    <button
-                                        id="companyCancelRenameCampaign"
-                                        class="btn-small-secondary"
-                                        type="button"
-                                    >
-                                        Cancel
-                                    </button>
-                                </div>
-                                <div
-                                    id="companyNewCampaignRow"
-                                    class="campaign-new-row"
-                                    hidden
-                                >
-                                    <input
-                                        id="companyNewCampaignName"
-                                        type="text"
-                                        placeholder="New campaign name"
-                                    />
-                                    <button
-                                        id="companyAddCampaign"
-                                        class="btn-small-primary"
-                                        type="button"
-                                    >
-                                        Add
-                                    </button>
-                                    <button
-                                        id="companyCancelNewCampaign"
-                                        class="btn-small-secondary"
-                                        type="button"
-                                    >
-                                        Cancel
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="company-people-title">
-                                Registered people
-                            </div>
-                            <div
-                                id="companyPeopleList"
-                                class="company-people-list"
-                            ></div>
-                        </div>
-                    </div>
-                    <div id="campaignDivider" class="section-divider"></div>
-                    <div id="campaignGroup" class="form-group campaign-group">
-                        <div
-                            id="linkedCampaignsList"
-                            class="linked-campaigns-list"
-                        ></div>
-                        <div class="campaign-main-row filter-field">
-                            <select id="campaignSelect" class="campaign-select">
-                                <option value="">(no campaign)</option>
-                            </select>
-                            <button
-                                id="renameCampaign"
-                                class="btn-link"
-                                type="button"
-                                title="Rename campaign"
-                                aria-label="Rename campaign"
-                                hidden
-                            >
-                                ✎
-                            </button>
-                            <button
-                                id="toggleNewCampaign"
-                                class="btn-link"
-                                type="button"
-                            >
-                                + New
-                            </button>
-                        </div>
-                        <div
-                            id="renameCampaignRow"
-                            class="campaign-new-row"
-                            hidden
-                        >
-                            <input
-                                id="renameCampaignName"
-                                type="text"
-                                placeholder="Campaign name"
-                            />
-                            <button
-                                id="saveRenameCampaign"
-                                class="btn-small-primary"
-                                type="button"
-                            >
-                                Save
-                            </button>
-                            <button
-                                id="cancelRenameCampaign"
-                                class="btn-small-secondary"
-                                type="button"
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                        <div
-                            id="newCampaignRow"
-                            class="campaign-new-row"
-                            hidden
-                        >
-                            <input
-                                id="newCampaignName"
-                                type="text"
-                                placeholder="New campaign name"
-                            />
-                            <button
-                                id="addCampaign"
-                                class="btn-small-primary"
-                                type="button"
-                            >
-                                Add
-                            </button>
-                            <button
-                                id="cancelNewCampaign"
-                                class="btn-small-secondary"
-                                type="button"
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                    </div>
-                    <div id="statusDivider" class="section-divider"></div>
-
-                    <div id="statusStepper" class="status-stepper">
-                        <div
-                            id="step-register"
-                            class="status-step"
-                            data-step="registered"
-                        >
-                            <div class="status-circle"></div>
-                            <div class="status-label">Register</div>
-                        </div>
-                        <div
-                            id="step-invited"
-                            class="status-step"
-                            data-step="invited"
-                        >
-                            <div class="status-circle"></div>
-                            <div class="status-label">Invited</div>
-                        </div>
-                        <div
-                            id="step-accepted"
-                            class="status-step"
-                            data-step="accepted"
-                        >
-                            <div class="status-circle"></div>
-                            <div class="status-label">Accepted</div>
-                        </div>
-                        <div
-                            id="step-first-message-sent"
-                            class="status-step"
-                            data-step="first_message_sent"
-                        >
-                            <div class="status-circle"></div>
-                            <div class="status-label">message sent</div>
-                            <span
-                                id="messageCountBadge"
-                                class="step-badge"
-                                hidden
-                            ></span>
-                        </div>
-                        <div
-                            id="step-message-responded"
-                            class="status-step"
-                            data-step="message_responded"
-                        >
-                            <div class="status-circle"></div>
-                            <div class="status-label">Responded</div>
-                        </div>
-                    </div>
-                    <div id="stepperUnderlay" class="stepper-underlay">
-                        <div
-                            id="messageCountControls"
-                            class="message-count-controls"
-                            hidden
-                        >
-                            <button
-                                id="messageCountDecrement"
-                                type="button"
-                                class="msgcount-btn"
-                                title="Decrease message count"
-                                aria-label="Decrease message count"
-                            >
-                                -
-                            </button>
-                            <button
-                                id="messageCountIncrement"
-                                type="button"
-                                class="msgcount-btn"
-                                title="Increase message count"
-                                aria-label="Increase message count"
-                            >
-                                +
-                            </button>
-                        </div>
-                    </div>
-                    <div class="section-divider"></div>
-                    <div id="tabFreePrompt">
-                        <div class="row">
-                            <label><small>Prompt</small></label>
-                            <div class="campaign-main-row filter-field">
-                                <select
-                                    id="promptSelect"
-                                    class="campaign-select"
-                                >
-                                    <option value="">(no prompt)</option>
-                                </select>
-                                <button
-                                    id="renamePrompt"
-                                    class="btn-link"
-                                    type="button"
-                                    title="Rename prompt"
-                                    aria-label="Rename prompt"
-                                    hidden
-                                >
-                                    ✎
-                                </button>
-                                <button
-                                    id="toggleNewPrompt"
-                                    class="btn-link"
-                                    type="button"
-                                >
-                                    + New
-                                </button>
-                            </div>
-                            <div
-                                id="renamePromptRow"
-                                class="campaign-new-row"
-                                hidden
-                            >
-                                <input
-                                    id="renamePromptName"
-                                    type="text"
-                                    placeholder="Prompt name"
-                                />
-                                <button
-                                    id="saveRenamePrompt"
-                                    class="btn-small-primary"
-                                    type="button"
-                                >
-                                    Save
-                                </button>
-                                <button
-                                    id="cancelRenamePrompt"
-                                    class="btn-small-secondary"
-                                    type="button"
-                                >
-                                    Cancel
-                                </button>
-                            </div>
-                            <div
-                                id="newPromptRow"
-                                class="campaign-new-row"
-                                hidden
-                            >
-                                <input
-                                    id="newPromptName"
-                                    type="text"
-                                    placeholder="New prompt name"
-                                />
-                                <button
-                                    id="addPrompt"
-                                    class="btn-small-primary"
-                                    type="button"
-                                >
-                                    Add
-                                </button>
-                                <button
-                                    id="cancelNewPrompt"
-                                    class="btn-small-secondary"
-                                    type="button"
-                                >
-                                    Cancel
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="row">
-                            <label><small>Language</small></label>
-                            <select id="freePromptLanguage">
-                                <option value="Portuguese" selected>
-                                    Portuguese
-                                </option>
-                                <option value="English">English</option>
-                                <option value="Dutch">Dutch</option>
-                                <option value="Spanish">Spanish</option>
-                            </select>
-                        </div>
-
-                        <div class="row">
-                            <div class="invite-preview-header">
-                                <label><small>Prompt</small></label>
-                                <button
-                                    id="savePromptTextBtn"
-                                    type="button"
-                                    class="btn-icon invite-save-icon"
-                                    hidden
-                                    title="Save prompt"
-                                    aria-label="Save prompt"
-                                >
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        width="14"
-                                        height="14"
-                                        viewBox="0 0 16 16"
-                                        fill="currentColor"
-                                        aria-hidden="true"
-                                    >
-                                        <path
-                                            d="M11 1H2a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V5L11 1Zm0 1.5L13.5 5H11V2.5ZM2 2h8v4h4v8H2V2Zm3 6a1 1 0 0 0-1 1v4h8V9a1 1 0 0 0-1-1H5Zm0 1h6v3H5V9Z"
-                                        />
-                                    </svg>
-                                </button>
-                            </div>
-                            <textarea
-                                id="freePromptInput"
-                                placeholder="Write your instruction here..."
-                            ></textarea>
-                        </div>
-
-                        <div class="row inline">
-                            <label class="checkbox-row">
-                                <input
-                                    type="checkbox"
-                                    id="freePromptIncludeProfile"
-                                    class="strategy-checkbox"
-                                    checked
-                                />
-                                <small>Include profile</small>
-                            </label>
-                            <label class="checkbox-row">
-                                <input
-                                    type="checkbox"
-                                    id="freePromptIncludeStrategy"
-                                    class="strategy-checkbox"
-                                    checked
-                                />
-                                <small>Include strategy</small>
-                            </label>
-                        </div>
-
-                        <div class="row">
-                            <button id="generateFreePrompt" type="button">
-                                Generate
-                            </button>
-                        </div>
-
-                        <div class="row">
-                            <div class="invite-preview-block">
-                                <div class="invite-preview-header">
-                                    <div class="invite-preview-title">
-                                        Preview
-                                    </div>
-                                    <button
-                                        id="copyFreePrompt"
-                                        type="button"
-                                        class="btn-icon copy-icon"
-                                        hidden
-                                        title="Copy to clipboard"
-                                        aria-label="Copy to clipboard"
-                                    >
-                                        &#x29C9;
-                                    </button>
-                                </div>
-                                <pre
-                                    id="freePromptPreview"
-                                    class="invite-preview-content"
-                                ></pre>
-                            </div>
-                        </div>
-                    </div>
-                    <div style="display: none" aria-hidden="true">
-                        <select id="inviteLanguage"></select>
-                        <textarea id="focus"></textarea>
-                        <button id="generate" type="button"></button>
-                        <button id="saveInviteBtn" type="button"></button>
-                        <button id="copyInviteIcon" type="button"></button>
-                        <pre id="preview"></pre>
-                        <button id="detailTabInviteBtn" type="button"></button>
-                        <button
-                            id="detailTabFirstMessageBtn"
-                            type="button"
-                        ></button>
-                        <button id="detailTabFollowBtn" type="button"></button>
-                        <button id="tabFreePromptBtn" type="button"></button>
-                        <div id="detailInviteSection"></div>
-                        <div id="detailMessageMount"></div>
-                        <div id="tabMessage"></div>
-                        <div id="acceptedMode"></div>
-                        <div id="firstMessageSentMode"></div>
-                        <textarea id="firstMessageAdditionalPrompt"></textarea>
-                        <button
-                            id="generateFirstMessage"
-                            type="button"
-                        ></button>
-                        <button
-                            id="saveFirstMessageIcon"
-                            type="button"
-                        ></button>
-                        <button id="copyFirstMessage" type="button"></button>
-                        <pre id="firstMessagePreview"></pre>
-                        <button id="markMessageSent" type="button"></button>
-                        <textarea id="followupObjective"></textarea>
-                        <input id="includeStrategy" type="checkbox" />
-                        <button id="generateFollowup" type="button"></button>
-                        <textarea id="followupPreview"></textarea>
-                        <button id="copyFollowup" type="button"></button>
-                    </div>
-                </div>
-
-                <div id="tabOverview" class="tab-panel">
-                    <div class="row inline detail-tabs" id="listTabsRow">
-                        <button
-                            id="listPersonsTabBtn"
-                            class="detail-tab-btn active"
-                            type="button"
-                        >
-                            Persons
-                        </button>
-                        <button
-                            id="listCompaniesTabBtn"
-                            class="detail-tab-btn"
-                            type="button"
-                        >
-                            Companies
-                        </button>
-                    </div>
-
-                    <div id="personsListPanel" class="detail-inner-panel">
-                    <div class="overview-filters list-filters row">
-                        <div class="filter-field">
-                            <label for="filterCampaign"
-                                ><small>Campaign</small></label
-                            >
-                            <select id="filterCampaign" class="campaign-select">
-                                <option value="">All campaigns</option>
-                            </select>
-                        </div>
-                        <div class="filter-field">
-                            <label for="overviewArchivedFilter"
-                                ><small>Archived</small></label
-                            >
-                            <select id="overviewArchivedFilter">
-                                <option value="">All</option>
-                                <option value="0">0</option>
-                                <option value="1">1</option>
-                            </select>
-                        </div>
-                        <div class="filter-field">
-                            <label for="overviewStatusFilter"
-                                ><small>Status</small></label
-                            >
-                            <select id="overviewStatusFilter">
-                                <option value="">All</option>
-                                <option value="registered">registered</option>
-                                <option value="invited">invited</option>
-                                <option value="first message sent">
-                                    first message sent
-                                </option>
-                                <option value="message responded">
-                                    message responded
-                                </option>
-                            </select>
-                        </div>
-                        <div class="filter-field">
-                            <label for="filterAccepted"
-                                ><small>Accepted</small></label
-                            >
-                            <select id="filterAccepted">
-                                <option value="">All</option>
-                                <option value="true">Accepted</option>
-                                <option value="false">Not accepted</option>
-                            </select>
-                        </div>
-                        <div class="filter-field">
-                            <label for="overviewSearch"
-                                ><small>Search</small></label
-                            >
-                            <div class="filter-input-wrap">
-                                <input
-                                    id="overviewSearch"
-                                    placeholder="Search name/company"
-                                />
-                                <button
-                                    id="overviewSearchClear"
-                                    type="button"
-                                    class="filter-clear-btn"
-                                    title="Clear search"
-                                    aria-label="Clear search"
-                                    hidden
-                                >
-                                    &times;
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="overview-grid-wrap row">
-                        <table class="overview-grid overview-table">
-                            <colgroup>
-                                <col class="overview-col-actions" />
-                                <col class="overview-col-name" />
-                                <col class="overview-col-company" />
-                                <col class="overview-col-headline" />
-                                <col class="overview-col-status" />
-                                <col class="overview-col-date" />
-                                <col class="overview-col-campaign" />
-                            </colgroup>
-                            <thead>
-                                <tr>
-                                    <th>Actions</th>
-                                    <th>
-                                        <button
-                                            type="button"
-                                            class="sort-btn"
-                                            data-overview-sort="name"
-                                        >
-                                            Name
-                                            <span
-                                                class="sort-indicator"
-                                                data-overview-sort-indicator="name"
-                                            ></span>
-                                        </button>
-                                    </th>
-                                    <th>
-                                        <button
-                                            type="button"
-                                            class="sort-btn"
-                                            data-overview-sort="company"
-                                        >
-                                            Company
-                                            <span
-                                                class="sort-indicator"
-                                                data-overview-sort-indicator="company"
-                                            ></span>
-                                        </button>
-                                    </th>
-                                    <th>
-                                        <button
-                                            type="button"
-                                            class="sort-btn"
-                                            data-overview-sort="headline"
-                                        >
-                                            Job title
-                                            <span
-                                                class="sort-indicator"
-                                                data-overview-sort-indicator="headline"
-                                            ></span>
-                                        </button>
-                                    </th>
-                                    <th>
-                                        <button
-                                            type="button"
-                                            class="sort-btn"
-                                            data-overview-sort="status"
-                                        >
-                                            Status
-                                            <span
-                                                class="sort-indicator"
-                                                data-overview-sort-indicator="status"
-                                            ></span>
-                                        </button>
-                                    </th>
-                                    <th>
-                                        <button
-                                            type="button"
-                                            class="sort-btn"
-                                            data-overview-sort="most_relevant_date"
-                                        >
-                                            Most relevant date
-                                            <span
-                                                class="sort-indicator"
-                                                data-overview-sort-indicator="most_relevant_date"
-                                            ></span>
-                                        </button>
-                                    </th>
-                                    <th>
-                                        <button
-                                            type="button"
-                                            class="sort-btn"
-                                            data-overview-sort="campaigns"
-                                        >
-                                            Campaign
-                                            <span
-                                                class="sort-indicator"
-                                                data-overview-sort-indicator="campaigns"
-                                            ></span>
-                                        </button>
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody id="overviewTbody"></tbody>
-                        </table>
-                    </div>
-
-                    <div class="overview-pagination row">
-                        <select id="overviewPageSize">
-                            <option value="10">10</option>
-                            <option value="25" selected>25</option>
-                            <option value="50">50</option>
-                        </select>
-                        <button id="overviewPrevBtn" type="button">Prev</button>
-                        <button id="overviewNextBtn" type="button">Next</button>
-                        <div id="overviewCountLabel">Total: ?</div>
-                    </div>
-                    </div>
-
-                    <div id="companiesListPanel" class="detail-inner-panel" hidden>
-                    <div class="overview-filters list-filters row">
-                        <div class="filter-field">
-                            <label for="companyCampaignFilter"
-                                ><small>Campaign</small></label
-                            >
-                            <select id="companyCampaignFilter" class="campaign-select">
-                                <option value="">All campaigns</option>
-                            </select>
-                        </div>
-                        <div class="filter-field">
-                            <label for="companyArchivedFilter"
-                                ><small>Archived</small></label
-                            >
-                            <select id="companyArchivedFilter">
-                                <option value="">All</option>
-                                <option value="0">0</option>
-                                <option value="1">1</option>
-                            </select>
-                        </div>
-                        <div class="filter-field">
-                            <label for="companySearch"
-                                ><small>Search</small></label
-                            >
-                            <div class="filter-input-wrap">
-                                <input
-                                    id="companySearch"
-                                    placeholder="Search company/campaign"
-                                />
-                                <button
-                                    id="companySearchClear"
-                                    type="button"
-                                    class="filter-clear-btn"
-                                    title="Clear search"
-                                    aria-label="Clear search"
-                                    hidden
-                                >
-                                    &times;
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="overview-grid-wrap row">
-                        <table class="overview-grid" id="companyOverviewTable">
-                            <thead>
-                                <tr>
-                                    <th>Actions</th>
-                                    <th>
-                                        <button
-                                            type="button"
-                                            class="sort-btn"
-                                            data-company-sort="customer_potential_score"
-                                        >
-                                            Potential
-                                            <span
-                                                class="sort-indicator"
-                                                data-company-sort-indicator="customer_potential_score"
-                                            ></span>
-                                        </button>
-                                    </th>
-                                    <th>
-                                        <button
-                                            type="button"
-                                            class="sort-btn"
-                                            data-company-sort="company_name"
-                                        >
-                                            Company name
-                                            <span
-                                                class="sort-indicator"
-                                                data-company-sort-indicator="company_name"
-                                            ></span>
-                                        </button>
-                                    </th>
-                                    <th>
-                                        <button
-                                            type="button"
-                                            class="sort-btn"
-                                            data-company-sort="linked_person_count"
-                                        >
-                                            Linked persons
-                                            <span
-                                                class="sort-indicator"
-                                                data-company-sort-indicator="linked_person_count"
-                                            ></span>
-                                        </button>
-                                    </th>
-                                    <th>
-                                        <button
-                                            type="button"
-                                            class="sort-btn"
-                                            data-company-sort="employee_number"
-                                        >
-                                            Employees
-                                            <span
-                                                class="sort-indicator"
-                                                data-company-sort-indicator="employee_number"
-                                            ></span>
-                                        </button>
-                                    </th>
-                                    <th>
-                                        <button
-                                            type="button"
-                                            class="sort-btn"
-                                            data-company-sort="sector"
-                                        >
-                                            Sector
-                                            <span
-                                                class="sort-indicator"
-                                                data-company-sort-indicator="sector"
-                                            ></span>
-                                        </button>
-                                    </th>
-                                    <th>
-                                        <button
-                                            type="button"
-                                            class="sort-btn"
-                                            data-company-sort="campaigns"
-                                        >
-                                            Campaigns
-                                            <span
-                                                class="sort-indicator"
-                                                data-company-sort-indicator="campaigns"
-                                            ></span>
-                                        </button>
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody id="companyOverviewTbody"></tbody>
-                        </table>
-                    </div>
-                    <div class="overview-pagination row">
-                        <select id="companyOverviewPageSize">
-                            <option value="10">10</option>
-                            <option value="25" selected>25</option>
-                            <option value="50">50</option>
-                        </select>
-                        <button id="companyOverviewPrevBtn" type="button">
-                            Prev
-                        </button>
-                        <button id="companyOverviewNextBtn" type="button">
-                            Next
-                        </button>
-                        <div id="companyOverviewCountLabel">Total: ?</div>
-                    </div>
-                    </div>
-                </div>
-
-                <div id="tabConfig" class="tab-panel">
-                    <div class="row inline config-inner-tabs">
-                        <button
-                            id="configGeneralTabBtn"
-                            class="detail-tab-btn active"
-                            type="button"
-                        >
-                            General configuration
-                        </button>
-                        <button
-                            id="configSupabaseTabBtn"
-                            class="detail-tab-btn"
-                            type="button"
-                        >
-                            Supabase login
-                        </button>
-                    </div>
-
-                    <div
-                        id="configGeneralPanel"
-                        class="config-sub-panel active"
-                    >
-                        <div class="row">
-                            <label><small>OpenAI API key (saved)</small></label>
-                            <input
-                                id="apiKey"
-                                type="password"
-                                placeholder="sk-..."
-                            />
-                        </div>
-
-                        <div class="row">
-                            <label><small>Model (saved)</small></label>
-                            <input id="model" placeholder="gpt-4.1" />
-                        </div>
-
-                        <div class="row">
-                            <label><small>Strategy (saved)</small></label>
-                            <textarea
-                                id="strategy"
-                                placeholder="Paste your strategy core here (saved)."
-                            ></textarea>
-                        </div>
-
-                        <div class="row">
-                            <label class="checkbox-row">
-                                <input
-                                    id="navPacingEnabled"
-                                    type="checkbox"
-                                    class="strategy-checkbox"
-                                    checked
-                                />
-                                <small>Navigation pacing</small>
-                            </label>
-                        </div>
-                    </div>
-
-                    <div id="tabSupabaseAuth" class="config-sub-panel" hidden>
-                        <div class="row">
-                            <label><small>Supabase URL</small></label>
-                            <input
-                                id="webhookBaseUrl"
-                                placeholder="https://yourdomain.com"
-                            />
-                        </div>
-
-                        <div id="supabaseAuthForms" hidden>
-                            <div class="row inline auth-inner-tabs">
-                                <button
-                                    id="authInnerSignupBtn"
-                                    class="detail-tab-btn active"
-                                    type="button"
-                                >
-                                    Signup
-                                </button>
-                                <button
-                                    id="authInnerLoginBtn"
-                                    class="detail-tab-btn"
-                                    type="button"
-                                >
-                                    Login
-                                </button>
-                            </div>
-
-                            <div id="authSignupPanel" hidden>
-                                <div class="row">
-                                    <label><small>Name</small></label>
-                                    <input
-                                        id="supabaseSignupName"
-                                        type="text"
-                                        placeholder="Your name"
-                                    />
-                                </div>
-                                <div class="row">
-                                    <label><small>Email</small></label>
-                                    <input
-                                        id="supabaseSignupEmail"
-                                        type="email"
-                                        placeholder="you@example.com"
-                                    />
-                                </div>
-                                <div class="row">
-                                    <label><small>Password</small></label>
-                                    <input
-                                        id="supabaseSignupPassword"
-                                        type="password"
-                                        placeholder="Password"
-                                    />
-                                </div>
-                                <button
-                                    id="supabaseSignupBtn"
-                                    class="btn btn-primary"
-                                    type="button"
-                                >
-                                    Signup
-                                </button>
-                            </div>
-
-                            <div id="authLoginPanel" hidden>
-                                <div class="row">
-                                    <label><small>Email</small></label>
-                                    <input
-                                        id="supabaseLoginEmail"
-                                        type="email"
-                                        placeholder="you@example.com"
-                                    />
-                                </div>
-                                <div class="row">
-                                    <label><small>Password</small></label>
-                                    <input
-                                        id="supabaseLoginPassword"
-                                        type="password"
-                                        placeholder="Password"
-                                    />
-                                </div>
-                                <div class="row inline auth-action-row">
-                                    <button
-                                        id="supabaseLoginBtn"
-                                        class="btn-small-primary"
-                                        type="button"
-                                    >
-                                        Login
-                                    </button>
-                                    <button
-                                        id="supabaseResetPasswordBtn"
-                                        class="btn-small-secondary"
-                                        type="button"
-                                    >
-                                        Reset password
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div id="supabaseLoggedInPanel" class="row" hidden>
-                            <small
-                                >Logged in as:
-                                <span id="supabaseUserEmail"></span
-                            ></small>
-                            <button
-                                id="supabaseLogoutBtn"
-                                class="btn-small-secondary"
-                                type="button"
-                            >
-                                Logout
-                            </button>
-                        </div>
-                    </div>
-
-                    <button
-                        id="saveConfig"
-                        class="btn btn-primary"
-                        type="button"
-                    >
-                        Save config
-                    </button>
-                </div>
-            </div>
-            <div id="commFooter" class="comm-status-footer">
-                <small>Status</small>
-                <div id="commFooterText">Ready</div>
-            </div>
-        </div>
-
-        <script src="../shared/utils.js"></script>
-        <script src="../shared/popup-message-types.js"></script>
-        <script src="../shared/popup-storage-keys.js"></script>
-        <script src="../shared/popup-status-constants.js"></script>
-        <script src="popup-logger.js"></script>
-        <script src="../prompts.js"></script>
-        <script src="popup-utils.js"></script>
-        <script src="popup-dom.js"></script>
-        <script src="popup-state.js"></script>
-        <script src="popup-lifecycle-controller.js"></script>
-        <script src="popup-config-controller.js"></script>
-        <script src="popup-chat-controller.js"></script>
-        <script src="popup-message-controller.js"></script>
-        <script src="popup-profile-controller.js"></script>
-        <script src="popup-invitation-controller.js"></script>
-        <script src="popup-overview-controller.js"></script>
-        <script src="popup-campaign-controller.js"></script>
-        <script src="popup-company-controller.js"></script>
-        <script src="popup-auth-controller.js"></script>
-        <script src="popup-free-prompt-controller.js"></script>
-        <script src="popup-grid.js"></script>
-        <script src="popup-tabs.js"></script>
-        <script src="popup-config.js"></script>
-        <script src="popup-prompts.js"></script>
-        <script src="popup-person.js"></script>
-        <script src="popup-messages.js"></script>
-        <script src="popup.js"></script>
-    </body>
-</html>
+<!doctype html><html><head><meta charset="UTF-8" /><link rel="stylesheet" href="popup.css" /></head><body><div id="sidePanelRoot"><div id="topTabs"><button
+id="openSidePanel"
+type="button"
+class="btn-small-secondary"
+>
+Open in side panel
+</button><div class="tabs"><button
+id="tabMainBtn"
+class="tab-btn active"
+type="button"
+>
+Detail
+</button><button id="tabOverviewBtn" class="tab-btn" type="button">
+List
+</button><button id="tabConfigBtn" class="tab-btn" type="button">
+Configuration
+</button><button
+id="tabSupabaseAuthBtn"
+class="tab-btn hidden"
+type="button"
+>
+Supabase Login
+</button></div></div><div id="innerContentContainer" class="app-content-scroll"><div id="tabMain" class="tab-panel active"><div class="detail-person"><div class="detail-person-top"><input
+id="detailPersonName"
+class="detail-person-name"
+type="text"
+value="-"
+readonly
+/><div class="detail-person-actions"><button
+id="enrichProfileBtn"
+type="button"
+class="btn-enrich"
+title="Enrich data with AI"
+aria-label="Enrich data with AI"
+><svg
+xmlns="http://www.w3.org/2000/svg"
+viewBox="0 0 16 16"
+width="14"
+height="14"
+aria-hidden="true"
+><path
+d="M7.2 1.2 8.6 4.3l3.1 1.4-3.1 1.4-1.4 3.1-1.4-3.1L2.7 5.7l3.1-1.4L7.2 1.2Zm5.1 5.6.8 1.8 1.8.8-1.8.8-.8 1.8-.8-1.8-1.8-.8 1.8-.8.8-1.8Zm-8.1 4 .8 1.8 1.8.8-1.8.8-.8 1.8-.8-1.8-1.8-.8 1.8-.8.8-1.8Z"
+fill="currentColor"
+/></svg></button><button
+id="editProfileBtn"
+type="button"
+class="btn-small-secondary detail-edit-btn"
+>
+Edit
+</button><button
+id="saveProfileFieldsBtn"
+type="button"
+class="btn-icon invite-save-icon detail-save-icon"
+hidden
+title="Save"
+aria-label="Save"
+><svg
+xmlns="http://www.w3.org/2000/svg"
+width="14"
+height="14"
+viewBox="0 0 16 16"
+fill="currentColor"
+aria-hidden="true"
+><path
+d="M11 1H2a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V5L11 1Zm0 1.5L13.5 5H11V2.5ZM2 2h8v4h4v8H2V2Zm3 6a1 1 0 0 0-1 1v4h8V9a1 1 0 0 0-1-1H5Zm0 1h6v3H5V9Z"
+/></svg></button><button
+id="cancelProfileEditBtn"
+type="button"
+class="btn-icon detail-cancel-icon"
+hidden
+title="Cancel edit"
+aria-label="Cancel edit"
+>
+&times;
+</button></div></div><div
+id="detailCompanyLabel"
+class="company-display-label"
+>
+Company:
+</div><input
+id="detailCompany"
+class="detail-person-company"
+type="text"
+value="-"
+readonly
+/><div
+id="companyLinkedRow"
+class="company-suggestion-row"
+hidden
+><span
+id="companyLinkedName"
+class="company-link-name"
+>-</span
+><span
+id="companyLinkedEmployeeNumber"
+class="company-linked-employee-number"
+hidden
+></span><input
+id="companyLinkSearchInput"
+class="company-link-search"
+list="companyLinkSearchOptions"
+placeholder="Search company"
+hidden
+/><span
+id="companyLinkedIndicator"
+class="company-linked-indicator"
+title="Company linked"
+aria-label="Company linked"
+hidden
+>
+&#10003;
+</span><datalist id="companyLinkSearchOptions"></datalist><button
+id="companyQuickLinkBtn"
+type="button"
+class="btn-icon company-suggestion-accept"
+title="Link company"
+aria-label="Link company"
+hidden
+>
+&#128279;
+</button><button
+id="acceptCompanySuggestionBtn"
+type="button"
+class="btn-icon company-suggestion-accept"
+title="Link company"
+aria-label="Link company"
+hidden
+>
+&#10003;
+</button></div><div
+id="companySuggestionWarning"
+class="company-suggestion-warning"
+hidden
+>
+No linked company found
+</div><div
+id="personNotRegisteredState"
+class="person-not-registered-state"
+hidden
+>
+Person is not yet registered
+</div><div
+id="companyUrlMismatchBanner"
+class="company-url-mismatch-banner"
+hidden
+>
+linkedin company does not correspond with selected company.
+</div><div
+id="detailEmployeeNumberLabel"
+class="company-display-label"
+hidden
+>
+Employee number:
+</div><input
+id="detailEmployeeNumber"
+class="detail-person-company"
+type="text"
+value="-"
+readonly
+hidden
+/><div
+id="detailItMembersLabel"
+class="company-display-label"
+>
+IT members:
+</div><input
+id="detailItMembers"
+class="detail-person-headline"
+type="text"
+value="-"
+readonly
+hidden
+/><div
+id="detailHeadlineLabel"
+class="company-display-label"
+>
+Job title:
+</div><input
+id="detailHeadline"
+class="detail-person-headline"
+type="text"
+value="-"
+readonly
+/><div
+id="detailCommentsLabel"
+class="company-display-label"
+>
+Comments:
+</div><textarea
+id="detailComments"
+class="detail-person-comments"
+rows="1"
+readonly
+></textarea><div
+id="detailCityLabel"
+class="company-display-label"
+hidden
+>
+City:
+</div><input
+id="detailCity"
+class="detail-person-headline"
+type="text"
+value="-"
+readonly
+hidden
+/><div
+id="companyExistingLinkSection"
+class="company-existing-link-section"
+hidden
+><div class="company-display-label">
+Existing company:
+</div><div
+id="companyExistingLinkStatus"
+class="company-existing-link-status"
+>
+Company URL not registered
+</div><div class="company-existing-link-row"><input
+id="companyExistingLinkInput"
+class="company-existing-link-input"
+list="companyExistingLinkOptions"
+placeholder="Search existing company"
+/><button
+id="companyExistingLinkButton"
+type="button"
+class="btn-small-secondary company-existing-link-button"
+disabled
+>
+Link
+</button></div><datalist
+id="companyExistingLinkOptions"
+></datalist></div><div
+id="companyPeopleSection"
+class="company-people-section"
+hidden
+><div
+id="companyCampaignControls"
+class="company-campaign-controls"
+hidden
+><div
+id="companyLinkedCampaignsList"
+class="linked-campaigns-list"
+></div><div class="campaign-main-row filter-field"><select
+id="companyCampaignSelect"
+class="campaign-select"
+><option value="">Select campaign</option></select><button
+id="companyRenameCampaign"
+class="btn-link"
+type="button"
+title="Rename campaign"
+aria-label="Rename campaign"
+hidden
+>
+✎
+</button><button
+id="companyToggleNewCampaign"
+class="btn-link"
+type="button"
+>
++ New
+</button></div><div
+id="companyRenameCampaignRow"
+class="campaign-new-row"
+hidden
+><input
+id="companyRenameCampaignName"
+type="text"
+placeholder="Campaign name"
+/><button
+id="companySaveRenameCampaign"
+class="btn-small-primary"
+type="button"
+>
+Save
+</button><button
+id="companyCancelRenameCampaign"
+class="btn-small-secondary"
+type="button"
+>
+Cancel
+</button></div><div
+id="companyNewCampaignRow"
+class="campaign-new-row"
+hidden
+><input
+id="companyNewCampaignName"
+type="text"
+placeholder="New campaign name"
+/><button
+id="companyAddCampaign"
+class="btn-small-primary"
+type="button"
+>
+Add
+</button><button
+id="companyCancelNewCampaign"
+class="btn-small-secondary"
+type="button"
+>
+Cancel
+</button></div></div><div class="company-people-title">
+Registered people
+</div><div
+id="companyPeopleList"
+class="company-people-list"
+></div></div></div><div id="campaignDivider" class="section-divider"></div><div id="campaignGroup" class="form-group campaign-group"><div
+id="linkedCampaignsList"
+class="linked-campaigns-list"
+></div><div class="campaign-main-row filter-field"><select id="campaignSelect" class="campaign-select"><option value="">(no campaign)</option></select><button
+id="renameCampaign"
+class="btn-link"
+type="button"
+title="Rename campaign"
+aria-label="Rename campaign"
+hidden
+>
+✎
+</button><button
+id="toggleNewCampaign"
+class="btn-link"
+type="button"
+>
++ New
+</button></div><div
+id="renameCampaignRow"
+class="campaign-new-row"
+hidden
+><input
+id="renameCampaignName"
+type="text"
+placeholder="Campaign name"
+/><button
+id="saveRenameCampaign"
+class="btn-small-primary"
+type="button"
+>
+Save
+</button><button
+id="cancelRenameCampaign"
+class="btn-small-secondary"
+type="button"
+>
+Cancel
+</button></div><div
+id="newCampaignRow"
+class="campaign-new-row"
+hidden
+><input
+id="newCampaignName"
+type="text"
+placeholder="New campaign name"
+/><button
+id="addCampaign"
+class="btn-small-primary"
+type="button"
+>
+Add
+</button><button
+id="cancelNewCampaign"
+class="btn-small-secondary"
+type="button"
+>
+Cancel
+</button></div></div><div id="statusDivider" class="section-divider"></div><div id="statusStepper" class="status-stepper"><div
+id="step-register"
+class="status-step"
+data-step="registered"
+><div class="status-circle"></div><div class="status-label">Register</div></div><div
+id="step-invited"
+class="status-step"
+data-step="invited"
+><div class="status-circle"></div><div class="status-label">Invited</div></div><div
+id="step-accepted"
+class="status-step"
+data-step="accepted"
+><div class="status-circle"></div><div class="status-label">Accepted</div></div><div
+id="step-first-message-sent"
+class="status-step"
+data-step="first_message_sent"
+><div class="status-circle"></div><div class="status-label">message sent</div><span
+id="messageCountBadge"
+class="step-badge"
+hidden
+></span></div><div
+id="step-message-responded"
+class="status-step"
+data-step="message_responded"
+><div class="status-circle"></div><div class="status-label">Responded</div></div></div><div id="stepperUnderlay" class="stepper-underlay"><div
+id="messageCountControls"
+class="message-count-controls"
+hidden
+><button
+id="messageCountDecrement"
+type="button"
+class="msgcount-btn"
+title="Decrease message count"
+aria-label="Decrease message count"
+>
+-
+</button><button
+id="messageCountIncrement"
+type="button"
+class="msgcount-btn"
+title="Increase message count"
+aria-label="Increase message count"
+>
++
+</button></div></div><div class="section-divider"></div><div id="tabFreePrompt"><div class="row"><label><small>Prompt</small></label><div class="campaign-main-row filter-field"><select
+id="promptSelect"
+class="campaign-select"
+><option value="">(no prompt)</option></select><button
+id="renamePrompt"
+class="btn-link"
+type="button"
+title="Rename prompt"
+aria-label="Rename prompt"
+hidden
+>
+✎
+</button><button
+id="toggleNewPrompt"
+class="btn-link"
+type="button"
+>
++ New
+</button></div><div
+id="renamePromptRow"
+class="campaign-new-row"
+hidden
+><input
+id="renamePromptName"
+type="text"
+placeholder="Prompt name"
+/><button
+id="saveRenamePrompt"
+class="btn-small-primary"
+type="button"
+>
+Save
+</button><button
+id="cancelRenamePrompt"
+class="btn-small-secondary"
+type="button"
+>
+Cancel
+</button></div><div
+id="newPromptRow"
+class="campaign-new-row"
+hidden
+><input
+id="newPromptName"
+type="text"
+placeholder="New prompt name"
+/><button
+id="addPrompt"
+class="btn-small-primary"
+type="button"
+>
+Add
+</button><button
+id="cancelNewPrompt"
+class="btn-small-secondary"
+type="button"
+>
+Cancel
+</button></div></div><div class="row"><label><small>Language</small></label><select id="freePromptLanguage"><option value="Portuguese" selected>
+Portuguese
+</option><option value="English">English</option><option value="Dutch">Dutch</option><option value="Spanish">Spanish</option></select></div><div class="row"><div class="invite-preview-header"><label><small>Prompt</small></label><button
+id="savePromptTextBtn"
+type="button"
+class="btn-icon invite-save-icon"
+hidden
+title="Save prompt"
+aria-label="Save prompt"
+><svg
+xmlns="http://www.w3.org/2000/svg"
+width="14"
+height="14"
+viewBox="0 0 16 16"
+fill="currentColor"
+aria-hidden="true"
+><path
+d="M11 1H2a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V5L11 1Zm0 1.5L13.5 5H11V2.5ZM2 2h8v4h4v8H2V2Zm3 6a1 1 0 0 0-1 1v4h8V9a1 1 0 0 0-1-1H5Zm0 1h6v3H5V9Z"
+/></svg></button></div><textarea
+id="freePromptInput"
+placeholder="Write your instruction here..."
+></textarea></div><div class="row inline"><label class="checkbox-row"><input
+type="checkbox"
+id="freePromptIncludeProfile"
+class="strategy-checkbox"
+checked
+/><small>Include profile</small></label><label class="checkbox-row"><input
+type="checkbox"
+id="freePromptIncludeStrategy"
+class="strategy-checkbox"
+checked
+/><small>Include strategy</small></label></div><div class="row"><button id="generateFreePrompt" type="button">
+Generate
+</button></div><div class="row"><div class="invite-preview-block"><div class="invite-preview-header"><div class="invite-preview-title">
+Preview
+</div><button
+id="copyFreePrompt"
+type="button"
+class="btn-icon copy-icon"
+hidden
+title="Copy to clipboard"
+aria-label="Copy to clipboard"
+>
+&#x29C9;
+</button></div><pre
+id="freePromptPreview"
+class="invite-preview-content"
+></pre></div></div></div><div style="display: none" aria-hidden="true"><select id="inviteLanguage"></select><textarea id="focus"></textarea><button id="generate" type="button"></button><button id="saveInviteBtn" type="button"></button><button id="copyInviteIcon" type="button"></button><pre id="preview"></pre><button id="detailTabInviteBtn" type="button"></button><button
+id="detailTabFirstMessageBtn"
+type="button"
+></button><button id="detailTabFollowBtn" type="button"></button><button id="tabFreePromptBtn" type="button"></button><div id="detailInviteSection"></div><div id="detailMessageMount"></div><div id="tabMessage"></div><div id="acceptedMode"></div><div id="firstMessageSentMode"></div><textarea id="firstMessageAdditionalPrompt"></textarea><button
+id="generateFirstMessage"
+type="button"
+></button><button
+id="saveFirstMessageIcon"
+type="button"
+></button><button id="copyFirstMessage" type="button"></button><pre id="firstMessagePreview"></pre><button id="markMessageSent" type="button"></button><textarea id="followupObjective"></textarea><input id="includeStrategy" type="checkbox" /><button id="generateFollowup" type="button"></button><textarea id="followupPreview"></textarea><button id="copyFollowup" type="button"></button></div></div><div id="tabOverview" class="tab-panel"><div class="row inline detail-tabs" id="listTabsRow"><button
+id="listPersonsTabBtn"
+class="detail-tab-btn active"
+type="button"
+>
+Persons
+</button><button
+id="listCompaniesTabBtn"
+class="detail-tab-btn"
+type="button"
+>
+Companies
+</button></div><div id="personsListPanel" class="detail-inner-panel"><div class="overview-filters list-filters row"><div class="filter-field"><label for="filterCampaign"
+><small>Campaign</small></label
+><select id="filterCampaign" class="campaign-select"><option value="">All campaigns</option></select></div><div class="filter-field"><label for="overviewArchivedFilter"
+><small>Archived</small></label
+><select id="overviewArchivedFilter"><option value="">All</option><option value="0">0</option><option value="1">1</option></select></div><div class="filter-field"><label for="overviewStatusFilter"
+><small>Status</small></label
+><select id="overviewStatusFilter"><option value="">All</option><option value="registered">registered</option><option value="invited">invited</option><option value="first message sent">
+first message sent
+</option><option value="message responded">
+message responded
+</option></select></div><div class="filter-field"><label for="filterAccepted"
+><small>Accepted</small></label
+><select id="filterAccepted"><option value="">All</option><option value="true">Accepted</option><option value="false">Not accepted</option></select></div><div class="filter-field"><label for="overviewSearch"
+><small>Search</small></label
+><div class="filter-input-wrap"><input
+id="overviewSearch"
+placeholder="Search name/company"
+/><button
+id="overviewSearchClear"
+type="button"
+class="filter-clear-btn"
+title="Clear search"
+aria-label="Clear search"
+hidden
+>
+&times;
+</button></div></div></div><div class="overview-grid-wrap row"><table class="overview-grid overview-table"><colgroup><col class="overview-col-actions" /><col class="overview-col-name" /><col class="overview-col-company" /><col class="overview-col-headline" /><col class="overview-col-status" /><col class="overview-col-date" /><col class="overview-col-campaign" /></colgroup><thead><tr><th>Actions</th><th><button
+type="button"
+class="sort-btn"
+data-overview-sort="name"
+>
+Name
+<span
+class="sort-indicator"
+data-overview-sort-indicator="name"
+></span></button></th><th><button
+type="button"
+class="sort-btn"
+data-overview-sort="company"
+>
+Company
+<span
+class="sort-indicator"
+data-overview-sort-indicator="company"
+></span></button></th><th><button
+type="button"
+class="sort-btn"
+data-overview-sort="headline"
+>
+Job title
+<span
+class="sort-indicator"
+data-overview-sort-indicator="headline"
+></span></button></th><th><button
+type="button"
+class="sort-btn"
+data-overview-sort="status"
+>
+Status
+<span
+class="sort-indicator"
+data-overview-sort-indicator="status"
+></span></button></th><th><button
+type="button"
+class="sort-btn"
+data-overview-sort="most_relevant_date"
+>
+Most relevant date
+<span
+class="sort-indicator"
+data-overview-sort-indicator="most_relevant_date"
+></span></button></th><th><button
+type="button"
+class="sort-btn"
+data-overview-sort="campaigns"
+>
+Campaign
+<span
+class="sort-indicator"
+data-overview-sort-indicator="campaigns"
+></span></button></th></tr></thead><tbody id="overviewTbody"></tbody></table></div><div class="overview-pagination row"><select id="overviewPageSize"><option value="10">10</option><option value="25" selected>25</option><option value="50">50</option></select><button id="overviewPrevBtn" type="button">Prev</button><button id="overviewNextBtn" type="button">Next</button><div id="overviewCountLabel">Total: ?</div></div></div><div id="companiesListPanel" class="detail-inner-panel" hidden><div class="overview-filters list-filters row"><div class="filter-field"><label for="companyCampaignFilter"
+><small>Campaign</small></label
+><select id="companyCampaignFilter" class="campaign-select"><option value="">All campaigns</option></select></div><div class="filter-field"><label for="companyArchivedFilter"
+><small>Archived</small></label
+><select id="companyArchivedFilter"><option value="">All</option><option value="0">0</option><option value="1">1</option></select></div><div class="filter-field"><label for="companySearch"
+><small>Search</small></label
+><div class="filter-input-wrap"><input
+id="companySearch"
+placeholder="Search company/campaign"
+/><button
+id="companySearchClear"
+type="button"
+class="filter-clear-btn"
+title="Clear search"
+aria-label="Clear search"
+hidden
+>
+&times;
+</button></div></div></div><div class="overview-grid-wrap row"><table class="overview-grid" id="companyOverviewTable"><thead><tr><th>Actions</th><th><button
+type="button"
+class="sort-btn"
+data-company-sort="customer_potential_score"
+>
+Potential
+<span
+class="sort-indicator"
+data-company-sort-indicator="customer_potential_score"
+></span></button></th><th><button
+type="button"
+class="sort-btn"
+data-company-sort="company_name"
+>
+Company name
+<span
+class="sort-indicator"
+data-company-sort-indicator="company_name"
+></span></button></th><th><button
+type="button"
+class="sort-btn"
+data-company-sort="linked_person_count"
+>
+Linked persons
+<span
+class="sort-indicator"
+data-company-sort-indicator="linked_person_count"
+></span></button></th><th><button
+type="button"
+class="sort-btn"
+data-company-sort="employee_number"
+>
+Employees
+<span
+class="sort-indicator"
+data-company-sort-indicator="employee_number"
+></span></button></th><th><button
+type="button"
+class="sort-btn"
+data-company-sort="sector"
+>
+Sector
+<span
+class="sort-indicator"
+data-company-sort-indicator="sector"
+></span></button></th><th><button
+type="button"
+class="sort-btn"
+data-company-sort="campaigns"
+>
+Campaigns
+<span
+class="sort-indicator"
+data-company-sort-indicator="campaigns"
+></span></button></th></tr></thead><tbody id="companyOverviewTbody"></tbody></table></div><div class="overview-pagination row"><select id="companyOverviewPageSize"><option value="10">10</option><option value="25" selected>25</option><option value="50">50</option></select><button id="companyOverviewPrevBtn" type="button">
+Prev
+</button><button id="companyOverviewNextBtn" type="button">
+Next
+</button><div id="companyOverviewCountLabel">Total: ?</div></div></div></div><div id="tabConfig" class="tab-panel"><div class="row inline config-inner-tabs"><button
+id="configGeneralTabBtn"
+class="detail-tab-btn active"
+type="button"
+>
+General configuration
+</button><button
+id="configSupabaseTabBtn"
+class="detail-tab-btn"
+type="button"
+>
+Supabase login
+</button></div><div
+id="configGeneralPanel"
+class="config-sub-panel active"
+><div class="row"><label><small>OpenAI API key (saved)</small></label><input
+id="apiKey"
+type="password"
+placeholder="sk-..."
+/></div><div class="row"><label><small>Model (saved)</small></label><input id="model" placeholder="gpt-4.1" /></div><div class="row"><label><small>Strategy (saved)</small></label><textarea
+id="strategy"
+placeholder="Paste your strategy core here (saved)."
+></textarea></div><div class="row"><label class="checkbox-row"><input
+id="navPacingEnabled"
+type="checkbox"
+class="strategy-checkbox"
+checked
+/><small>Navigation pacing</small></label></div></div><div id="tabSupabaseAuth" class="config-sub-panel" hidden><div class="row"><label><small>Supabase URL</small></label><input
+id="webhookBaseUrl"
+placeholder="https://yourdomain.com"
+/></div><div id="supabaseAuthForms" hidden><div class="row inline auth-inner-tabs"><button
+id="authInnerSignupBtn"
+class="detail-tab-btn active"
+type="button"
+>
+Signup
+</button><button
+id="authInnerLoginBtn"
+class="detail-tab-btn"
+type="button"
+>
+Login
+</button></div><div id="authSignupPanel" hidden><div class="row"><label><small>Name</small></label><input
+id="supabaseSignupName"
+type="text"
+placeholder="Your name"
+/></div><div class="row"><label><small>Email</small></label><input
+id="supabaseSignupEmail"
+type="email"
+placeholder="you@example.com"
+/></div><div class="row"><label><small>Password</small></label><input
+id="supabaseSignupPassword"
+type="password"
+placeholder="Password"
+/></div><button
+id="supabaseSignupBtn"
+class="btn btn-primary"
+type="button"
+>
+Signup
+</button></div><div id="authLoginPanel" hidden><div class="row"><label><small>Email</small></label><input
+id="supabaseLoginEmail"
+type="email"
+placeholder="you@example.com"
+/></div><div class="row"><label><small>Password</small></label><input
+id="supabaseLoginPassword"
+type="password"
+placeholder="Password"
+/></div><div class="row inline auth-action-row"><button
+id="supabaseLoginBtn"
+class="btn-small-primary"
+type="button"
+>
+Login
+</button><button
+id="supabaseResetPasswordBtn"
+class="btn-small-secondary"
+type="button"
+>
+Reset password
+</button></div></div></div><div id="supabaseLoggedInPanel" class="row" hidden><small
+>Logged in as:
+<span id="supabaseUserEmail"></span
+></small><button
+id="supabaseLogoutBtn"
+class="btn-small-secondary"
+type="button"
+>
+Logout
+</button></div></div><button
+id="saveConfig"
+class="btn btn-primary"
+type="button"
+>
+Save config
+</button></div></div><div id="commFooter" class="comm-status-footer"><small>Status</small><div id="commFooterText">Ready</div></div></div><script src="../shared/utils.js"></script><script src="../shared/popup-message-types.js"></script><script src="../shared/popup-storage-keys.js"></script><script src="../shared/popup-status-constants.js"></script><script src="core/logger.js"></script><script src="../prompts.js"></script><script src="core/utils.js"></script><script src="core/dom.js"></script><script src="core/state.js"></script><script src="core/lifecycle.js"></script><script src="config/config-controller.js"></script><script src="messaging/chat-controller.js"></script><script src="messaging/message-controller.js"></script><script src="profile-flow/profile-controller.js"></script><script src="profile-flow/invitation-controller.js"></script><script src="list/overview-controller.js"></script><script src="list/campaign-controller.js"></script><script src="list/company-controller.js"></script><script src="list/auth-controller.js"></script><script src="messaging/free-prompt-controller.js"></script><script src="list/grid.js"></script><script src="core/tabs.js"></script><script src="config/config.js"></script><script src="messaging/prompts.js"></script><script src="profile-flow/person.js"></script><script src="messaging/messages.js"></script><script src="core/startup-dom-bindings.js"></script><script src="core/state-rendering.js"></script><script src="config/settings-and-storage.js"></script><script src="profile-flow/profile-and-db-refresh.js"></script><script src="profile-flow/invitation-actions.js"></script><script src="messaging/message-actions.js"></script><script src="popup.js"></script></body></html>
