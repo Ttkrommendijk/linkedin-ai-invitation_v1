@@ -164,6 +164,7 @@
       globalObj.updateMessageTabControls();
       globalObj.renderDetailHeader();
       await globalObj.refreshPersonCampaignLinks();
+      await globalObj.refreshNotes?.({ force: true });
       await globalObj.refreshCompanySuggestionUiForCurrentInvitation();
       globalObj.updatePhaseButtons();
     } finally {

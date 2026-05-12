@@ -28,6 +28,7 @@ try {
   importScripts("./supabase-company.js");
   importScripts("./supabase-prompts.js");
   importScripts("./supabase-campaigns.js");
+  importScripts("./supabase-notes.js");
   importScripts("./supabase-overview.js");
 } catch (e) {
   console.error("[LEF] failed to import supabase modules", e);
@@ -47,6 +48,7 @@ const LEF_SUPABASE_INVITATIONS = globalThis.LEFSupabaseInvitations || {};
 const LEF_SUPABASE_COMPANY = globalThis.LEFSupabaseCompany || {};
 const LEF_SUPABASE_PROMPTS = globalThis.LEFSupabasePrompts || {};
 const LEF_SUPABASE_CAMPAIGNS = globalThis.LEFSupabaseCampaigns || {};
+const LEF_SUPABASE_NOTES = globalThis.LEFSupabaseNotes || {};
 const LEF_SUPABASE_OVERVIEW = globalThis.LEFSupabaseOverview || {};
 
 const fetchWithTimeout = LEF_OPENAI.fetchWithTimeout;
@@ -1074,6 +1076,44 @@ const ROUTES = {
         msg?.payload || {},
       );
       return { ok: true, prompt };
+    },
+  },
+  DB_LIST_NOTES: {
+    errorCode: "SUPABASE_GET_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Fetching notes\u2026");
+      const rows = await LEF_SUPABASE_NOTES.supabaseListNotes(
+        msg?.payload || {},
+      );
+      return { ok: true, rows };
+    },
+  },
+  DB_CREATE_NOTE: {
+    errorCode: "SUPABASE_UPSERT_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Saving note\u2026");
+      const note = await LEF_SUPABASE_NOTES.supabaseCreateNote(
+        msg?.payload || {},
+      );
+      return { ok: true, note };
+    },
+  },
+  DB_UPDATE_NOTE: {
+    errorCode: "SUPABASE_UPDATE_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Saving note\u2026");
+      const note = await LEF_SUPABASE_NOTES.supabaseUpdateNote(
+        msg?.payload || {},
+      );
+      return { ok: true, note };
+    },
+  },
+  DB_ARCHIVE_NOTE: {
+    errorCode: "SUPABASE_UPDATE_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Archiving note\u2026");
+      await LEF_SUPABASE_NOTES.supabaseArchiveNote(msg?.payload || {});
+      return { ok: true };
     },
   },
   DB_LIST_CAMPAIGNS: {

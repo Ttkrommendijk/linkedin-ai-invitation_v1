@@ -456,6 +456,9 @@ function runPopupInit() {
   applyLifecycleUiState(PopupState.dbInvitationRow);
   renderMessageTab(PopupState.outreachMessageStatus);
   setDetailInnerTab("free_prompt");
+  if (globalThis.PopupNotesController?.init) {
+    globalThis.PopupNotesController.init();
+  }
   renderDetailHeader();
   updatePhaseButtons();
   loadProfileContextOnOpen().catch((_e) => {});
