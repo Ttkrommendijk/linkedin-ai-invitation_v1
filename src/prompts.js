@@ -111,7 +111,7 @@ Return this exact schema:
 
 Rules:
 - "company_name" must be only the company/organization name.
-- "employee_number" means total employee count or company size if available.
+- "employee_number" means total employee count or company size if available. you must translate mil to thousands, for example 1 mil is 1000 and 2 mil is 2000
 - "sector" means industry/sector, use the exact name from the page information.
 - "city" means headquarters or primary location city.
 - "it_members" means number of IT employees if clearly available; otherwise "".
