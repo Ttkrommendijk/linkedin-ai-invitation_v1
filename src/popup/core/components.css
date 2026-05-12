@@ -952,6 +952,10 @@
 .note-editor-row-three {
     grid-template-columns: 1fr 1fr 1fr;
 }
+.note-editor-row-date-status,
+.note-editor-row-type-duration {
+    grid-template-columns: 1fr 1fr;
+}
 .note-field {
     display: grid;
     gap: 4px;
@@ -977,13 +981,4 @@
 .note-actions .btn-small-primary,
 .note-actions .btn-small-secondary {
     margin: 0;
-}
-
-
-.company-profile-tabs {
-    margin-top: 12px;
-}
-
-.company-profile-mode .notes-filter-group {
-    display: none !important;
 }

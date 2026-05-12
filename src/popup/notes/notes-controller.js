@@ -30,34 +30,9 @@
     );
   }
 
-  function isCompanyNotesContext() {
-    return (
-      typeof globalObj.isCompanyProfileMode === "function" &&
-      globalObj.isCompanyProfileMode()
-    );
-  }
-
-  function getActiveNotesContext() {
-    const profile = state.currentProfileContext || {};
-    if (isCompanyNotesContext()) {
-      const companyRow = globalObj.dbCompanyRow || {};
-      const companyId = safeTrim(companyRow.company_id || profile.company_id);
-      return {
-        contextType: "company",
-        personId: "",
-        companyId,
-        dealId: "",
-        personName: "",
-        companyName: safeTrim(
-          companyRow.company_name ||
-            profile.company_name ||
-            profile.name ||
-            profile.full_name,
-        ),
-      };
-    }
-
+  function getPersonContext() {
     const row = state.dbInvitationRow || {};
+    const profile = state.currentProfileContext || {};
     const personId = safeTrim(row.id || row.person_id);
     const companyId = safeTrim(row.company_id || profile.company_id);
     return {
@@ -72,19 +47,15 @@
     };
   }
 
-  function getPersonContext() {
-    return getActiveNotesContext();
-  }
-
   function getContextKey(ctx) {
     return [ctx.contextType, ctx.personId, ctx.companyId, ctx.dealId].join("|");
   }
 
-  function toDateInputValue(value) {
+  function toDateTimeInputValue(value) {
     const date = value ? new Date(value) : new Date();
-    if (Number.isNaN(date.getTime()))
-      return new Date().toISOString().slice(0, 10);
-    return date.toISOString().slice(0, 10);
+    const normalized = Number.isNaN(date.getTime()) ? new Date() : date;
+    const offsetMs = normalized.getTimezoneOffset() * 60000;
+    return new Date(normalized.getTime() - offsetMs).toISOString().slice(0, 16);
   }
 
   function formatDate(value) {
@@ -103,13 +74,18 @@
 
   function deriveStatus(dateValue, selectedStatus) {
     const rawStatus = safeTrim(selectedStatus) || "ready";
-    const date = new Date(`${toDateInputValue(dateValue)}T00:00:00`);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (!Number.isNaN(date.getTime()) && date.getTime() > today.getTime()) {
+    const date = new Date(dateValue);
+    const now = new Date();
+    if (!Number.isNaN(date.getTime()) && date.getTime() > now.getTime()) {
       return "planned";
     }
     return rawStatus;
+  }
+
+  function normalizeDuration(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number) || number < 0) return "";
+    return String(Math.round(number));
   }
 
   function getNoteKind(note) {
@@ -151,10 +127,6 @@
   }
 
   function setFilter(nextFilter) {
-    if (isCompanyNotesContext()) {
-      localState.filter = "company";
-      return;
-    }
     localState.filter = nextFilter === "person" ? "person" : "company";
     dom.notesFilterCompanyEl?.classList.toggle(
       "active",
@@ -187,13 +159,15 @@
     titleInput.value = safeTrim(note?.note_title);
     editor.appendChild(createField({ label: "Title", child: titleInput }));
 
-    const row = document.createElement("div");
-    row.className = "note-editor-row note-editor-row-three";
+    const dateStatusRow = document.createElement("div");
+    dateStatusRow.className = "note-editor-row note-editor-row-date-status";
 
     const dateInput = document.createElement("input");
-    dateInput.type = "date";
-    dateInput.value = toDateInputValue(note?.date || new Date());
-    row.appendChild(createField({ label: "Date", child: dateInput }));
+    dateInput.type = "datetime-local";
+    dateInput.value = toDateTimeInputValue(note?.date || new Date());
+    dateStatusRow.appendChild(
+      createField({ label: "Date and time", child: dateInput }),
+    );
 
     const statusSelect = document.createElement("select");
     ["ready", "planned"].forEach((status) => {
@@ -204,7 +178,13 @@
     });
     statusSelect.value =
       safeTrim(note?.status) || deriveStatus(dateInput.value, "ready");
-    row.appendChild(createField({ label: "Status", child: statusSelect }));
+    dateStatusRow.appendChild(
+      createField({ label: "Status", child: statusSelect }),
+    );
+    editor.appendChild(dateStatusRow);
+
+    const typeDurationRow = document.createElement("div");
+    typeDurationRow.className = "note-editor-row note-editor-row-type-duration";
 
     const typeSelect = document.createElement("select");
     [
@@ -221,8 +201,20 @@
       typeSelect.appendChild(option);
     });
     typeSelect.value = safeTrim(note?.notes_type) || "note";
-    row.appendChild(createField({ label: "Type", child: typeSelect }));
-    editor.appendChild(row);
+    typeDurationRow.appendChild(
+      createField({ label: "Type", child: typeSelect }),
+    );
+
+    const durationInput = document.createElement("input");
+    durationInput.type = "number";
+    durationInput.min = "0";
+    durationInput.step = "1";
+    durationInput.placeholder = "Duration in minutes";
+    durationInput.value = normalizeDuration(note?.duration);
+    typeDurationRow.appendChild(
+      createField({ label: "Duration in minutes", child: durationInput }),
+    );
+    editor.appendChild(typeDurationRow);
 
     dateInput.addEventListener("change", () => {
       statusSelect.value = deriveStatus(dateInput.value, statusSelect.value);
@@ -265,9 +257,10 @@
         date: dateInput.value,
         status: deriveStatus(dateInput.value, statusSelect.value),
         notes_type: typeSelect.value,
-        main_person_id: ctx.contextType === "person" ? ctx.personId : "",
+        duration: normalizeDuration(durationInput.value) || null,
+        main_person_id: ctx.personId,
         company_id: ctx.companyId,
-        deal_id: ctx.dealId || "",
+        deal_id: "",
       };
       try {
         saveBtn.disabled = true;
@@ -340,10 +333,7 @@
     card.className = "note-card note-card-new";
     const header = document.createElement("div");
     header.className = "note-card-header note-card-header-static";
-    header.textContent =
-      ctx.contextType === "company"
-        ? `New note for ${ctx.companyName || "company"}`
-        : `New note for ${ctx.personName || "person"}`;
+    header.textContent = `New note for ${ctx.personName || "person"}`;
     card.appendChild(header);
     card.appendChild(
       renderEditor(
@@ -353,6 +343,7 @@
           date: new Date().toISOString(),
           status: "ready",
           notes_type: "note",
+          duration: "",
         },
         { isNew: true },
       ),
@@ -372,14 +363,9 @@
     if (!localState.notes.length && !localState.isCreating) {
       const empty = document.createElement("div");
       empty.className = "notes-empty";
-      empty.textContent =
-        ctx.contextType === "company"
-          ? ctx.companyId
-            ? "No notes found."
-            : "Save or register this company before adding notes."
-          : ctx.personId
-            ? "No notes found."
-            : "Save or register this person before adding notes.";
+      empty.textContent = ctx.personId
+        ? "No notes found."
+        : "Save or register this person before adding notes.";
       dom.notesListEl.appendChild(empty);
       return;
     }
@@ -401,14 +387,7 @@
       renderNotes();
       return;
     }
-    if (ctx.contextType === "company" && !ctx.companyId) {
-      localState.notes = [];
-      localState.loadedContextKey = key;
-      setNotesStatus("Company must exist before notes can be loaded.");
-      renderNotes();
-      return;
-    }
-    if (ctx.contextType === "person" && !ctx.personId) {
+    if (!ctx.personId) {
       localState.notes = [];
       localState.loadedContextKey = key;
       setNotesStatus("Person must exist before notes can be loaded.");
@@ -419,10 +398,9 @@
       setNotesStatus("Loading notes...");
       const result = await sendRuntimeMessage("DB_LIST_NOTES", {
         payload: {
-          filter: ctx.contextType === "company" ? "company" : localState.filter,
+          filter: localState.filter,
           person_id: ctx.personId,
           company_id: ctx.companyId,
-          context_type: ctx.contextType,
         },
       });
       const resp = result.data || {};
@@ -461,23 +439,6 @@
     });
   }
 
-  function onProfileContextChanged() {
-    localState.loadedContextKey = "";
-    localState.expandedNoteId = null;
-    localState.isCreating = false;
-    if (isCompanyNotesContext()) {
-      localState.filter = "company";
-      if (globalObj.PopupCompanyController?.setCompanyDetailTab) {
-        // Keep the company tab state, but make sure notes refresh when active.
-        const notesActive =
-          dom.companyNotesTabBtnEl?.classList.contains("active");
-        if (notesActive) refreshNotes({ force: true });
-      }
-      return;
-    }
-    if (!dom.detailNotesPanelEl?.hidden) refreshNotes({ force: true });
-  }
-
   function init() {
     bindEvents();
     setActiveSubtab("notes");
@@ -488,7 +449,6 @@
     refreshNotes,
     renderNotes,
     setActiveSubtab,
-    onProfileContextChanged,
   };
 
   globalObj.PopupNotesController = Object.freeze(api);

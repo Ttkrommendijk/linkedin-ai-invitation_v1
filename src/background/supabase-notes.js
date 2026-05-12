@@ -50,6 +50,14 @@
       notes_type: normalizeProfileField(payload.notes_type) || "note",
     };
 
+    const duration = normalizeProfileField(payload.duration);
+    if (duration !== "") {
+      const durationNumber = Number(duration);
+      if (Number.isFinite(durationNumber) && durationNumber >= 0) {
+        note.duration = Math.round(durationNumber);
+      }
+    }
+
     const personId = normalizeProfileField(payload.main_person_id || payload.person_id);
     const companyId = normalizeProfileField(payload.company_id);
     const dealId = normalizeProfileField(payload.deal_id);
@@ -70,7 +78,7 @@
 
     const params = {
       select:
-        "note_id,note_title,note_description,created_at,status,date,notes_type,person_name,company_name,deal_name,deal_description,archived,main_person_id,company_id,deal_id",
+        "note_id,note_title,note_description,created_at,status,date,notes_type,duration,person_name,company_name,deal_name,deal_description,archived,main_person_id,company_id,deal_id",
       archived: "eq.false",
       order: "date.desc",
     };
