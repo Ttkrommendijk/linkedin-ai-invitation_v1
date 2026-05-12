@@ -12,7 +12,7 @@
   async function supabaseListCampaigns() {
     const { supabaseUrl, supabaseAnonKey, accessToken } =
       await getSupabaseRequestContext();
-    const url = `${supabaseUrl}/rest/v1/campaign?select=campaign_id,campaign_name&archived=eq.false&order=campaign_name.asc`;
+    const url = `${supabaseUrl}/rest/v1/campaign?select=campaign_id,campaign_name,color,archived&archived=eq.false&order=campaign_name.asc`;
     const res = await fetchWithTimeout(
       url,
       {
@@ -110,7 +110,6 @@
     return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
   }
 
-  
   async function supabaseArchiveCampaign({ campaign_id }) {
     const { supabaseUrl, supabaseAnonKey, accessToken } =
       await getSupabaseRequestContext();
@@ -146,13 +145,12 @@
     return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
   }
 
-
   async function supabaseListPersonCampaigns({ person_id }) {
     const { supabaseUrl, supabaseAnonKey, accessToken } =
       await getSupabaseRequestContext();
     const normalizedPersonId = normalizeProfileField(person_id);
     if (!normalizedPersonId) return [];
-    const url = `${supabaseUrl}/rest/v1/person_campaign?select=campaign_id,campaign:campaign(campaign_id,campaign_name,color)&person_id=eq.${encodeURIComponent(normalizedPersonId)}&order=campaign_id.asc`;
+    const url = `${supabaseUrl}/rest/v1/person_campaign?select=campaign_id,campaign:campaign(campaign_id,campaign_name,color,archived)&person_id=eq.${encodeURIComponent(normalizedPersonId)}&order=campaign_id.asc`;
     const res = await fetchWithTimeout(
       url,
       {
@@ -182,9 +180,12 @@
           ),
           campaign_name: normalizeProfileField(campaignObj?.campaign_name),
           color: normalizeProfileField(campaignObj?.color),
+          archived: campaignObj?.archived === true,
         };
       })
-      .filter((row) => row.campaign_id && row.campaign_name);
+      .filter(
+        (row) => row.campaign_id && row.campaign_name && row.archived !== true,
+      );
   }
 
   async function supabaseLinkPersonCampaign({ person_id, campaign_id }) {

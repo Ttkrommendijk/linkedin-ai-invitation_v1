@@ -500,6 +500,16 @@ const ROUTES = {
       return { ok: true, campaign };
     },
   },
+  DB_ARCHIVE_CAMPAIGN: {
+    requiresAuth: true,
+    handler: async (msg) => {
+      const campaign = await LEF_SUPABASE_CAMPAIGNS.supabaseArchiveCampaign(
+        msg.payload || {},
+      );
+      return { ok: true, campaign };
+    },
+  },
+
   DB_LIST_PERSON_CAMPAIGNS: {
     errorCode: "SUPABASE_GET_FAILED",
     handler: async ({ msg }) => {
