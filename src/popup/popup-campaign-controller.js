@@ -444,6 +444,7 @@
       chipEl.addEventListener("click", async (event) => {
         if (event.target.classList?.contains("campaign-chip-remove")) return;
         const colorInputEl = document.createElement("input");
+colorInputEl.classList.add("form-control");
         colorInputEl.type = "color";
         colorInputEl.value = /^#[0-9a-f]{6}$/i.test(campaignColor)
           ? campaignColor

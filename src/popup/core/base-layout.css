@@ -673,3 +673,63 @@ pre {
     text-decoration: underline;
     text-decoration-style: dotted;
 }
+
+
+/* Shared form exceptions */
+.readonly-text,
+textarea[readonly].readonly-text,
+input[readonly].readonly-text {
+    min-height: 0;
+    height: auto;
+    padding: 0;
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #111827;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    resize: none;
+    overflow: hidden;
+    cursor: default;
+}
+
+.readonly-text:focus,
+textarea[readonly].readonly-text:focus,
+input[readonly].readonly-text:focus {
+    border: 0;
+    box-shadow: none;
+    outline: none;
+}
+
+.form-control--profile-name,
+.profile-name-input,
+.person-name-input,
+.company-name-input {
+    min-height: 42px;
+    padding: 6px 0;
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.2;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+}
+
+.form-control--profile-name:focus,
+.profile-name-input:focus,
+.person-name-input:focus,
+.company-name-input:focus {
+    border: 0;
+    box-shadow: none;
+    outline: none;
+}
+
+.comments-readonly,
+textarea[readonly].comments-readonly {
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    overflow: hidden;
+}

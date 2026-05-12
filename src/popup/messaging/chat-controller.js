@@ -90,3 +90,14 @@
     bindChatHistoryEvents,
   });
 })(typeof globalThis !== "undefined" ? globalThis : self);
+
+
+function autosizeReadonlyTextareas(root = document) {
+  const fields = root.querySelectorAll("textarea[readonly].comments-readonly, textarea[readonly].readonly-text");
+  fields.forEach((field) => {
+    field.style.height = "auto";
+    field.style.height = `${field.scrollHeight}px`;
+  });
+}
+
+setTimeout(() => autosizeReadonlyTextareas(), 0);

@@ -181,6 +181,7 @@ const copyToClipboard =
 
         try {
           const ta = document.createElement("textarea");
+ta.classList.add("form-textarea");
           ta.value = value;
           ta.setAttribute("readonly", "");
           ta.style.position = "fixed";

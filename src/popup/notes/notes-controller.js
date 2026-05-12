@@ -154,6 +154,7 @@
     editor.className = "note-editor";
 
     const titleInput = document.createElement("input");
+titleInput.classList.add("form-control");
     titleInput.className = "note-title-input";
     titleInput.placeholder = "Note title";
     titleInput.value = safeTrim(note?.note_title);
@@ -163,6 +164,7 @@
     dateStatusRow.className = "note-editor-row note-editor-row-date-status";
 
     const dateInput = document.createElement("input");
+dateInput.classList.add("form-control");
     dateInput.type = "datetime-local";
     dateInput.value = toDateTimeInputValue(note?.date || new Date());
     dateStatusRow.appendChild(
@@ -170,6 +172,7 @@
     );
 
     const statusSelect = document.createElement("select");
+statusSelect.classList.add("form-select");
     ["ready", "planned"].forEach((status) => {
       const option = document.createElement("option");
       option.value = status;
@@ -187,6 +190,7 @@
     typeDurationRow.className = "note-editor-row note-editor-row-type-duration";
 
     const typeSelect = document.createElement("select");
+typeSelect.classList.add("form-select");
     [
       ["note", "Note"],
       ["email", "Email"],
@@ -206,6 +210,7 @@
     );
 
     const durationInput = document.createElement("input");
+durationInput.classList.add("form-control");
     durationInput.type = "number";
     durationInput.min = "0";
     durationInput.step = "1";
@@ -221,6 +226,7 @@
     });
 
     const descriptionInput = document.createElement("textarea");
+descriptionInput.classList.add("form-textarea");
     descriptionInput.className = "note-description-input";
     descriptionInput.placeholder = "Description";
     descriptionInput.value = safeTrim(note?.note_description);
