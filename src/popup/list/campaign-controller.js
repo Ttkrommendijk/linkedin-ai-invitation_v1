@@ -21,6 +21,10 @@ companyNewCampaignRowEl, companyToggleNewCampaignBtnEl,
 companyNewCampaignNameEl, companyRenameCampaignNameEl,
 filterCampaignEl, companyCampaignFilterEl,
 linkedCampaignsListEl, companyLinkedCampaignsListEl,
+campaignComboToggleEl, campaignComboPanelEl, campaignComboInputEl,
+campaignComboListEl, companyCampaignComboToggleEl,
+companyCampaignComboPanelEl, companyCampaignComboInputEl,
+companyCampaignComboListEl,
 } = PopupDom; const safeTrim =
 typeof PopupUtils.safeTrim === "function" ? PopupUtils.safeTrim
 : (value) => (value == null ? "" : String(value).trim()); const OVERVIEW_CAMPAIGN_LABEL_MAX = 52;
@@ -242,6 +246,8 @@ setFooterStatus(`DB error: ${getErrorMessage(e)}`); } finally {
 setFooterReady(); }
 }); chipEl.appendChild(removeBtn);
 linkedCampaignsListEl.appendChild(chipEl); }
+if (campaignComboToggleEl) linkedCampaignsListEl.appendChild(campaignComboToggleEl);
+if (campaignComboPanelEl) linkedCampaignsListEl.appendChild(campaignComboPanelEl);
 } function renderCompanyLinkedCampaignChips() {
 if (!companyLinkedCampaignsListEl) return; const sendRuntimeMessage = requireFn("sendRuntimeMessage");
 const setFooterUpdatingStatus = requireFn("setFooterUpdatingStatus"); const setFooterStatus = requireFn("setFooterStatus");
@@ -279,6 +285,8 @@ await openCampaignColorPicker({ campaignId,
 campaignColor, onSaved: refreshCompanyPeopleList,
 }); });
 companyLinkedCampaignsListEl.appendChild(chipEl); }
+if (companyCampaignComboToggleEl) companyLinkedCampaignsListEl.appendChild(companyCampaignComboToggleEl);
+if (companyCampaignComboPanelEl) companyLinkedCampaignsListEl.appendChild(companyCampaignComboPanelEl);
 } async function openCampaignColorPicker({
 campaignId, campaignColor,
 onSaved = null, } = {}) {
@@ -369,11 +377,188 @@ campaign_name: nextName, },
 throw new Error(getErrorMessage(result.error));
 } await loadCampaignOptions({ keepSelected: true });
 setCampaignSelectValue(campaignId); await saveLastActiveCampaign(campaignId);
+}
+function getLinkedCampaignIds(scope) {
+const rows = scope === "company" ? state.companyLinkedCampaignRows : state.linkedPersonCampaignRows;
+return new Set((rows || []).map((row) => safeTrim(row?.campaign_id)).filter(Boolean));
+}
+function getCampaignComboElements(scope) {
+if (scope === "company") {
+return { toggleEl: companyCampaignComboToggleEl,
+panelEl: companyCampaignComboPanelEl,
+inputEl: companyCampaignComboInputEl,
+listEl: companyCampaignComboListEl,
+selectEl: companyCampaignSelectEl, };
+}
+return { toggleEl: campaignComboToggleEl,
+panelEl: campaignComboPanelEl,
+inputEl: campaignComboInputEl,
+listEl: campaignComboListEl,
+selectEl: campaignSelectEl, };
+}
+function closeCampaignCombo(scope) {
+const { panelEl, inputEl, listEl, selectEl } = getCampaignComboElements(scope);
+if (panelEl) panelEl.hidden = true;
+if (inputEl) inputEl.value = "";
+if (listEl) listEl.innerHTML = "";
+if (selectEl) selectEl.value = "";
+}
+function closeOtherCampaignCombo(scope) {
+closeCampaignCombo(scope === "company" ? "person" : "company");
+}
+function getFilteredCampaignRows(scope, searchText) {
+const linkedIds = getLinkedCampaignIds(scope);
+const query = safeTrim(searchText).toLowerCase();
+return state.knownCampaignRows
+.filter((row) => safeTrim(row?.campaign_id) && safeTrim(row?.campaign_name))
+.filter((row) => !linkedIds.has(safeTrim(row?.campaign_id)))
+.filter((row) => !query || safeTrim(row?.campaign_name).toLowerCase().includes(query))
+.slice(0, 25);
+}
+function hasExactCampaignName(searchText) {
+const query = safeTrim(searchText).toLowerCase();
+if (!query) return true;
+return state.knownCampaignRows.some((row) => safeTrim(row?.campaign_name).toLowerCase() === query);
+}
+async function linkCampaignFromCombo(scope, campaignId) {
+const setFooterUpdatingStatus = requireFn("setFooterUpdatingStatus");
+const setFooterStatus = requireFn("setFooterStatus");
+const setFooterReady = requireFn("setFooterReady");
+const getErrorMessage = getErrorMessageFromUtils || requireFn("getErrorMessage");
+const sendRuntimeMessage = requireFn("sendRuntimeMessage");
+const refreshCompanyPeopleList = requireFn("refreshCompanyPeopleList");
+const getCompanyPeopleRows = requireFn("getCompanyPeopleRows");
+const normalizedCampaignId = safeTrim(campaignId);
+if (!normalizedCampaignId) return;
+setFooterUpdatingStatus();
+try {
+if (scope === "company") {
+const personIds = Array.from(new Set(getCompanyPeopleRows().map((row) => safeTrim(row?.id)).filter(Boolean)));
+if (!personIds.length) {
+setFooterStatus("No linked persons found for this company.");
+return;
+}
+await Promise.all(personIds.map((personId) => sendRuntimeMessage("DB_LINK_PERSON_CAMPAIGN", {
+payload: { person_id: personId, campaign_id: normalizedCampaignId },
+})));
+await refreshCompanyPeopleList();
+setFooterStatus("Campaign linked to all persons.");
+} else {
+await handleCampaignSelection(normalizedCampaignId);
+setFooterStatus("Campaign linked.");
+}
+closeCampaignCombo(scope);
+} catch (e) {
+setFooterStatus(`DB error: ${getErrorMessage(e)}`);
+} finally {
+setFooterReady();
+}
+}
+async function createCampaignFromCombo(scope, campaignName) {
+const sendRuntimeMessage = requireFn("sendRuntimeMessage");
+const setFooterUpdatingStatus = requireFn("setFooterUpdatingStatus");
+const setFooterStatus = requireFn("setFooterStatus");
+const setFooterReady = requireFn("setFooterReady");
+const getErrorMessage = getErrorMessageFromUtils || requireFn("getErrorMessage");
+const normalizedName = normalizeCampaignValue(campaignName);
+if (!normalizedName) return;
+setFooterUpdatingStatus();
+try {
+const createResult = await sendRuntimeMessage("DB_CREATE_CAMPAIGN", {
+payload: { campaign_name: normalizedName },
+});
+const createResp = createResult.data || {};
+if (!createResult.ok || !createResp?.campaign?.campaign_id) {
+throw new Error(getErrorMessage(createResult.error || createResp?.error));
+}
+const createdCampaignId = safeTrim(createResp.campaign.campaign_id);
+await loadCampaignOptions({ keepSelected: true });
+await linkCampaignFromCombo(scope, createdCampaignId);
+} catch (e) {
+setFooterStatus(`DB error: ${getErrorMessage(e)}`);
+} finally {
+setFooterReady();
+}
+}
+function renderCampaignComboOptions(scope) {
+const { inputEl, listEl } = getCampaignComboElements(scope);
+if (!listEl) return;
+const searchText = inputEl?.value || "";
+const rows = getFilteredCampaignRows(scope, searchText);
+listEl.innerHTML = "";
+if (!rows.length && hasExactCampaignName(searchText)) {
+const emptyEl = document.createElement("div");
+emptyEl.className = "campaign-combo-empty";
+emptyEl.textContent = "No available campaigns.";
+listEl.appendChild(emptyEl);
+}
+for (const row of rows) {
+const optionEl = document.createElement("button");
+optionEl.type = "button";
+optionEl.className = "campaign-combo-option";
+optionEl.textContent = truncateCampaignLabel(row.campaign_name, 80);
+optionEl.title = row.campaign_name;
+optionEl.addEventListener("click", () => linkCampaignFromCombo(scope, row.campaign_id));
+listEl.appendChild(optionEl);
+}
+const normalizedSearch = normalizeCampaignValue(searchText);
+if (normalizedSearch && !hasExactCampaignName(normalizedSearch)) {
+const createEl = document.createElement("button");
+createEl.type = "button";
+createEl.className = "campaign-combo-option campaign-combo-create";
+createEl.textContent = `+ Create "${truncateCampaignLabel(normalizedSearch, 60)}"`;
+createEl.addEventListener("click", () => createCampaignFromCombo(scope, normalizedSearch));
+listEl.appendChild(createEl);
+}
+}
+function openCampaignCombo(scope) {
+const { panelEl, inputEl } = getCampaignComboElements(scope);
+if (!panelEl || !inputEl) return;
+closeOtherCampaignCombo(scope);
+panelEl.hidden = false;
+inputEl.value = "";
+renderCampaignComboOptions(scope);
+setTimeout(() => inputEl.focus(), 0);
+}
+function bindCampaignComboEvents(scope) {
+const { toggleEl, panelEl, inputEl } = getCampaignComboElements(scope);
+toggleEl?.addEventListener("click", () => {
+if (panelEl && !panelEl.hidden) {
+closeCampaignCombo(scope);
+return;
+}
+openCampaignCombo(scope);
+});
+inputEl?.addEventListener("input", () => renderCampaignComboOptions(scope));
+inputEl?.addEventListener("keydown", (event) => {
+if (event.key === "Escape") {
+event.preventDefault();
+closeCampaignCombo(scope);
+return;
+}
+if (event.key !== "Enter") return;
+event.preventDefault();
+const firstOption = getCampaignComboElements(scope).listEl?.querySelector(".campaign-combo-option");
+if (firstOption) firstOption.click();
+});
+}
+function bindCampaignComboOutsideClose() {
+document.addEventListener("click", (event) => {
+for (const scope of ["person", "company"]) {
+const { panelEl, toggleEl } = getCampaignComboElements(scope);
+if (!panelEl || panelEl.hidden) continue;
+if (panelEl.contains(event.target) || toggleEl?.contains(event.target)) continue;
+closeCampaignCombo(scope);
+}
+});
 } function bindCampaignEvents() {
 const sendRuntimeMessage = requireFn("sendRuntimeMessage"); const getErrorMessage =
 getErrorMessageFromUtils || requireFn("getErrorMessage"); const setFooterStatus = requireFn("setFooterStatus");
 const setFooterReady = requireFn("setFooterReady"); const setFooterUpdatingStatus = requireFn("setFooterUpdatingStatus");
 const refreshCompanyPeopleList = requireFn("refreshCompanyPeopleList"); const getCompanyPeopleRows = requireFn("getCompanyPeopleRows");
+bindCampaignComboEvents("person");
+bindCampaignComboEvents("company");
+bindCampaignComboOutsideClose();
 campaignSelectEl?.addEventListener("change", async () => { updateDetailCampaignSelectTitle();
 updateRenameCampaignButtonState(); if (!campaignSelectEl.value) {
 await saveLastActiveCampaign(""); return;
@@ -490,5 +675,6 @@ openCampaignColorPicker, loadCampaignOptions,
 applyCampaignSelectionFromProfile, refreshPersonCampaignLinks,
 linkCampaignToCurrentPerson, handleCampaignSelection,
 renameSelectedCampaign, refreshCompanyPeopleList,
+openCampaignCombo, closeCampaignCombo, renderCampaignComboOptions,
 bindCampaignEvents, });
 })(typeof globalThis !== "undefined" ? globalThis : self);

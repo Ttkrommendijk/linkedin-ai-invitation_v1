@@ -240,12 +240,14 @@ hidden
 ><div
 id="companyLinkedCampaignsList"
 class="linked-campaigns-list"
-></div><div class="campaign-main-row filter-field"><select
+></div><div class="campaign-main-row filter-field campaign-combo-row"><select
 id="companyCampaignSelect"
-class="campaign-select"
-><option value="">Select campaign</option></select><button
+class="campaign-select campaign-hidden-select"
+aria-hidden="true"
+tabindex="-1"
+><option value="">Select campaign</option></select><button id="companyCampaignComboToggle" class="campaign-add-chip" type="button">+ Add campaign</button><div id="companyCampaignComboPanel" class="campaign-combo-panel" hidden><input id="companyCampaignComboInput" class="campaign-combo-input" type="text" placeholder="Search campaign" autocomplete="off"/><div id="companyCampaignComboList" class="campaign-combo-list"></div></div><button
 id="companyRenameCampaign"
-class="btn-link"
+class="btn-link campaign-legacy-action"
 type="button"
 title="Rename campaign"
 aria-label="Rename campaign"
@@ -254,8 +256,9 @@ hidden
 ✎
 </button><button
 id="companyToggleNewCampaign"
-class="btn-link"
+class="btn-link campaign-legacy-action"
 type="button"
+hidden
 >
 + New
 </button></div><div
@@ -306,9 +309,9 @@ class="company-people-list"
 ></div></div></div><div id="campaignDivider" class="section-divider"></div><div id="campaignGroup" class="form-group campaign-group"><div
 id="linkedCampaignsList"
 class="linked-campaigns-list"
-></div><div class="campaign-main-row filter-field"><select id="campaignSelect" class="campaign-select"><option value="">(no campaign)</option></select><button
+></div><div class="campaign-main-row filter-field campaign-combo-row"><select id="campaignSelect" class="campaign-select campaign-hidden-select" aria-hidden="true" tabindex="-1"><option value="">(no campaign)</option></select><button id="campaignComboToggle" class="campaign-add-chip" type="button">+ Add campaign</button><div id="campaignComboPanel" class="campaign-combo-panel" hidden><input id="campaignComboInput" class="campaign-combo-input" type="text" placeholder="Search campaign" autocomplete="off"/><div id="campaignComboList" class="campaign-combo-list"></div></div><button
 id="renameCampaign"
-class="btn-link"
+class="btn-link campaign-legacy-action"
 type="button"
 title="Rename campaign"
 aria-label="Rename campaign"
@@ -317,8 +320,9 @@ hidden
 ✎
 </button><button
 id="toggleNewCampaign"
-class="btn-link"
+class="btn-link campaign-legacy-action"
 type="button"
+hidden
 >
 + New
 </button></div><div
