@@ -705,3 +705,36 @@ textarea[readonly].comments-readonly {
     overflow: hidden;
     resize: none;
 }
+
+/* Read-only display fields should render as plain text, while keeping the
+   same .form-control base class for editable state consistency. */
+.form-control.readonly-text[readonly],
+textarea.form-control.readonly-text[readonly] {
+    min-height: 0;
+    padding: 0;
+    border-color: transparent;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: var(--text);
+    cursor: default;
+}
+
+.form-control.readonly-text[readonly]:focus,
+textarea.form-control.readonly-text[readonly]:focus {
+    outline: none;
+    border-color: transparent;
+    box-shadow: none;
+}
+
+textarea.form-control.readonly-text[readonly] {
+    overflow: hidden;
+    resize: none;
+}
+
+.form-control--profile-name[readonly] {
+    min-height: 0;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.2;
+}
