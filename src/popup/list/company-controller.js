@@ -155,7 +155,12 @@ const isProfileEditMode = Boolean(globalObj.isProfileEditMode); const dbCompanyR
 const shouldShowExistingCompanyDropdown = isCompany && !dbCompanyRow; const shouldShowProfileNotRegistered =
 !isProfileEditMode && ((!isCompany && !PopupState.dbInvitationRow) || (isCompany && !dbCompanyRow));
 document.documentElement.classList.toggle("company-profile-mode", isCompany); document.body?.classList.toggle("company-profile-mode", isCompany);
-tabMain?.classList.toggle("company-profile-mode", isCompany); if (companyProfileTabsRowEl) companyProfileTabsRowEl.hidden = !isCompany; if (detailCompanyLabelEl) {
+  tabMain?.classList.toggle("company-profile-mode", isCompany);
+  if (companyProfileTabsRowEl) {
+    companyProfileTabsRowEl.hidden = !isCompany;
+    companyProfileTabsRowEl.style.display = isCompany ? "" : "none";
+  }
+if (detailCompanyLabelEl) {
 detailCompanyLabelEl.textContent = "Company:"; detailCompanyLabelEl.hidden =
 isCompany || shouldShowProfileNotRegistered ||
 (!isProfileEditMode && !isCompany); }
@@ -193,7 +198,18 @@ tabMessage, tabFreePromptEl,
 acceptedModeEl, firstMessageSentModeEl,
 ]) { if (!el) continue;
 el.hidden = hideInvitationUi; el.style.display = hideInvitationUi ? "none" : "";
-} if (isCompany) { setCompanyDetailTab(getActiveCompanyDetailTab()); } else { if (companyProfileTabsRowEl) companyProfileTabsRowEl.hidden = true; if (PopupDom.notesFilterCompanyEl?.parentElement) PopupDom.notesFilterCompanyEl.parentElement.hidden = false; } if (companyLinkedRowEl) {
+} if (isCompany) {
+    setCompanyDetailTab(getActiveCompanyDetailTab());
+} else {
+  if (companyProfileTabsRowEl) {
+    companyProfileTabsRowEl.hidden = true;
+    companyProfileTabsRowEl.style.display = "none";
+  }
+}
+if (PopupDom.notesFilterCompanyEl?.parentElement) {
+  PopupDom.notesFilterCompanyEl.parentElement.hidden = isCompany;
+}
+if (companyLinkedRowEl) {
 const hasQuickLinkSuggestion = !isCompany &&
 !isProfileEditMode && Boolean(state.companySuggestionState?.company_id);
 const shouldForceHideLinkedRow = isCompany || (shouldShowProfileNotRegistered && !hasQuickLinkSuggestion);
