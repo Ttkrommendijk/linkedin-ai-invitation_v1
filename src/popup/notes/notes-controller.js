@@ -3,9 +3,14 @@
   const dom = globalObj.PopupDom || {};
   const state = globalObj.PopupState || {};
   const utils = globalObj.PopupUtils || {};
-  const sendRuntimeMessage = utils.sendRuntimeMessage || globalObj.sendRuntimeMessage;
-  const getErrorMessage = utils.getErrorMessage || globalObj.getErrorMessage || ((e) => String(e || "Unexpected error."));
-  const safeTrim = utils.safeTrim || ((value) => (value == null ? "" : String(value).trim()));
+  const sendRuntimeMessage =
+    utils.sendRuntimeMessage || globalObj.sendRuntimeMessage;
+  const getErrorMessage =
+    utils.getErrorMessage ||
+    globalObj.getErrorMessage ||
+    ((e) => String(e || "Unexpected error."));
+  const safeTrim =
+    utils.safeTrim || ((value) => (value == null ? "" : String(value).trim()));
 
   const localState = {
     filter: "company",
@@ -18,15 +23,18 @@
   function hasRequiredDom() {
     return Boolean(
       dom.detailNotesTabBtnEl &&
-        dom.detailPromptsTabBtnEl &&
-        dom.detailNotesPanelEl &&
-        dom.detailPromptsPanelEl &&
-        dom.notesListEl,
+      dom.detailPromptsTabBtnEl &&
+      dom.detailNotesPanelEl &&
+      dom.detailPromptsPanelEl &&
+      dom.notesListEl,
     );
   }
 
   function isCompanyNotesContext() {
-    return typeof globalObj.isCompanyProfileMode === "function" && globalObj.isCompanyProfileMode();
+    return (
+      typeof globalObj.isCompanyProfileMode === "function" &&
+      globalObj.isCompanyProfileMode()
+    );
   }
 
   function getActiveNotesContext() {
@@ -40,7 +48,12 @@
         companyId,
         dealId: "",
         personName: "",
-        companyName: safeTrim(companyRow.company_name || profile.company_name || profile.name || profile.full_name),
+        companyName: safeTrim(
+          companyRow.company_name ||
+            profile.company_name ||
+            profile.name ||
+            profile.full_name,
+        ),
       };
     }
 
@@ -53,7 +66,9 @@
       companyId,
       dealId: "",
       personName: safeTrim(row.full_name || profile.full_name || profile.name),
-      companyName: safeTrim(row.company || profile.company || profile.company_name),
+      companyName: safeTrim(
+        row.company || profile.company || profile.company_name,
+      ),
     };
   }
 
@@ -67,7 +82,8 @@
 
   function toDateInputValue(value) {
     const date = value ? new Date(value) : new Date();
-    if (Number.isNaN(date.getTime())) return new Date().toISOString().slice(0, 10);
+    if (Number.isNaN(date.getTime()))
+      return new Date().toISOString().slice(0, 10);
     return date.toISOString().slice(0, 10);
   }
 
@@ -114,8 +130,10 @@
   function getRelatedName(note, ctx) {
     const kind = getNoteKind(note);
     if (kind === "deal") return safeTrim(note?.deal_name) || "Deal";
-    if (kind === "person") return safeTrim(note?.person_name) || ctx.personName || "Person";
-    if (kind === "company") return safeTrim(note?.company_name) || ctx.companyName || "Company";
+    if (kind === "person")
+      return safeTrim(note?.person_name) || ctx.personName || "Person";
+    if (kind === "company")
+      return safeTrim(note?.company_name) || ctx.companyName || "Company";
     return "Note";
   }
 
@@ -138,8 +156,14 @@
       return;
     }
     localState.filter = nextFilter === "person" ? "person" : "company";
-    dom.notesFilterCompanyEl?.classList.toggle("active", localState.filter === "company");
-    dom.notesFilterPersonEl?.classList.toggle("active", localState.filter === "person");
+    dom.notesFilterCompanyEl?.classList.toggle(
+      "active",
+      localState.filter === "company",
+    );
+    dom.notesFilterPersonEl?.classList.toggle(
+      "active",
+      localState.filter === "person",
+    );
     refreshNotes({ force: true });
   }
 
@@ -178,7 +202,8 @@
       option.textContent = status;
       statusSelect.appendChild(option);
     });
-    statusSelect.value = safeTrim(note?.status) || deriveStatus(dateInput.value, "ready");
+    statusSelect.value =
+      safeTrim(note?.status) || deriveStatus(dateInput.value, "ready");
     row.appendChild(createField({ label: "Status", child: statusSelect }));
 
     const typeSelect = document.createElement("select");
@@ -188,6 +213,7 @@
       ["whatsapp", "WhatsApp"],
       ["linkedin", "LinkedIn"],
       ["telefone", "Telefone"],
+      ["meeting", "Meeting"],
     ].forEach(([value, label]) => {
       const option = document.createElement("option");
       option.value = value;
@@ -206,7 +232,9 @@
     descriptionInput.className = "note-description-input";
     descriptionInput.placeholder = "Description";
     descriptionInput.value = safeTrim(note?.note_description);
-    editor.appendChild(createField({ label: "Description", child: descriptionInput }));
+    editor.appendChild(
+      createField({ label: "Description", child: descriptionInput }),
+    );
 
     const actions = document.createElement("div");
     actions.className = "note-actions";
@@ -312,9 +340,10 @@
     card.className = "note-card note-card-new";
     const header = document.createElement("div");
     header.className = "note-card-header note-card-header-static";
-    header.textContent = ctx.contextType === "company"
-      ? `New note for ${ctx.companyName || "company"}`
-      : `New note for ${ctx.personName || "person"}`;
+    header.textContent =
+      ctx.contextType === "company"
+        ? `New note for ${ctx.companyName || "company"}`
+        : `New note for ${ctx.personName || "person"}`;
     card.appendChild(header);
     card.appendChild(
       renderEditor(
@@ -343,9 +372,14 @@
     if (!localState.notes.length && !localState.isCreating) {
       const empty = document.createElement("div");
       empty.className = "notes-empty";
-      empty.textContent = ctx.contextType === "company"
-        ? (ctx.companyId ? "No notes found." : "Save or register this company before adding notes.")
-        : (ctx.personId ? "No notes found." : "Save or register this person before adding notes.");
+      empty.textContent =
+        ctx.contextType === "company"
+          ? ctx.companyId
+            ? "No notes found."
+            : "Save or register this company before adding notes."
+          : ctx.personId
+            ? "No notes found."
+            : "Save or register this person before adding notes.";
       dom.notesListEl.appendChild(empty);
       return;
     }
@@ -359,7 +393,11 @@
     if (!hasRequiredDom() || !sendRuntimeMessage) return;
     const ctx = getPersonContext();
     const key = `${getContextKey(ctx)}|${localState.filter}`;
-    if (!force && localState.loadedContextKey === key && localState.notes.length) {
+    if (
+      !force &&
+      localState.loadedContextKey === key &&
+      localState.notes.length
+    ) {
       renderNotes();
       return;
     }
@@ -404,10 +442,18 @@
 
   function bindEvents() {
     if (!hasRequiredDom()) return;
-    dom.detailNotesTabBtnEl.addEventListener("click", () => setActiveSubtab("notes"));
-    dom.detailPromptsTabBtnEl.addEventListener("click", () => setActiveSubtab("prompts"));
-    dom.notesFilterCompanyEl?.addEventListener("click", () => setFilter("company"));
-    dom.notesFilterPersonEl?.addEventListener("click", () => setFilter("person"));
+    dom.detailNotesTabBtnEl.addEventListener("click", () =>
+      setActiveSubtab("notes"),
+    );
+    dom.detailPromptsTabBtnEl.addEventListener("click", () =>
+      setActiveSubtab("prompts"),
+    );
+    dom.notesFilterCompanyEl?.addEventListener("click", () =>
+      setFilter("company"),
+    );
+    dom.notesFilterPersonEl?.addEventListener("click", () =>
+      setFilter("person"),
+    );
     dom.addNoteBtnEl?.addEventListener("click", () => {
       localState.isCreating = true;
       localState.expandedNoteId = null;
@@ -423,7 +469,8 @@
       localState.filter = "company";
       if (globalObj.PopupCompanyController?.setCompanyDetailTab) {
         // Keep the company tab state, but make sure notes refresh when active.
-        const notesActive = dom.companyNotesTabBtnEl?.classList.contains("active");
+        const notesActive =
+          dom.companyNotesTabBtnEl?.classList.contains("active");
         if (notesActive) refreshNotes({ force: true });
       }
       return;
