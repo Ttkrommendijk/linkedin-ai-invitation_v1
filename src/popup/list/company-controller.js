@@ -434,7 +434,7 @@ companyLinkSearchInputEl.value = ""; }
 if (companyLinkSearchOptionsEl) companyLinkSearchOptionsEl.innerHTML = ""; if (acceptCompanySuggestionBtnEl) {
 acceptCompanySuggestionBtnEl.disabled = false; acceptCompanySuggestionBtnEl.hidden = true;
 } }
-function renderLinkedCompanyName(companyName, companyUrl = "", employeeNumber = "") { const isProfileEditMode = Boolean(globalObj.isProfileEditMode);
+function renderLinkedCompanyName(companyName, companyUrl = "", companySize = "") { const isProfileEditMode = Boolean(globalObj.isProfileEditMode);
 if (companyLinkedNameEl) { companyLinkedNameEl.hidden = isProfileEditMode;
 companyLinkedNameEl.textContent = safeTrim(companyName) || "-"; companyLinkedNameEl.classList.add("is-linked");
 companyLinkedNameEl.classList.remove("is-unlinked"); const normalizedCompanyUrl = safeTrim(companyUrl);
@@ -445,7 +445,7 @@ companyLinkedNameEl.setAttribute("tabindex", "0"); companyLinkedNameEl.title = "
 companyLinkedNameEl.classList.remove("has-company-url"); companyLinkedNameEl.removeAttribute("role");
 companyLinkedNameEl.removeAttribute("tabindex"); companyLinkedNameEl.removeAttribute("title");
 } }
-if (companyLinkedEmployeeNumberEl) { const employeeText = safeTrim(employeeNumber);
+if (companyLinkedEmployeeNumberEl) { const employeeText = safeTrim(companySize);
 companyLinkedEmployeeNumberEl.textContent = employeeText ? `(${employeeText})`
 : ""; companyLinkedEmployeeNumberEl.hidden = !employeeText;
 } if (companyLinkedRowEl) companyLinkedRowEl.hidden = false;
@@ -479,7 +479,7 @@ if (savedCompanyId) { PopupLogger.debug("[LEF][quick-link][skip-existing-link]",
 const result = await sendRuntimeMessage("DB_GET_COMPANY_BY_ID", { payload: { company_id: savedCompanyId },
 }); const companyRow = result.ok ? result.data?.company || null : null;
 renderLinkedCompanyName( safeTrim(companyRow?.company_name) || savedCompany,
-safeTrim(companyRow?.linkedin_id), safeTrim(companyRow?.employee_number),
+safeTrim(companyRow?.linkedin_id), safeTrim(companyRow?.company_size),
 ); return;
 } if (detailCompanyEl) detailCompanyEl.hidden = false;
 const result = await sendRuntimeMessage("DB_FIND_COMPANY_BY_NAME", { payload: { company_name: savedCompany },
@@ -492,7 +492,7 @@ PopupLogger.debug("[LEF][company suggestion] exact match found", { company_id: c
 company_name: companyRow.company_name, });
 renderCompanySuggestionFound({ company_id: companyRow.company_id,
 company_name: companyRow.company_name, linkedin_id: companyRow.linkedin_id || "",
-employee_number: companyRow.employee_number || "", });
+employee_number: companyRow.employee_number || "", company_size: companyRow.company_size || "", });
 return; }
 PopupLogger.debug("[LEF][company suggestion] no exact match found", { company_name: savedCompany,
 }); renderCompanySuggestionNotFound();

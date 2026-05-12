@@ -378,7 +378,7 @@ function renderCompanyOverviewTable(rows) {
       },
       {
         className: "overview-cell-text",
-        value: (row) => row?.employee_number || "0",
+        value: (row) => row?.company_size || "0",
       },
       { className: "overview-cell-text", value: (row) => row?.sector || "" },
       { className: "overview-cell-text", value: (row) => row?.campaigns || "" },
@@ -543,7 +543,7 @@ function getGridColumnKey(kind, index) {
       "companies_customer_potential_score",
       "companies_company_name",
       "companies_linked_person_count",
-      "companies_employee_number",
+      "companies_company_size",
       "companies_sector",
       "companies_campaigns",
     ];

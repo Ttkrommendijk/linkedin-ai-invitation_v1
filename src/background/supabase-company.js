@@ -31,7 +31,7 @@
     const allowed = new Set([
       "customer_potential_score",
       "company_name",
-      "employee_number",
+      "company_size",
       "linked_person_count",
       "sector",
       "campaigns",
@@ -88,7 +88,7 @@
       await getSupabaseRequestContext();
     const normalizedCompanyId = normalizeProfileField(company_id);
     if (!normalizedCompanyId) return null;
-    const url = `${supabaseUrl}/rest/v1/company?select=company_id,company_name,linkedin_id,archived,employee_number,it_members,sector,city&company_id=eq.${encodeURIComponent(normalizedCompanyId)}&limit=1`;
+    const url = `${supabaseUrl}/rest/v1/company?select=company_id,company_name,linkedin_id,archived,employee_number,company_size,it_members,sector,city&company_id=eq.${encodeURIComponent(normalizedCompanyId)}&limit=1`;
     const res = await fetchWithTimeout(
       url,
       {
@@ -121,7 +121,7 @@
       Number.isFinite(parsedLimit) && parsedLimit > 0
         ? Math.min(50, Math.floor(parsedLimit))
         : 10;
-    const url = `${supabaseUrl}/rest/v1/company?select=company_id,company_name,archived&company_name=ilike.${encodeURIComponent(`*${normalizedTerm}*`)}&archived=eq.0&order=company_name.asc&limit=${safeLimit}`;
+    const url = `${supabaseUrl}/rest/v1/company?select=company_id,company_name,archived,company_size&company_name=ilike.${encodeURIComponent(`*${normalizedTerm}*`)}&archived=eq.0&order=company_name.asc&limit=${safeLimit}`;
     const res = await fetchWithTimeout(
       url,
       {
@@ -383,7 +383,7 @@
     const params = new URLSearchParams();
     params.set(
       "select",
-      "company_id,company_name,linkedin_id,archived,employee_number,linked_person_count,customer_potential_score,sector,campaigns",
+      "company_id,company_name,linkedin_id,archived,employee_number,company_size,linked_person_count,customer_potential_score,sector,campaigns",
     );
     params.set("limit", String(safePageSize));
     params.set("offset", String(offset));
@@ -401,7 +401,7 @@
       const q = String(search).trim().replace(/\*/g, "");
       params.set(
         "or",
-        `(company_name.ilike.*${q}*,employee_number.ilike.*${q}*,sector.ilike.*${q}*,campaigns.ilike.*${q}*)`,
+        `(company_name.ilike.*${q}*,company_size.ilike.*${q}*,sector.ilike.*${q}*,campaigns.ilike.*${q}*)`,
       );
     }
 
@@ -436,6 +436,7 @@
       linkedin_url: normalizeLinkedinCompanyUrl(row?.linkedin_id),
       archived: row?.archived ?? 0,
       employee_number: normalizeProfileField(row?.employee_number),
+      company_size: normalizeProfileField(row?.company_size),
       linked_person_count: Number(row?.linked_person_count || 0),
       customer_potential_score: Number(row?.customer_potential_score || 0),
       sector: normalizeProfileField(row?.sector),

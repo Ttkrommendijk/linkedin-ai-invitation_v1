@@ -202,7 +202,7 @@ async function restoreOverviewFiltersFromStorage() {
       "company_name",
       "linked_person_count",
       "customer_potential_score",
-      "employee_number",
+      "company_size",
       "sector",
       "campaigns",
       "archived",
