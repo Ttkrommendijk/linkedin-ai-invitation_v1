@@ -72,48 +72,6 @@
     }
   }
 
-  function normalizeNoteStatus(note) {
-    const status = safeTrim(note?.status).toLowerCase();
-    if (status === "canceled" || status === "cancelled") return "canceled";
-    if (status === "ready" || status === "done" || status === "completed") {
-      return "ready";
-    }
-    return "open";
-  }
-
-  function isNoteOverdue(note) {
-    const status = normalizeNoteStatus(note);
-    if (status === "ready" || status === "canceled") return false;
-    const date = note?.date ? new Date(note.date) : null;
-    return Boolean(date && !Number.isNaN(date.getTime()) && date.getTime() < Date.now());
-  }
-
-  function getStatusLabel(status) {
-    if (status === "ready") return "Ready";
-    if (status === "canceled") return "Canceled";
-    return "Open";
-  }
-
-  function createNoteStatusBadges(note) {
-    const wrap = document.createElement("span");
-    wrap.className = "note-status-badges";
-
-    if (isNoteOverdue(note)) {
-      const overdue = document.createElement("span");
-      overdue.className = "note-status-badge note-status-badge-overdue";
-      overdue.textContent = "Overdue";
-      wrap.appendChild(overdue);
-    }
-
-    const status = normalizeNoteStatus(note);
-    const badge = document.createElement("span");
-    badge.className = `note-status-badge note-status-badge-${status}`;
-    badge.textContent = getStatusLabel(status);
-    wrap.appendChild(badge);
-
-    return wrap;
-  }
-
   function deriveStatus(dateValue, selectedStatus) {
     const rawStatus = safeTrim(selectedStatus) || "ready";
     const date = new Date(dateValue);
@@ -135,6 +93,44 @@
     if (safeTrim(note?.main_person_id || note?.person_id)) return "person";
     if (safeTrim(note?.company_id)) return "company";
     return "note";
+  }
+
+
+  function normalizeNoteStatus(note) {
+    return safeTrim(note?.status).toLowerCase();
+  }
+
+  function isNoteOverdue(note) {
+    const status = normalizeNoteStatus(note);
+    if (status === "ready" || status === "done" || status === "canceled" || status === "cancelled") {
+      return false;
+    }
+    const date = new Date(note?.date || note?.created_at);
+    return !Number.isNaN(date.getTime()) && date.getTime() < Date.now();
+  }
+
+  function getNoteStatusMeta(note) {
+    const status = normalizeNoteStatus(note);
+    if (isNoteOverdue(note)) {
+      return { key: "overdue", icon: "⏰", label: "Overdue" };
+    }
+    if (status === "ready" || status === "done") {
+      return { key: "ready", icon: "✓", label: "Ready" };
+    }
+    if (status === "canceled" || status === "cancelled") {
+      return { key: "canceled", icon: "⊘", label: "Canceled" };
+    }
+    return { key: status || "open", icon: "○", label: status || "Open" };
+  }
+
+  function createNoteStatusIcon(note) {
+    const meta = getNoteStatusMeta(note);
+    const el = document.createElement("span");
+    el.className = `note-status-icon note-status-icon-${meta.key}`;
+    el.textContent = meta.icon;
+    el.title = meta.label;
+    el.setAttribute("aria-label", meta.label);
+    return el;
   }
 
   function getNoteIcon(note) {
@@ -430,14 +426,9 @@
     const noteId = safeTrim(note?.note_id);
     const expanded = localState.expandedNoteId === noteId;
     const card = document.createElement("div");
-    const normalizedStatus = normalizeNoteStatus(note);
-    card.className = [
-      "note-card",
-      `note-card-status-${normalizedStatus}`,
-      isNoteOverdue(note) ? "note-card-overdue" : "",
-    ]
-      .filter(Boolean)
-      .join(" ");
+    card.className = "note-card";
+    const statusMeta = getNoteStatusMeta(note);
+    card.classList.add(`note-card-status-${statusMeta.key}`);
 
     const header = document.createElement("button");
     header.type = "button";
@@ -453,12 +444,15 @@
     const related = document.createElement("span");
     related.className = "note-related-name";
     related.textContent = getRelatedName(note, ctx);
-    const badges = createNoteStatusBadges(note);
-    left.append(icon, date, related, badges);
+    left.append(icon, date, related);
 
     const right = document.createElement("span");
-    right.className = "note-card-title";
-    right.textContent = safeTrim(note?.note_title) || "(no title)";
+    right.className = "note-card-right";
+    const statusIcon = createNoteStatusIcon(note);
+    const title = document.createElement("span");
+    title.className = "note-card-title";
+    title.textContent = safeTrim(note?.note_title) || "(no title)";
+    right.append(statusIcon, title);
     header.append(left, right);
     header.addEventListener("click", () => {
       localState.expandedNoteId = expanded ? null : noteId;

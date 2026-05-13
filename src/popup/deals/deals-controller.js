@@ -59,6 +59,44 @@
     return [];
   }
 
+
+  function normalizeNoteStatus(note) {
+    return safeTrim(note?.status).toLowerCase();
+  }
+
+  function isNoteOverdue(note) {
+    const status = normalizeNoteStatus(note);
+    if (status === "ready" || status === "done" || status === "canceled" || status === "cancelled") {
+      return false;
+    }
+    const date = new Date(note?.date || note?.created_at);
+    return !Number.isNaN(date.getTime()) && date.getTime() < Date.now();
+  }
+
+  function getNoteStatusMeta(note) {
+    const status = normalizeNoteStatus(note);
+    if (isNoteOverdue(note)) {
+      return { key: "overdue", icon: "⏰", label: "Overdue" };
+    }
+    if (status === "ready" || status === "done") {
+      return { key: "ready", icon: "✓", label: "Ready" };
+    }
+    if (status === "canceled" || status === "cancelled") {
+      return { key: "canceled", icon: "⊘", label: "Canceled" };
+    }
+    return { key: status || "open", icon: "○", label: status || "Open" };
+  }
+
+  function createNoteStatusIcon(note) {
+    const meta = getNoteStatusMeta(note);
+    const el = document.createElement("span");
+    el.className = `note-status-icon note-status-icon-${meta.key}`;
+    el.textContent = meta.icon;
+    el.title = meta.label;
+    el.setAttribute("aria-label", meta.label);
+    return el;
+  }
+
   function formatDate(value) {
     const date = value ? new Date(value) : null;
     if (!date || Number.isNaN(date.getTime())) return "-";
@@ -71,48 +109,6 @@
     } catch (_e) {
       return date.toISOString().slice(0, 10);
     }
-  }
-
-  function normalizeNoteStatus(note) {
-    const status = safeTrim(note?.status).toLowerCase();
-    if (status === "canceled" || status === "cancelled") return "canceled";
-    if (status === "ready" || status === "done" || status === "completed") {
-      return "ready";
-    }
-    return "open";
-  }
-
-  function isNoteOverdue(note) {
-    const status = normalizeNoteStatus(note);
-    if (status === "ready" || status === "canceled") return false;
-    const date = note?.date ? new Date(note.date) : null;
-    return Boolean(date && !Number.isNaN(date.getTime()) && date.getTime() < Date.now());
-  }
-
-  function getStatusLabel(status) {
-    if (status === "ready") return "Ready";
-    if (status === "canceled") return "Canceled";
-    return "Open";
-  }
-
-  function createNoteStatusBadges(note) {
-    const wrap = document.createElement("span");
-    wrap.className = "note-status-badges";
-
-    if (isNoteOverdue(note)) {
-      const overdue = document.createElement("span");
-      overdue.className = "note-status-badge note-status-badge-overdue";
-      overdue.textContent = "Overdue";
-      wrap.appendChild(overdue);
-    }
-
-    const status = normalizeNoteStatus(note);
-    const badge = document.createElement("span");
-    badge.className = `note-status-badge note-status-badge-${status}`;
-    badge.textContent = getStatusLabel(status);
-    wrap.appendChild(badge);
-
-    return wrap;
   }
 
   function formatMoney(value) {
@@ -140,14 +136,9 @@
 
   function createMiniNoteCard(note) {
     const card = document.createElement("div");
-    const normalizedStatus = normalizeNoteStatus(note);
-    card.className = [
-      "deal-linked-note-card",
-      `note-card-status-${normalizedStatus}`,
-      isNoteOverdue(note) ? "note-card-overdue" : "",
-    ]
-      .filter(Boolean)
-      .join(" ");
+    card.className = "deal-linked-note-card";
+    const statusMeta = getNoteStatusMeta(note);
+    card.classList.add(`note-card-status-${statusMeta.key}`);
 
     const top = document.createElement("div");
     top.className = "deal-linked-note-top";
@@ -156,17 +147,15 @@
     title.className = "deal-linked-note-title";
     title.textContent = safeTrim(note?.note_title) || "(no title)";
 
+    const statusIcon = createNoteStatusIcon(note);
+
     const editBtn = document.createElement("button");
     editBtn.type = "button";
     editBtn.className = "deal-note-edit-btn";
     editBtn.innerHTML = "✎";
     editBtn.title = "Edit note";
 
-    const topMeta = document.createElement("div");
-    topMeta.className = "deal-linked-note-top-meta";
-    topMeta.append(createNoteStatusBadges(note), editBtn);
-
-    top.append(title, topMeta);
+    top.append(title, statusIcon, editBtn);
 
     const meta = document.createElement("div");
     meta.className = "deal-linked-note-meta";

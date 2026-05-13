@@ -936,6 +936,14 @@
     font-size: 12px;
     font-weight: 600;
 }
+.note-card-right {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    min-width: 0;
+    flex: 0 1 auto;
+}
 .note-card-title {
     max-width: 140px;
     overflow: hidden;
@@ -944,6 +952,50 @@
     color: var(--muted);
     font-size: 11px;
     text-align: right;
+}
+.note-status-icon {
+    width: 18px;
+    min-width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
+}
+.note-status-icon-overdue {
+    color: #b91c1c;
+    background: #fee2e2;
+    border: 1px solid #fecaca;
+}
+.note-status-icon-ready {
+    color: #166534;
+    background: #dcfce7;
+    border: 1px solid #bbf7d0;
+}
+.note-status-icon-canceled {
+    color: #6b7280;
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+}
+.note-status-icon-open,
+.note-status-icon-planned {
+    color: #1d4ed8;
+    background: #dbeafe;
+    border: 1px solid #bfdbfe;
+}
+.note-card-status-overdue {
+    border-color: #fca5a5;
+    box-shadow: inset 3px 0 0 #ef4444;
+}
+.note-card-status-ready {
+    box-shadow: inset 3px 0 0 #22c55e;
+}
+.note-card-status-canceled {
+    opacity: 0.82;
+    box-shadow: inset 3px 0 0 #9ca3af;
 }
 .note-card-body {
     border-top: 1px solid var(--line-soft);
@@ -1322,77 +1374,4 @@
     background: #f1f5f9;
     border-color: #94a3b8;
     color: #0f172a;
-}
-
-
-.note-card-status-open {
-    border-left: 4px solid #2563eb;
-}
-.note-card-status-ready {
-    border-left: 4px solid #16a34a;
-}
-.note-card-status-canceled {
-    border-left: 4px solid #94a3b8;
-    background: #f8fafc;
-}
-.note-card-overdue {
-    border-color: #f87171;
-    border-left-color: #dc2626;
-    background: #fff7f7;
-    box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.08);
-}
-.note-card-overdue .note-card-header {
-    background: #fff7f7;
-}
-.note-card-overdue .note-card-header:hover {
-    background: #fee2e2;
-}
-.note-status-badges {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    margin-left: 2px;
-    flex: 0 0 auto;
-}
-.note-status-badge {
-    display: inline-flex;
-    align-items: center;
-    min-height: 18px;
-    padding: 2px 6px;
-    border-radius: 999px;
-    border: 1px solid transparent;
-    font-size: 10px;
-    font-weight: 700;
-    line-height: 1;
-    white-space: nowrap;
-}
-.note-status-badge-open {
-    border-color: #bfdbfe;
-    background: #eff6ff;
-    color: #1d4ed8;
-}
-.note-status-badge-ready {
-    border-color: #bbf7d0;
-    background: #f0fdf4;
-    color: #15803d;
-}
-.note-status-badge-canceled {
-    border-color: #e2e8f0;
-    background: #f8fafc;
-    color: #64748b;
-}
-.note-status-badge-overdue {
-    border-color: #fecaca;
-    background: #fee2e2;
-    color: #b91c1c;
-}
-.deal-linked-note-card.note-card-overdue {
-    background: #fff7f7;
-}
-.deal-linked-note-top-meta {
-    display: inline-flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 6px;
-    flex: 0 0 auto;
 }
