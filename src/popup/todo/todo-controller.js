@@ -303,7 +303,10 @@
       getEl(id)?.addEventListener("input", renderNotes);
       getEl(id)?.addEventListener("change", renderNotes);
     });
-    getEl("todoDealsStatusFilter")?.addEventListener("change", renderDeals);
+    ["todoDealsStatusFilter", "todoDealsSearch"].forEach((id) => {
+      getEl(id)?.addEventListener("input", renderDeals);
+      getEl(id)?.addEventListener("change", renderDeals);
+    });
   }
 
   function init() {

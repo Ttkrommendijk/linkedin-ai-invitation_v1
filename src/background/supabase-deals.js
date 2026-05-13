@@ -64,23 +64,12 @@
     if (listAll) {
       const viewParams = {
         select:
-          "deal_id,created_at,deal_name,deal_description,deal_value,company_id,company_name,company_linkedin_id,person_name,person_linkedin_url,deal_phase",
+          "deal_id,created_at,deal_name,deal_description,deal_value,company_id,company_name,person_id,person_name,person_linkedin_url,deal_phase",
         order: "created_at.desc",
       };
-      const viewUrl = `${supabaseUrl}/rest/v1/deals_view?${buildQuery(viewParams)}`;
-      try {
-        const rows = await fetchDealRows(viewUrl, { supabaseAnonKey, accessToken });
-        return rows.map(normalizeDealRow);
-      } catch (_viewError) {
-        const fallbackParams = {
-          select:
-            "deal_id,created_at,deal_name,deal_description,deal_value,company_id,deal_phase,company(company_name,linkedin_id)",
-          order: "created_at.desc",
-        };
-        const fallbackUrl = `${supabaseUrl}/rest/v1/deal?${buildQuery(fallbackParams)}`;
-        const rows = await fetchDealRows(fallbackUrl, { supabaseAnonKey, accessToken });
-        return rows.map(normalizeDealRow);
-      }
+      const viewUrl = `${supabaseUrl}/rest/v1/vw_deals_overview?${buildQuery(viewParams)}`;
+      const rows = await fetchDealRows(viewUrl, { supabaseAnonKey, accessToken });
+      return rows.map(normalizeDealRow);
     }
 
     const params = {
