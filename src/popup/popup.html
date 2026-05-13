@@ -55,6 +55,24 @@
                             />
                             <div class="detail-person-actions">
                                 <button
+                                    id="emailProfileBtn"
+                                    type="button"
+                                    class="btn-icon detail-contact-btn note-type-title-icon"
+                                    title="Email"
+                                    aria-label="Email"
+                                    hidden
+                                >
+                                    ✉</button
+                                ><button
+                                    id="whatsappProfileBtn"
+                                    type="button"
+                                    class="btn-icon detail-contact-btn note-type-whatsapp-icon"
+                                    title="WhatsApp"
+                                    aria-label="WhatsApp"
+                                    hidden
+                                >
+                                    <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M16.02 3.2c-7.02 0-12.72 5.63-12.72 12.56 0 2.21.59 4.37 1.7 6.27l-1.8 6.77 6.96-1.76a12.9 12.9 0 0 0 5.86 1.41c7.01 0 12.72-5.64 12.72-12.57 0-6.94-5.71-12.68-12.72-12.68Zm0 22.95c-1.85 0-3.66-.5-5.24-1.45l-.38-.23-4.13 1.04 1.08-4.01-.25-.4a10.12 10.12 0 0 1-1.55-5.34c0-5.66 4.7-10.26 10.47-10.26s10.46 4.6 10.46 10.26c0 5.66-4.69 10.39-10.46 10.39Zm5.72-7.7c-.31-.16-1.86-.91-2.15-1.02-.29-.1-.5-.16-.71.16-.21.31-.82 1.02-1 1.22-.19.21-.37.23-.68.08-.31-.16-1.32-.48-2.52-1.54-.93-.82-1.56-1.84-1.74-2.15-.18-.31-.02-.48.14-.64.14-.14.31-.37.47-.55.15-.18.2-.31.31-.52.1-.21.05-.39-.03-.55-.08-.16-.71-1.7-.97-2.33-.25-.61-.51-.52-.71-.53h-.61c-.21 0-.55.08-.84.39-.29.31-1.1 1.07-1.1 2.6 0 1.54 1.13 3.03 1.29 3.24.16.21 2.23 3.37 5.41 4.73.76.32 1.35.51 1.81.65.76.24 1.45.21 2 .13.61-.09 1.86-.75 2.13-1.48.26-.73.26-1.35.18-1.48-.08-.13-.29-.21-.6-.37Z" /></svg></button
+                                ><button
                                     id="enrichProfileBtn"
                                     type="button"
                                     class="btn-enrich"
@@ -220,6 +238,36 @@
                             id="detailItMembers"
                             class="form-control detail-person-headline readonly-text"
                             type="text"
+                            value="-"
+                            readonly
+                            hidden
+                        />
+                        <div
+                            id="detailPhoneLabel"
+                            class="company-display-label"
+                            hidden
+                        >
+                            Phone:
+                        </div>
+                        <input
+                            id="detailPhone"
+                            class="form-control detail-person-phone readonly-text"
+                            type="tel"
+                            value="-"
+                            readonly
+                            hidden
+                        />
+                        <div
+                            id="detailEmailLabel"
+                            class="company-display-label"
+                            hidden
+                        >
+                            Email:
+                        </div>
+                        <input
+                            id="detailEmail"
+                            class="form-control detail-person-email readonly-text"
+                            type="email"
                             value="-"
                             readonly
                             hidden

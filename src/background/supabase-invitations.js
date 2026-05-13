@@ -300,6 +300,8 @@
     company_id,
     headline,
     comments,
+    phone,
+    email,
   }) {
     const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
     if (!targetUrl) {
@@ -314,6 +316,8 @@
       company: normalizeProfileField(company),
       headline: sanitizeHeadlineJobTitle(headline),
       comments: normalizeProfileField(comments),
+      phone: normalizeProfileField(phone),
+      email: normalizeProfileField(email),
     };
     const safeCompanyId = normalizeProfileField(company_id);
     if (safeCompanyId) patch.company_id = safeCompanyId;
@@ -352,7 +356,7 @@
       targetUrl === targetUrlWithSlash
         ? `linkedin_url.eq.${encodeURIComponent(targetUrl)}`
         : `linkedin_url.eq.${encodeURIComponent(targetUrl)},linkedin_url.eq.${encodeURIComponent(targetUrlWithSlash)}`;
-    const url = `${supabaseUrl}/rest/v1/linkedin_invitations?or=(${urlFilter})&select=id,linkedin_url,status,message,generated_at,invited_at,accepted,accepted_at,first_message,first_message_generated_at,first_message_sent_at,message_count,company,company_id,headline,comments,language,full_name,campaign&limit=1`;
+    const url = `${supabaseUrl}/rest/v1/linkedin_invitations?or=(${urlFilter})&select=id,linkedin_url,status,message,generated_at,invited_at,accepted,accepted_at,first_message,first_message_generated_at,first_message_sent_at,message_count,company,company_id,headline,comments,phone,email,language,full_name,campaign&limit=1`;
 
     const res = await fetchWithTimeout(
       url,
@@ -386,7 +390,7 @@
       await getSupabaseRequestContext();
     const targetId = normalizeProfileField(id);
     if (!targetId) return null;
-    const url = `${supabaseUrl}/rest/v1/linkedin_invitations?id=eq.${encodeURIComponent(targetId)}&select=id,linkedin_url,status,message,generated_at,invited_at,accepted,accepted_at,first_message,first_message_generated_at,first_message_sent_at,message_count,company,company_id,headline,comments,language,full_name,campaign&limit=1`;
+    const url = `${supabaseUrl}/rest/v1/linkedin_invitations?id=eq.${encodeURIComponent(targetId)}&select=id,linkedin_url,status,message,generated_at,invited_at,accepted,accepted_at,first_message,first_message_generated_at,first_message_sent_at,message_count,company,company_id,headline,comments,phone,email,language,full_name,campaign&limit=1`;
     const res = await fetchWithTimeout(
       url,
       {

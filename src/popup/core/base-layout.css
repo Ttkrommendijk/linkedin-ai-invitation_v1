@@ -142,6 +142,8 @@ button:disabled {
 }
 .detail-person-name,
 .detail-person-company,
+.detail-person-phone,
+.detail-person-email,
 .detail-person-headline,
 .detail-person-comments {
     width: 100%;
@@ -371,6 +373,8 @@ button:disabled {
 }
 .detail-person-name[readonly],
 .detail-person-company[readonly],
+.detail-person-phone[readonly],
+.detail-person-email[readonly],
 .detail-person-headline[readonly],
 .detail-person-comments[readonly] {
     cursor: default;

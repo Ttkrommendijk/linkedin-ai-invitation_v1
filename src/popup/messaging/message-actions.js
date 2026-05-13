@@ -327,6 +327,16 @@ function bindProfileEditControls() {
           ? ""
           : detailCommentsEl?.value || "",
       );
+      const phone = safeTrim(
+        (detailPhoneEl?.value || "").trim() === "-"
+          ? ""
+          : detailPhoneEl?.value || "",
+      );
+      const email = safeTrim(
+        (detailEmailEl?.value || "").trim() === "-"
+          ? ""
+          : detailEmailEl?.value || "",
+      );
       syncSelectedCompanyFromDropdownInput();
       const selectedCompanyForSave =
         PopupCompanyController.getSelectedCompanyForEditDropdown();
@@ -344,6 +354,8 @@ function bindProfileEditControls() {
           company_id: selectedCompanyId || undefined,
           headline,
           comments,
+          phone,
+          email,
         },
       });
       const resp = result.data || {};
@@ -358,6 +370,8 @@ function bindProfileEditControls() {
         PopupState.currentProfileContext.company = companyToSave;
         PopupState.currentProfileContext.headline = headline;
         PopupState.currentProfileContext.comments = comments;
+        PopupState.currentProfileContext.phone = phone;
+        PopupState.currentProfileContext.email = email;
       }
       if (PopupState.dbInvitationRow) {
         PopupState.dbInvitationRow.full_name = full_name;
@@ -366,6 +380,8 @@ function bindProfileEditControls() {
           PopupState.dbInvitationRow.company_id = selectedCompanyId;
         PopupState.dbInvitationRow.headline = headline;
         PopupState.dbInvitationRow.comments = comments;
+        PopupState.dbInvitationRow.phone = phone;
+        PopupState.dbInvitationRow.email = email;
       }
       if (selectedCompanyId) {
         PopupLogger.debug("[LEF][company dropdown] company saved", {

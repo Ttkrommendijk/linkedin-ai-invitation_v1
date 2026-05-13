@@ -1474,3 +1474,16 @@
 .standard-grid td {
     min-width: 80px;
 }
+
+.detail-contact-btn {
+    width: 28px;
+    height: 28px;
+    min-height: 28px;
+    padding: 4px;
+}
+.detail-contact-btn svg {
+    width: 16px;
+    height: 16px;
+    display: block;
+    fill: currentColor;
+}

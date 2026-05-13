@@ -18,6 +18,9 @@ companyLinkedIndicatorEl, companyLinkedNameEl,
 companyLinkedRowEl, companyQuickLinkBtn,
 companySuggestionWarningEl, companyUrlMismatchBannerEl,
 detailCompanyEl, detailCompanyLabelEl,
+detailPhoneEl, detailPhoneLabelEl,
+detailEmailEl, detailEmailLabelEl,
+emailProfileBtnEl, whatsappProfileBtnEl,
 detailCommentsEl, detailCommentsLabelEl,
 detailEmployeeNumberEl, detailEmployeeNumberLabelEl,
 detailHeadlineEl, detailHeadlineLabelEl,
@@ -39,7 +42,10 @@ typeof PopupUtils.safeTrim === "function" ? PopupUtils.safeTrim
 selectedExistingCompanyForLink: null, selectedCompanyForEditDropdown: null,
 companySuggestionState: null, companyPeopleRows: [],
 companyExistingLinkResults: [], companyLinkSearchResults: [],
-}; function requireFn(name) {
+};
+emailProfileBtnEl?.addEventListener("click", openEmailForCurrentPerson);
+whatsappProfileBtnEl?.addEventListener("click", openWhatsappForCurrentPerson);
+function requireFn(name) {
 const fn = globalObj[name]; if (typeof fn !== "function") {
 throw new Error(
 `popup-company-controller.js requires global function ${name} to be defined.`, );
@@ -82,6 +88,43 @@ function coalesceDbThenScraped(dbValue, scrapedValue) { return dbValue && String
 } function autoResizeCommentsField() {
 if (!detailCommentsEl) return; detailCommentsEl.style.height = "auto";
 detailCommentsEl.style.height = `${detailCommentsEl.scrollHeight}px`; }
+function getValidContactValue(value) {
+const text = safeTrim(value);
+return text && text !== "-" ? text : "";
+}
+function getPersonEmailValue() {
+return getValidContactValue(PopupState.dbInvitationRow?.email);
+}
+function getPersonPhoneValue() {
+return getValidContactValue(PopupState.dbInvitationRow?.phone);
+}
+function normalizeWhatsappPhone(value) {
+const digits = getValidContactValue(value).replace(/\D/g, "");
+return digits.length >= 8 ? digits : "";
+}
+function setContactActionVisible(el, visible) {
+if (!el) return;
+el.hidden = !visible;
+el.classList.toggle("is-hidden", !visible);
+el.style.display = visible ? "" : "none";
+el.setAttribute("aria-hidden", visible ? "false" : "true");
+}
+function updatePersonContactActions() {
+const isCompanyProfileMode = requireFn("isCompanyProfileMode"); const isCompany = isCompanyProfileMode();
+const isEditing = Boolean(globalObj.isProfileEditMode);
+const showEmail = !isCompany && !isEditing && Boolean(getPersonEmailValue());
+const showWhatsapp = !isCompany && !isEditing && Boolean(normalizeWhatsappPhone(getPersonPhoneValue()));
+setContactActionVisible(emailProfileBtnEl, showEmail);
+setContactActionVisible(whatsappProfileBtnEl, showWhatsapp);
+}
+function openEmailForCurrentPerson() {
+const email = getPersonEmailValue(); if (!email) return;
+window.open(`mailto:${encodeURIComponent(email)}`, "_blank");
+}
+function openWhatsappForCurrentPerson() {
+const phone = normalizeWhatsappPhone(getPersonPhoneValue()); if (!phone) return;
+window.open(`https://web.whatsapp.com/send?phone=${encodeURIComponent(phone)}`, "_blank");
+}
 function renderProfileEditControls() { const isCompanyProfileMode = requireFn("isCompanyProfileMode");
 const getDetailNameLinkedinUrl = requireFn("getDetailNameLinkedinUrl"); const isLinkedInProfileLikeUrl = requireFn("isLinkedInProfileLikeUrl");
 const isCompany = isCompanyProfileMode(); const isProfileEditMode = Boolean(globalObj.isProfileEditMode);
@@ -100,6 +143,7 @@ saveProfileFieldsBtnEl.hidden = !isProfileEditMode; saveProfileFieldsBtnEl.disab
 cancelProfileEditBtnEl.hidden = !isProfileEditMode; cancelProfileEditBtnEl.disabled = isProfileSaveInFlight;
 } for (const fieldEl of [
 detailPersonNameEl, detailCompanyEl,
+detailPhoneEl, detailEmailEl,
 detailEmployeeNumberEl, detailHeadlineEl,
 detailCommentsEl, detailCityEl,
 detailItMembersEl, ]) {
@@ -130,7 +174,9 @@ if (companyLinkSearchInputEl) companyLinkSearchInputEl.hidden = true; if (compan
 companyLinkedIndicatorEl.hidden = true; companyLinkedIndicatorEl.style.display = "none";
 } if (companyLinkSearchOptionsEl) companyLinkSearchOptionsEl.innerHTML = "";
 if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.hidden = true; if (companyQuickLinkBtn) companyQuickLinkBtn.hidden = true;
-} applyProfileModeUi();
+}
+updatePersonContactActions();
+applyProfileModeUi();
 }
 function setCompanyDetailTab(which = "persons") {
 const isCompanyProfileMode = requireFn("isCompanyProfileMode");
@@ -176,6 +222,10 @@ isCompany || shouldShowProfileNotRegistered ||
 if (detailCompanyEl) { detailCompanyEl.hidden =
 isCompany || shouldShowProfileNotRegistered ||
 (!isProfileEditMode && Boolean(safeTrim(PopupState.dbInvitationRow?.company_id))); }
+if (detailPhoneLabelEl) detailPhoneLabelEl.hidden = isCompany || shouldShowProfileNotRegistered || !isProfileEditMode;
+if (detailPhoneEl) detailPhoneEl.hidden = isCompany || shouldShowProfileNotRegistered || !isProfileEditMode;
+if (detailEmailLabelEl) detailEmailLabelEl.hidden = isCompany || shouldShowProfileNotRegistered || !isProfileEditMode;
+if (detailEmailEl) detailEmailEl.hidden = isCompany || shouldShowProfileNotRegistered || !isProfileEditMode;
 if (detailEmployeeNumberLabelEl) detailEmployeeNumberLabelEl.hidden = !isCompany; if (detailEmployeeNumberEl) detailEmployeeNumberEl.hidden = !isCompany;
 if (detailHeadlineLabelEl) { detailHeadlineLabelEl.textContent = isCompany ? "Sector:" : "Job title:";
 detailHeadlineLabelEl.hidden = shouldShowProfileNotRegistered || (!isCompany && !isProfileEditMode);
@@ -187,6 +237,8 @@ if (detailCityLabelEl) detailCityLabelEl.hidden = !isCompany; if (detailCityEl) 
 if (detailItMembersLabelEl) detailItMembersLabelEl.hidden = !isCompany; if (detailItMembersEl) detailItMembersEl.hidden = !isCompany;
 if (detailPersonNameEl) { detailPersonNameEl.placeholder = isCompany ? "Company name" : "";
 } if (detailCompanyEl) detailCompanyEl.placeholder = "";
+if (detailPhoneEl) detailPhoneEl.placeholder = "Phone";
+if (detailEmailEl) detailEmailEl.placeholder = "Email";
 if (detailEmployeeNumberEl) { detailEmployeeNumberEl.placeholder = isCompany ? "Employee number" : "";
 } if (detailHeadlineEl) detailHeadlineEl.placeholder = isCompany ? "Sector" : "";
 if (detailCommentsEl) detailCommentsEl.placeholder = ""; if (detailCityEl) detailCityEl.placeholder = isCompany ? "City" : "";
@@ -231,7 +283,8 @@ hasQuickLinkSuggestion, shouldForceHideLinkedRow,
 companySuggestionId: safeTrim(state.companySuggestionState?.company_id), });
 if (shouldForceHideLinkedRow) companyLinkedRowEl.hidden = true; }
 if (companySuggestionWarningEl) companySuggestionWarningEl.hidden = true; if (acceptCompanySuggestionBtnEl) acceptCompanySuggestionBtnEl.hidden = true;
-if (companyQuickLinkBtn) companyQuickLinkBtn.hidden = true; if (isCompany) {
+if (companyQuickLinkBtn) companyQuickLinkBtn.hidden = true;
+updatePersonContactActions(); if (isCompany) {
 if (companyLinkedNameEl) companyLinkedNameEl.hidden = true; if (companyLinkedEmployeeNumberEl) companyLinkedEmployeeNumberEl.hidden = true;
 if (companyLinkSearchInputEl) companyLinkSearchInputEl.hidden = true; if (companyLinkSearchOptionsEl) companyLinkSearchOptionsEl.innerHTML = "";
 } }
@@ -330,11 +383,16 @@ const dbCompany = (PopupState.dbInvitationRow?.company || "").trim(); const dbHe
 const dbComments = (PopupState.dbInvitationRow?.comments || "").trim(); const name = coalesceDbThenScraped(dbName, scrapedName).trim() || "-";
 const company = coalesceDbThenScraped(dbCompany, scrapedCompany).trim() || "-";
 const headline = coalesceDbThenScraped(dbHeadline, scrapedHeadline).trim() || "-";
+const dbPhone = safeTrim(PopupState.dbInvitationRow?.phone); const scrapedPhone = safeTrim(PopupState.currentProfileContext?.phone);
+const dbEmail = safeTrim(PopupState.dbInvitationRow?.email); const scrapedEmail = safeTrim(PopupState.currentProfileContext?.email);
 const comments = coalesceDbThenScraped(dbComments, scrapedComments).trim() || "-";
+const phone = coalesceDbThenScraped(dbPhone, scrapedPhone).trim() || "-";
+const email = coalesceDbThenScraped(dbEmail, scrapedEmail).trim() || "-";
 debug("detail header source", { nameSource: dbName ? "db" : "scraped",
 companySource: dbCompany ? "db" : "scraped", headlineSource: dbHeadline ? "db" : "scraped",
 }); if (isProfileEditMode && !force) return;
 if (detailPersonNameEl) detailPersonNameEl.value = name; if (detailCompanyEl) detailCompanyEl.value = company;
+if (detailPhoneEl) detailPhoneEl.value = phone; if (detailEmailEl) detailEmailEl.value = email;
 if (detailEmployeeNumberEl) detailEmployeeNumberEl.value = "-"; if (detailHeadlineEl) detailHeadlineEl.value = headline;
 if (detailCommentsEl) detailCommentsEl.value = comments; if (detailCityEl) detailCityEl.value = "-";
 if (detailItMembersEl) detailItMembersEl.value = "-"; autoResizeCommentsField();
