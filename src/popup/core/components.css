@@ -948,6 +948,27 @@
 .note-type-title-icon {
     color: #475569;
 }
+
+.note-type-whatsapp-icon,
+.note-type-calendar-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.note-type-whatsapp-icon svg,
+.note-type-calendar-icon svg {
+    width: 16px;
+    height: 16px;
+    display: block;
+    fill: currentColor;
+}
+.note-type-whatsapp-icon {
+    color: #25d366;
+}
+.note-type-calendar-icon {
+    color: #475569;
+}
+
 .note-type-linkedin-icon {
     display: inline-flex;
     align-items: center;

@@ -76,12 +76,35 @@
 
   function getNoteTypeIcon(note) {
     const type = safeTrim(note?.notes_type).toLowerCase();
-    if (type === "whatsapp") return "💬";
+    if (type === "whatsapp") return "whatsapp";
     if (type === "linkedin") return "in";
-    if (type === "meeting") return "🤝";
+    if (type === "meeting") return "calendar";
     if (type === "telefone" || type === "phone" || type === "telephone") return "☎";
     if (type === "email") return "✉";
     return "📝";
+  }
+
+  function setNoteTypeIconContent(icon, note) {
+    const type = safeTrim(note?.notes_type).toLowerCase();
+    icon.classList.remove(
+      "note-type-whatsapp-icon",
+      "note-type-linkedin-icon",
+      "note-type-calendar-icon",
+    );
+
+    if (type === "whatsapp") {
+      icon.classList.add("note-type-whatsapp-icon");
+      icon.innerHTML = `<svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M16.02 3.2c-7.02 0-12.72 5.63-12.72 12.56 0 2.21.59 4.37 1.7 6.27l-1.8 6.77 6.96-1.76a12.9 12.9 0 0 0 5.86 1.41c7.01 0 12.72-5.64 12.72-12.57 0-6.94-5.71-12.68-12.72-12.68Zm0 22.95c-1.85 0-3.66-.5-5.24-1.45l-.38-.23-4.13 1.04 1.08-4.01-.25-.4a10.12 10.12 0 0 1-1.55-5.34c0-5.66 4.7-10.26 10.47-10.26s10.46 4.6 10.46 10.26c0 5.66-4.69 10.39-10.46 10.39Zm5.72-7.7c-.31-.16-1.86-.91-2.15-1.02-.29-.1-.5-.16-.71.16-.21.31-.82 1.02-1 1.22-.19.21-.37.23-.68.08-.31-.16-1.32-.48-2.52-1.54-.93-.82-1.56-1.84-1.74-2.15-.18-.31-.02-.48.14-.64.14-.14.31-.37.47-.55.15-.18.2-.31.31-.52.1-.21.05-.39-.03-.55-.08-.16-.71-1.7-.97-2.33-.25-.61-.51-.52-.71-.53h-.61c-.21 0-.55.08-.84.39-.29.31-1.1 1.07-1.1 2.6 0 1.54 1.13 3.03 1.29 3.24.16.21 2.23 3.37 5.41 4.73.76.32 1.35.51 1.81.65.76.24 1.45.21 2 .13.61-.09 1.86-.75 2.13-1.48.26-.73.26-1.35.18-1.48-.08-.13-.29-.21-.6-.37Z" /></svg>`;
+      return;
+    }
+
+    if (type === "meeting") {
+      icon.classList.add("note-type-calendar-icon");
+      icon.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 2a1 1 0 0 1 1 1v1h8V3a1 1 0 1 1 2 0v1h1.5A2.5 2.5 0 0 1 22 6.5v12A2.5 2.5 0 0 1 19.5 21h-15A2.5 2.5 0 0 1 2 18.5v-12A2.5 2.5 0 0 1 4.5 4H6V3a1 1 0 0 1 1-1Zm12.5 8h-15v8.5a.5.5 0 0 0 .5.5h14a.5.5 0 0 0 .5-.5V10ZM5 6a.5.5 0 0 0-.5.5V8h15V6.5A.5.5 0 0 0 19 6H5Zm2 7.25c0-.41.34-.75.75-.75h2.5c.41 0 .75.34.75.75v2.5c0 .41-.34.75-.75.75h-2.5a.75.75 0 0 1-.75-.75v-2.5Z" /></svg>`;
+      return;
+    }
+
+    icon.textContent = getNoteTypeIcon(note);
   }
 
   function isNoteOverdue(note) {
@@ -107,7 +130,7 @@
     if (safeTrim(note?.notes_type).toLowerCase() === "linkedin") {
       icon.classList.add("note-type-linkedin-icon");
     }
-    icon.textContent = getNoteTypeIcon(note);
+    setNoteTypeIconContent(icon, note);
     icon.title = safeTrim(note?.notes_type) || "Note";
     parent.appendChild(icon);
   }
