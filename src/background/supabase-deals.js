@@ -64,7 +64,7 @@
     if (listAll) {
       const viewParams = {
         select:
-          "deal_id,created_at,deal_name,deal_description,deal_value,company_id,company_name,person_id,person_name,person_linkedin_url,deal_phase",
+          "deal_id,created_at,deal_name,deal_description,deal_value,company_id,company_name,main_contact_id,person_id,person_name,person_linkedin_url,deal_phase",
         order: "created_at.desc",
       };
       const viewUrl = `${supabaseUrl}/rest/v1/vw_deals_overview?${buildQuery(viewParams)}`;
@@ -73,7 +73,7 @@
     }
 
     const params = {
-      select: "deal_id,created_at,deal_name,deal_description,deal_value,company_id,deal_phase",
+      select: "deal_id,created_at,deal_name,deal_description,deal_value,company_id,main_contact_id,deal_phase",
       company_id: `eq.${companyId}`,
       order: "created_at.desc",
     };
@@ -103,6 +103,7 @@
           : Number(payload.deal_value),
       company_id: companyId,
       deal_phase: dealPhase,
+      main_contact_id: normalizeProfileField(payload.main_contact_id) || null,
     };
 
     const url = `${supabaseUrl}/rest/v1/deal`;
@@ -151,11 +152,12 @@
           : Number(payload.deal_value),
       company_id: companyId,
       deal_phase: dealPhase,
+      main_contact_id: normalizeProfileField(payload.main_contact_id) || null,
     };
 
     const params = buildQuery({
       deal_id: `eq.${dealId}`,
-      select: "deal_id,created_at,deal_name,deal_description,deal_value,company_id,deal_phase",
+      select: "deal_id,created_at,deal_name,deal_description,deal_value,company_id,main_contact_id,deal_phase",
     });
     const url = `${supabaseUrl}/rest/v1/deal?${params}`;
     const res = await fetchWithTimeout(

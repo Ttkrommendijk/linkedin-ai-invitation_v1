@@ -21,6 +21,9 @@
     dealNotesLoadingByDealId: {},
     isCreating: false,
     loadedCompanyId: "",
+    companyPeopleRows: [],
+    loadedCompanyPeopleId: "",
+    companyPeopleLoading: false,
   };
 
   function hasRequiredDom() {
@@ -53,10 +56,52 @@
 
   function getCompanyPeopleRows() {
     const controller = globalObj.PopupCompanyController;
-    if (typeof controller?.getCompanyPeopleRows === "function") {
-      return controller.getCompanyPeopleRows();
+    const controllerRows =
+      typeof controller?.getCompanyPeopleRows === "function"
+        ? controller.getCompanyPeopleRows()
+        : [];
+    const rowsById = new Map();
+    const addRow = (row) => {
+      const id = safeTrim(row?.id || row?.person_id || row?.main_person_id);
+      if (!id || rowsById.has(id)) return;
+      rowsById.set(id, row);
+    };
+    for (const row of Array.isArray(controllerRows) ? controllerRows : []) addRow(row);
+    for (const row of Array.isArray(localState.companyPeopleRows) ? localState.companyPeopleRows : []) addRow(row);
+
+    const ctx = getDealsContext();
+    if (ctx.personId) {
+      addRow({
+        id: ctx.personId,
+        full_name: ctx.personName || "Current person",
+        company_id: ctx.companyId,
+      });
     }
-    return [];
+    return Array.from(rowsById.values());
+  }
+
+  async function ensureCompanyPeopleRows({ force = false } = {}) {
+    const ctx = getDealsContext();
+    if (!ctx.companyId || !sendRuntimeMessage || localState.companyPeopleLoading) return;
+    if (!force && localState.loadedCompanyPeopleId === ctx.companyId) return;
+    localState.companyPeopleLoading = true;
+    try {
+      const result = await sendRuntimeMessage("DB_LIST_INVITATIONS_BY_COMPANY", {
+        payload: { company_id: ctx.companyId },
+      });
+      const resp = result.data || {};
+      if (!result.ok || resp?.ok === false) {
+        throw new Error(getErrorMessage(result.error || resp?.error));
+      }
+      localState.companyPeopleRows = Array.isArray(resp.rows) ? resp.rows : [];
+      localState.loadedCompanyPeopleId = ctx.companyId;
+    } catch (e) {
+      localState.companyPeopleRows = [];
+      localState.loadedCompanyPeopleId = "";
+      setDealsStatus(getErrorMessage(e));
+    } finally {
+      localState.companyPeopleLoading = false;
+    }
   }
 
   function formatDate(value) {
@@ -286,7 +331,7 @@
     select.className = "form-control deal-note-person-select";
     const placeholder = document.createElement("option");
     placeholder.value = "";
-    placeholder.textContent = rows.length ? "Select person" : "No linked persons found";
+    placeholder.textContent = rows.length ? "No main contact" : "No linked persons found";
     select.appendChild(placeholder);
 
     for (const row of rows) {
@@ -396,6 +441,13 @@
     row.appendChild(createField({ label: "Value", child: valueInput }));
     editor.appendChild(row);
 
+    const ctx = getDealsContext();
+    const defaultMainContactId = isEditing ? safeTrim(deal?.main_contact_id) : ctx.personId;
+    const mainContactSelect = renderPersonSelect(defaultMainContactId);
+    editor.appendChild(
+      createField({ label: "Main contact", child: mainContactSelect }),
+    );
+
     const descriptionInput = document.createElement("textarea");
     descriptionInput.className = "form-control deal-description-input";
     descriptionInput.placeholder = "Details";
@@ -453,6 +505,7 @@
         deal_value: rawValue ? Number(rawValue) : null,
         company_id: ctx.companyId,
         deal_phase: dealPhase,
+        main_contact_id: safeTrim(mainContactSelect.value) || null,
       };
 
       try {
@@ -586,12 +639,13 @@
     editBtn.title = "Edit deal";
     editBtn.setAttribute("aria-label", "Edit deal");
     editBtn.innerHTML = "✎";
-    editBtn.addEventListener("click", (event) => {
+    editBtn.addEventListener("click", async (event) => {
       event.stopPropagation();
       localState.isCreating = false;
       localState.expandedDealId = dealId;
       localState.editingDealId = dealId;
       localState.addingNoteDealId = null;
+      await ensureCompanyPeopleRows();
       renderDeals();
     });
 
@@ -626,9 +680,15 @@
       const meta = document.createElement("div");
       meta.className = "deal-meta";
       const value = formatMoney(deal?.deal_value);
+      const mainContactName = getCompanyPeopleRows().find(
+        (row) => safeTrim(row?.id || row?.person_id || row?.main_person_id) === safeTrim(deal?.main_contact_id),
+      );
       meta.textContent = [
         safeTrim(deal?.deal_phase) ? `Phase: ${safeTrim(deal.deal_phase)}` : "",
         value ? `Value: ${value}` : "",
+        safeTrim(mainContactName?.full_name || mainContactName?.name)
+          ? `Main contact: ${safeTrim(mainContactName?.full_name || mainContactName?.name)}`
+          : "",
         `Created: ${formatDate(deal?.created_at)}`,
       ]
         .filter(Boolean)
@@ -684,6 +744,8 @@
       localState.deals = [];
       localState.loadedCompanyId = "";
       localState.dealNotesByDealId = {};
+      localState.companyPeopleRows = [];
+      localState.loadedCompanyPeopleId = "";
       setDealsStatus("");
       renderDeals();
       return;
@@ -715,7 +777,7 @@
 
   function bindEvents() {
     if (!hasRequiredDom()) return;
-    dom.addDealBtnEl?.addEventListener("click", () => {
+    dom.addDealBtnEl?.addEventListener("click", async () => {
       const ctx = getDealsContext();
       if (!ctx.companyId) {
         setDealsStatus(
@@ -728,6 +790,7 @@
       localState.expandedDealId = null;
       localState.editingDealId = null;
       localState.addingNoteDealId = null;
+      await ensureCompanyPeopleRows();
       renderDeals();
     });
   }
@@ -740,6 +803,7 @@
     init,
     refreshDeals,
     renderDeals,
+    ensureCompanyPeopleRows,
   };
 
   globalObj.PopupDealsController = Object.freeze(api);
