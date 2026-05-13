@@ -16,6 +16,50 @@
     );
   }
 
+
+
+  function isWhatsappWebUrl(url) {
+    return /^https:\/\/web\.whatsapp\.com\//i.test(String(url || ""));
+  }
+
+  async function ensureWhatsappContentScript(tabId, reason) {
+    if (!Number.isInteger(tabId)) return;
+    try {
+      const resp = await chrome.tabs.sendMessage(tabId, {
+        type: "EXTRACT_WHATSAPP_ACTIVE_CHAT",
+      });
+      if (resp?.phone) {
+        await chrome.runtime.sendMessage({
+          type: "WHATSAPP_ACTIVE_CHAT_CHANGED",
+          payload: { phone: resp.phone, url: resp.url || "", reason },
+        }).catch(() => null);
+      }
+      return;
+    } catch (_e) {
+      // Content script may not be injected for WhatsApp yet.
+    }
+
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        files: ["src/content/content.js"],
+      });
+      setTimeout(() => {
+        chrome.tabs.sendMessage(tabId, {
+          type: "EXTRACT_WHATSAPP_ACTIVE_CHAT",
+        }).then((resp) => {
+          if (!resp?.phone) return;
+          return chrome.runtime.sendMessage({
+            type: "WHATSAPP_ACTIVE_CHAT_CHANGED",
+            payload: { phone: resp.phone, url: resp.url || "", reason },
+          });
+        }).catch(() => null);
+      }, 350);
+    } catch (_e) {
+      // Ignore tabs where injection is not permitted.
+    }
+  }
+
   function canonicalizeLinkedInUrl(rawUrl) {
     if (typeof LEF_UTILS.canonicalizeLinkedInUrl === "function") {
       return LEF_UTILS.canonicalizeLinkedInUrl(rawUrl);
@@ -129,6 +173,10 @@
           page: detectLinkedInPageType(tab?.url || ""),
         });
 
+        if (isWhatsappWebUrl(tab?.url || "")) {
+          ensureWhatsappContentScript(tabId, "tabs.onActivated");
+        }
+
         const shouldForceRefresh = lastActivatedLinkedInTabId !== tabId;
         lastActivatedLinkedInTabId = tabId;
 
@@ -149,6 +197,10 @@
           page: detectLinkedInPageType(changeInfo.url),
         });
 
+        if (isWhatsappWebUrl(changeInfo.url)) {
+          ensureWhatsappContentScript(tabId, "tabs.onUpdated.url");
+        }
+
         scheduleSidePanelRefresh(tabId, changeInfo.url, "tabs.onUpdated.url");
         return;
       }
@@ -160,6 +212,10 @@
           url: tab?.url || "",
           page: detectLinkedInPageType(tab?.url || ""),
         });
+
+        if (isWhatsappWebUrl(tab?.url || "")) {
+          ensureWhatsappContentScript(tabId, "tabs.onUpdated.complete");
+        }
 
         scheduleSidePanelRefresh(
           tabId,
@@ -179,6 +235,10 @@
         page: detectLinkedInPageType(details.url),
       });
 
+      if (isWhatsappWebUrl(details.url)) {
+        ensureWhatsappContentScript(details.tabId, "webNavigation.onCommitted");
+      }
+
       scheduleSidePanelRefresh(
         details.tabId,
         details.url,
@@ -195,6 +255,10 @@
         url: details.url,
         page: detectLinkedInPageType(details.url),
       });
+
+      if (isWhatsappWebUrl(details.url)) {
+        ensureWhatsappContentScript(details.tabId, "webNavigation.onHistoryStateUpdated");
+      }
 
       scheduleSidePanelRefresh(
         details.tabId,

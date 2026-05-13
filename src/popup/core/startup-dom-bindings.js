@@ -185,7 +185,7 @@ const SYMBOL_ELLIPSIS = "\u2026";
 const UI_TEXT = {
   unexpectedError: "Unexpected error.",
   configSaved: "Config saved.",
-  openLinkedInProfileFirst: "Open a LinkedIn profile first.",
+  openLinkedInProfileFirst: "Open a LinkedIn profile, WhatsApp Web conversation, or a person from contacts.",
   missingLinkedinUrl: "Missing LinkedIn URL in profile context.",
   markedInvited: `Marked as invited ${EMOJI_CHECK}`,
   markedAccepted: `Marked as accepted ${EMOJI_CHECK}`,
@@ -196,7 +196,7 @@ const UI_TEXT = {
   preparingProfile: `Preparing profile${SYMBOL_ELLIPSIS}`,
   setApiKeyInConfig: "Please set your API key in Config.",
   couldNotExtractProfileContext:
-    "Could not extract profile context (open a LinkedIn profile page and reopen the popup).",
+    "Could not extract profile context. Open a LinkedIn profile, WhatsApp Web conversation, or a person from contacts.",
   callingOpenAI: `Calling OpenAI${SYMBOL_ELLIPSIS}`,
   errorPrefix: "Error:",
   generatedClickCopy: "Generated. Click Copy.",
@@ -210,7 +210,7 @@ const UI_TEXT = {
   promptReset: "Prompt reset to default.",
   openedSidePanel: "Opened side panel.",
   sidePanelNotAvailable: "Side panel not available.",
-  lifecycleOpenLinkedInProfileFirst: "Open a LinkedIn profile first.",
+  lifecycleOpenLinkedInProfileFirst: "Open a LinkedIn profile, WhatsApp Web conversation, or a person from contacts.",
   lifecycleNotInDatabase: "Not in database",
   lifecycleGenerated: "Generated",
   lifecycleInvited: "Invited",

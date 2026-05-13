@@ -906,6 +906,38 @@ const ROUTES = {
       return { ok: true };
     },
   },
+
+  DB_FIND_INVITATIONS_BY_PHONE: {
+    errorCode: "SUPABASE_GET_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Fetching\u2026");
+      const rows = await LEF_SUPABASE_INVITATIONS.supabaseFindInvitationsByPhone(
+        msg?.payload || {},
+      );
+      return { ok: true, rows };
+    },
+  },
+  WHATSAPP_ACTIVE_CHAT_CHANGED: {
+    errorCode: "WHATSAPP_SYNC_FAILED",
+    handler: async ({ msg, sender }) => {
+      const phone = normalizeProfileField(msg?.payload?.phone).replace(/\D+/g, "");
+      if (!phone) return { ok: false, error: "missing_phone" };
+      const rows = await LEF_SUPABASE_INVITATIONS.supabaseFindInvitationsByPhone({
+        phone,
+        limit: 10,
+      });
+      await chrome.runtime.sendMessage({
+        type: "WHATSAPP_SYNC_RESULT",
+        payload: {
+          phone,
+          rows,
+          tabId: sender?.tab?.id || null,
+          url: msg?.payload?.url || sender?.tab?.url || "",
+        },
+      }).catch(() => null);
+      return { ok: true, rows };
+    },
+  },
   DB_GET_INVITATION: {
     errorCode: "SUPABASE_GET_FAILED",
     handler: async ({ msg }) => {

@@ -477,7 +477,107 @@ timingLog("main_container_available", { ready_state: document.readyState,
 }); }
 }); if (hasMainCompanyContainer()) {
 mainContainerReadyLogged = true; timingLog("main_container_available", { ready_state: document.readyState });
-} chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+} 
+
+const WHATSAPP_CHAT_CHANGE_DEBOUNCE_MS = 250;
+let lastWhatsappActivePhone = "";
+let whatsappActiveChatTimer = null;
+let whatsappObserver = null;
+let whatsappUrlPatchInstalled = false;
+
+function isWhatsappWebUrl(url = window.location.href) {
+return /^https:\/\/web\.whatsapp\.com\//i.test(String(url || ""));
+}
+
+function normalizeWhatsappPhone(value) {
+return String(value || "").replace(/\D+/g, "").replace(/^0+/, "");
+}
+
+function getReactFiberKey(el) {
+if (!el) return "";
+return Object.keys(el).find((k) => k.startsWith("__reactFiber$")) || "";
+}
+
+function getActiveWhatsappPhoneNumber() {
+const el = document.querySelector('[data-testid="conversation-info-header-chat-title"]');
+if (!el) return null;
+const fiberKey = getReactFiberKey(el);
+if (!fiberKey) return null;
+let node = el[fiberKey];
+let chat = null;
+while (node) {
+const props = node.memoizedProps;
+if (props?.chat) { chat = props.chat; break; }
+node = node.return;
+}
+const historyChatId = chat?.__x_historyChatId || "";
+if (!historyChatId || typeof historyChatId !== "string") return null;
+if (!/@c\.us$/i.test(historyChatId)) return null;
+return normalizeWhatsappPhone(historyChatId.split("@")[0]);
+}
+
+function notifyWhatsappActiveChatChanged(phone, reason) {
+chrome.runtime.sendMessage({
+type: "WHATSAPP_ACTIVE_CHAT_CHANGED",
+payload: { phone, url: window.location.href, reason },
+}).catch(() => null);
+}
+
+function scheduleWhatsappActiveChatCheck(reason = "dom") {
+if (!isWhatsappWebUrl()) return;
+if (whatsappActiveChatTimer) clearTimeout(whatsappActiveChatTimer);
+whatsappActiveChatTimer = setTimeout(() => {
+whatsappActiveChatTimer = null;
+const phone = getActiveWhatsappPhoneNumber();
+if (!phone || phone === lastWhatsappActivePhone) return;
+lastWhatsappActivePhone = phone;
+notifyWhatsappActiveChatChanged(phone, reason);
+}, WHATSAPP_CHAT_CHANGE_DEBOUNCE_MS);
+}
+
+function installWhatsappHistoryHooks() {
+if (whatsappUrlPatchInstalled) return;
+whatsappUrlPatchInstalled = true;
+["pushState", "replaceState"].forEach((methodName) => {
+const original = history[methodName];
+if (typeof original !== "function") return;
+history[methodName] = function patchedHistoryMethod(...args) {
+const result = original.apply(this, args);
+window.dispatchEvent(new Event("lef-whatsapp-url-change"));
+return result;
+};
+});
+window.addEventListener("popstate", () => scheduleWhatsappActiveChatCheck("popstate"));
+window.addEventListener("lef-whatsapp-url-change", () => scheduleWhatsappActiveChatCheck("history"));
+}
+
+function initWhatsappActiveChatObserver() {
+if (!isWhatsappWebUrl()) return;
+installWhatsappHistoryHooks();
+if (!whatsappObserver) {
+whatsappObserver = new MutationObserver(() => scheduleWhatsappActiveChatCheck("mutation"));
+whatsappObserver.observe(document.documentElement || document.body, {
+childList: true,
+subtree: true,
+characterData: true,
+});
+}
+scheduleWhatsappActiveChatCheck("init");
+}
+
+initWhatsappActiveChatObserver();
+
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+
+if (msg?.type === "EXTRACT_WHATSAPP_ACTIVE_CHAT") {
+try {
+const phone = getActiveWhatsappPhoneNumber();
+sendResponse({ ok: Boolean(phone), phone, url: window.location.href });
+} catch (e) {
+sendResponse({ ok: false, error: e instanceof Error ? e.message : String(e || "unknown") });
+}
+return true;
+}
 if (msg?.type === "EXTRACT_PROFILE_CONTEXT") { (async () => {
 try { timingLog("extraction_requested", {
 page_type: detectLinkedInPageType().page_type, is_company_profile: isCompanyProfileUrl(),

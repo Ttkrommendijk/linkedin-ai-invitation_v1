@@ -71,10 +71,12 @@ function getProfileMatchForUrl(url) {
     /^https:\/\/www\.linkedin\.com\/(company|school)\/[^/?#]+/i.test(
       normalizedUrl,
     );
+  const whatsappRule = /^https:\/\/web\.whatsapp\.com\//i.test(normalizedUrl);
   const fallbackMatch = isLinkedInProfileLikeUrl(normalizedUrl);
   if (inRule) return { isProfileOpen: true, matchedRule: "/in/" };
   if (companyRule)
     return { isProfileOpen: true, matchedRule: "/company|school/" };
+  if (whatsappRule) return { isProfileOpen: true, matchedRule: "whatsapp" };
   return {
     isProfileOpen: Boolean(fallbackMatch),
     matchedRule: fallbackMatch ? "fallback" : "none",

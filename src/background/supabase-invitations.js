@@ -560,6 +560,56 @@
     }
   }
 
+
+
+  function normalizePhoneDigits(value) {
+    return String(value || "").replace(/\D+/g, "").replace(/^0+/, "");
+  }
+
+  async function supabaseFindInvitationsByPhone({ phone, limit = 10 } = {}) {
+    const normalizedPhone = normalizePhoneDigits(phone);
+    if (!normalizedPhone) return [];
+
+    const { supabaseUrl, supabaseAnonKey, accessToken } =
+      await getSupabaseRequestContext();
+    const safeLimit = Math.min(Math.max(Number(limit) || 10, 1), 25);
+    const select = "id,linkedin_url,status,message,generated_at,invited_at,accepted,accepted_at,first_message,first_message_generated_at,first_message_sent_at,message_count,company,company_id,headline,comments,phone,email,language,full_name,campaign";
+    const suffix8 = normalizedPhone.slice(-8);
+    const suffix4 = normalizedPhone.slice(-4);
+    const filters = [normalizedPhone, suffix8, suffix4]
+      .filter(Boolean)
+      .map((value) => `phone.ilike.*${encodeURIComponent(value)}*`)
+      .join(",");
+    const url = `${supabaseUrl}/rest/v1/linkedin_invitations?or=(${filters})&select=${select}&limit=${safeLimit}`;
+
+    const res = await fetchWithTimeout(
+      url,
+      {
+        method: "GET",
+        headers: {
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          Prefer: "count=exact",
+        },
+      },
+      15000,
+      "Supabase request",
+    );
+
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      throw createProviderHttpError("supabase", res.status, txt);
+    }
+
+    const rows = await res.json();
+    const candidates = Array.isArray(rows) ? rows : [];
+    return candidates.filter(
+      (row) => normalizePhoneDigits(row?.phone).endsWith(normalizedPhone) ||
+        normalizedPhone.endsWith(normalizePhoneDigits(row?.phone)),
+    );
+  }
+
   globalObj.LEFSupabaseInvitations = Object.freeze({
     supabaseUpsertInvitation,
     supabaseUpdateFirstMessage,
@@ -572,6 +622,7 @@
     supabaseUpdateProfileFields,
     supabaseGetInvitationByLinkedinUrl,
     supabaseGetInvitationById,
+    supabaseFindInvitationsByPhone,
     supabaseIncrementMessageCount,
     supabaseSetMessageCount,
     supabaseArchiveInvitation,

@@ -111,7 +111,7 @@
       iconEl.textContent = "\u{1F464}";
       const textEl = document.createElement("div");
       textEl.className = "empty-state-text";
-      textEl.textContent = "Please open a profile in linkedin";
+      textEl.textContent = "Open a LinkedIn profile, WhatsApp Web conversation, or a person from contacts.";
       innerEl.appendChild(iconEl);
       innerEl.appendChild(textEl);
       stateEl.appendChild(innerEl);
@@ -131,6 +131,43 @@
     } catch (_e) {
       return queriedTab;
     }
+  }
+  function isWhatsappWebUrl(url) {
+    return /^https:\/\/web\.whatsapp\.com\//i.test(String(url || ""));
+  }
+  async function requestWhatsappActiveChatSync(activeTab, reason = "popup.refresh") {
+    if (!Number.isInteger(activeTab?.id) || !isWhatsappWebUrl(activeTab?.url || "")) {
+      return null;
+    }
+    let resp = null;
+    try {
+      resp = await chrome.tabs.sendMessage(activeTab.id, {
+        type: "EXTRACT_WHATSAPP_ACTIVE_CHAT",
+      });
+    } catch (_e) {
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: activeTab.id },
+          files: ["src/content/content.js"],
+        });
+        resp = await chrome.tabs.sendMessage(activeTab.id, {
+          type: "EXTRACT_WHATSAPP_ACTIVE_CHAT",
+        });
+      } catch (_injectError) {
+        return null;
+      }
+    }
+    const phone = safeTrim(resp?.phone).replace(/\D+/g, "");
+    if (!phone) return null;
+    try {
+      await chrome.runtime.sendMessage({
+        type: "WHATSAPP_ACTIVE_CHAT_CHANGED",
+        payload: { phone, url: resp?.url || activeTab.url || "", reason },
+      });
+    } catch (_e) {
+      // Runtime may not have a visible popup receiver yet; ignore.
+    }
+    return phone;
   }
   async function extractProfileContextFromActiveTab({ source = "" } = {}) {
     const activeTab = await getActiveTabForProfileCheck().catch(() => null);
@@ -385,6 +422,28 @@
       globalObj.renderDetailHeader();
       globalObj.updatePhaseButtons();
       return false;
+    }
+    if (matchedRule === "whatsapp" || isWhatsappWebUrl(tabUrl)) {
+      setNoProfileStateVisible(false);
+      logEmptyStateDebugOnce({
+        tabId: activeTab?.id ?? null,
+        tabUrl: tabUrl || null,
+        tabStatus: activeTab?.status || null,
+        isProfileOpen,
+        matchedRule,
+        dom: getNoProfileDomDebugInfo(),
+      });
+      globalObj.setCommunicationStatus("Looking for the active WhatsApp conversation...");
+      const phone = await requestWhatsappActiveChatSync(activeTab, "popup.refresh");
+      if (!phone) {
+        globalObj.setCommunicationStatus(
+          "Open a WhatsApp Web person conversation, a LinkedIn profile, or a person from contacts.",
+        );
+      }
+      globalObj.updateMessageTabControls();
+      globalObj.renderDetailHeader();
+      globalObj.updatePhaseButtons();
+      return true;
     }
     try {
       setNoProfileStateVisible(false);
