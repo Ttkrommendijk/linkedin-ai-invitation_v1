@@ -76,6 +76,8 @@
     const companyId = normalizeProfileField(payload.company_id);
     const filter = normalizeProfileField(payload.filter) || "company";
 
+    const dealId = normalizeProfileField(payload.deal_id);
+
     const params = {
       select:
         "note_id,note_title,note_description,created_at,status,date,notes_type,duration,person_name,company_name,deal_name,deal_description,archived,main_person_id,company_id,deal_id",
@@ -83,7 +85,10 @@
       order: "date.desc",
     };
 
-    if (filter === "person" && personId) {
+    if (filter === "deal" && dealId) {
+      params.deal_id = `eq.${dealId}`;
+      if (companyId) params.company_id = `eq.${companyId}`;
+    } else if (filter === "person" && personId) {
       params.main_person_id = `eq.${personId}`;
     } else if (companyId) {
       params.company_id = `eq.${companyId}`;

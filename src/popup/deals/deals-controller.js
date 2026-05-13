@@ -16,6 +16,9 @@
     deals: [],
     expandedDealId: null,
     editingDealId: null,
+    addingNoteDealId: null,
+    dealNotesByDealId: {},
+    dealNotesLoadingByDealId: {},
     isCreating: false,
     loadedCompanyId: "",
   };
@@ -41,7 +44,19 @@
     const companyName = isCompany
       ? safeTrim(companyRow.company_name || profile.company_name || profile.company)
       : safeTrim(row.company || profile.company || profile.company_name);
-    return { isCompany, companyId, companyName };
+    const personId = isCompany ? "" : safeTrim(row.id || row.person_id);
+    const personName = isCompany
+      ? ""
+      : safeTrim(row.full_name || profile.full_name || profile.name);
+    return { isCompany, companyId, companyName, personId, personName };
+  }
+
+  function getCompanyPeopleRows() {
+    const controller = globalObj.PopupCompanyController;
+    if (typeof controller?.getCompanyPeopleRows === "function") {
+      return controller.getCompanyPeopleRows();
+    }
+    return [];
   }
 
   function formatDate(value) {
@@ -78,6 +93,168 @@
     caption.textContent = label;
     wrap.appendChild(caption);
     wrap.appendChild(child);
+    return wrap;
+  }
+
+  function createMiniNoteCard(note) {
+    const card = document.createElement("div");
+    card.className = "deal-linked-note-card";
+
+    const top = document.createElement("div");
+    top.className = "deal-linked-note-top";
+
+    const title = document.createElement("div");
+    title.className = "deal-linked-note-title";
+    title.textContent = safeTrim(note?.note_title) || "(no title)";
+
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "deal-note-edit-btn";
+    editBtn.innerHTML = "✎";
+    editBtn.title = "Edit note";
+
+    top.append(title, editBtn);
+
+    const meta = document.createElement("div");
+    meta.className = "deal-linked-note-meta";
+    meta.textContent = [
+      formatDate(note?.date || note?.created_at),
+      safeTrim(note?.notes_type),
+      safeTrim(note?.person_name),
+    ]
+      .filter(Boolean)
+      .join(" | ");
+
+    const description = document.createElement("div");
+    description.className = "deal-linked-note-description";
+    description.textContent = safeTrim(note?.note_description) || "No details available.";
+
+    const editorWrap = document.createElement("div");
+    editorWrap.hidden = true;
+
+    editBtn.addEventListener("click", () => {
+      editorWrap.hidden = !editorWrap.hidden;
+
+      if (!editorWrap.childElementCount) {
+        const noteApi = globalObj.PopupNotesController;
+
+        if (typeof noteApi?.renderNoteEditorForContext === "function") {
+          editorWrap.appendChild(
+            noteApi.renderNoteEditorForContext({
+              note,
+              isNew: false,
+              onSaved: async () => {
+                editorWrap.hidden = true;
+                await refreshDeals({ force: true });
+              },
+              onCancel: () => {
+                editorWrap.hidden = true;
+              },
+              statusSetter: setDealsStatus,
+            }),
+          );
+        }
+      }
+    });
+
+    card.append(top, meta, description, editorWrap);
+    return card;
+  }
+
+  async function loadDealNotes(dealId, { force = false } = {}) {
+    const ctx = getDealsContext();
+    if (!dealId || !ctx.companyId || !sendRuntimeMessage) return;
+    if (!force && Array.isArray(localState.dealNotesByDealId[dealId])) return;
+    if (localState.dealNotesLoadingByDealId[dealId]) return;
+    localState.dealNotesLoadingByDealId[dealId] = true;
+    try {
+      const result = await sendRuntimeMessage("DB_LIST_NOTES", {
+        payload: {
+          filter: "deal",
+          deal_id: dealId,
+          company_id: ctx.companyId,
+        },
+      });
+      const resp = result.data || {};
+      if (!result.ok || resp?.ok === false) {
+        throw new Error(getErrorMessage(result.error || resp?.error));
+      }
+      localState.dealNotesByDealId[dealId] = Array.isArray(resp.rows)
+        ? resp.rows
+        : [];
+    } catch (e) {
+      localState.dealNotesByDealId[dealId] = [];
+      setDealsStatus(getErrorMessage(e));
+    } finally {
+      localState.dealNotesLoadingByDealId[dealId] = false;
+      if (localState.expandedDealId === dealId) renderDeals();
+    }
+  }
+
+  function renderPersonSelect(selectedPersonId = "") {
+    const rows = getCompanyPeopleRows();
+    const select = document.createElement("select");
+    select.className = "form-control deal-note-person-select";
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = rows.length ? "Select person" : "No linked persons found";
+    select.appendChild(placeholder);
+
+    for (const row of rows) {
+      const personId = safeTrim(row?.id || row?.person_id || row?.main_person_id);
+      if (!personId) continue;
+      const option = document.createElement("option");
+      option.value = personId;
+      option.textContent = safeTrim(row?.full_name || row?.name) || "Unnamed person";
+      select.appendChild(option);
+    }
+    select.value = safeTrim(selectedPersonId);
+    return select;
+  }
+
+  function renderDealNoteEditor(deal) {
+    const ctx = getDealsContext();
+    const dealId = safeTrim(deal?.deal_id);
+    const wrap = document.createElement("div");
+    wrap.className = "deal-note-editor-wrap";
+
+    let personSelect = null;
+    if (ctx.isCompany) {
+      personSelect = renderPersonSelect();
+      wrap.appendChild(createField({ label: "Person", child: personSelect }));
+    }
+
+    const noteApi = globalObj.PopupNotesController;
+    if (typeof noteApi?.renderNoteEditorForContext !== "function") {
+      const missing = document.createElement("div");
+      missing.className = "notes-empty";
+      missing.textContent = "Note form is not available.";
+      wrap.appendChild(missing);
+      return wrap;
+    }
+
+    const editor = noteApi.renderNoteEditorForContext({
+      isNew: true,
+      contextOverride: () => ({
+        contextType: "deal",
+        personId: ctx.isCompany ? safeTrim(personSelect?.value) : ctx.personId,
+        companyId: ctx.companyId,
+        dealId,
+        personName: ctx.isCompany ? "" : ctx.personName,
+        companyName: ctx.companyName,
+        requirePersonId: ctx.isCompany,
+      }),
+      onCancel: () => {
+        localState.addingNoteDealId = null;
+        renderDeals();
+      },
+      onSaved: async () => {
+        localState.addingNoteDealId = null;
+        await loadDealNotes(dealId, { force: true });
+      },
+      statusSetter: setDealsStatus,
+    });
+    wrap.appendChild(editor);
     return wrap;
   }
 
@@ -225,6 +402,63 @@
     return card;
   }
 
+  function renderDealNotes(deal) {
+    const dealId = safeTrim(deal?.deal_id);
+    const section = document.createElement("div");
+    section.className = "deal-linked-notes-section";
+
+    const header = document.createElement("div");
+    header.className = "deal-linked-notes-header";
+    const title = document.createElement("strong");
+    title.textContent = "Linked notes";
+    const addBtn = document.createElement("button");
+    addBtn.type = "button";
+    addBtn.className = "btn-small-primary deal-add-note-btn";
+    addBtn.textContent = "+ Add note";
+    addBtn.addEventListener("click", () => {
+      localState.addingNoteDealId = dealId;
+      renderDeals();
+    });
+    header.append(title, addBtn);
+    section.appendChild(header);
+
+    if (localState.addingNoteDealId === dealId) {
+      section.appendChild(renderDealNoteEditor(deal));
+    }
+
+    if (localState.dealNotesLoadingByDealId[dealId]) {
+      const loading = document.createElement("div");
+      loading.className = "notes-empty";
+      loading.textContent = "Loading linked notes...";
+      section.appendChild(loading);
+      return section;
+    }
+
+    const notes = localState.dealNotesByDealId[dealId];
+    if (!Array.isArray(notes)) {
+      const loading = document.createElement("div");
+      loading.className = "notes-empty";
+      loading.textContent = "Loading linked notes...";
+      section.appendChild(loading);
+      loadDealNotes(dealId, { force: false });
+      return section;
+    }
+
+    if (!notes.length) {
+      const empty = document.createElement("div");
+      empty.className = "notes-empty";
+      empty.textContent = "No notes linked to this deal.";
+      section.appendChild(empty);
+      return section;
+    }
+
+    const list = document.createElement("div");
+    list.className = "deal-linked-notes-list";
+    for (const note of notes) list.appendChild(createMiniNoteCard(note));
+    section.appendChild(list);
+    return section;
+  }
+
   function renderDealCard(deal) {
     const dealId = safeTrim(deal?.deal_id);
     const expanded = localState.expandedDealId === dealId;
@@ -237,39 +471,44 @@
     header.tabIndex = 0;
 
     const left = document.createElement("span");
-    left.className = "note-card-summary";
+    left.className = "note-card-summary deal-card-summary";
     const icon = document.createElement("span");
     icon.className = "note-type-icon";
     icon.textContent = "💼";
     const date = document.createElement("span");
     date.className = "note-date";
     date.textContent = formatDate(deal?.created_at);
-    const phase = document.createElement("span");
-    phase.className = "note-related-name";
-    phase.textContent = safeTrim(deal?.deal_phase) || "Deal";
-    left.append(icon, date, phase);
+    const title = document.createElement("span");
+    title.className = "note-card-title deal-card-title";
+    title.textContent = safeTrim(deal?.deal_name) || "(no title)";
+    left.append(icon, date, title);
 
     const right = document.createElement("span");
-    right.className = "note-card-title";
-    right.textContent = safeTrim(deal?.deal_name) || "(no title)";
+    right.className = "deal-card-actions";
+    const phase = document.createElement("span");
+    phase.className = "deal-phase-pill";
+    phase.textContent = safeTrim(deal?.deal_phase) || "Deal";
     const editBtn = document.createElement("button");
     editBtn.type = "button";
     editBtn.className = "deal-edit-btn";
     editBtn.title = "Edit deal";
     editBtn.setAttribute("aria-label", "Edit deal");
-    editBtn.textContent = "✎";
+    editBtn.innerHTML = "✎";
     editBtn.addEventListener("click", (event) => {
       event.stopPropagation();
       localState.isCreating = false;
       localState.expandedDealId = dealId;
       localState.editingDealId = dealId;
+      localState.addingNoteDealId = null;
       renderDeals();
     });
 
-    header.append(left, right, editBtn);
+    right.append(phase, editBtn);
+    header.append(left, right);
     const toggleExpanded = () => {
       localState.expandedDealId = expanded ? null : dealId;
       localState.editingDealId = null;
+      localState.addingNoteDealId = null;
       localState.isCreating = false;
       renderDeals();
     };
@@ -309,6 +548,7 @@
       description.textContent =
         safeTrim(deal?.deal_description) || "No details available.";
       body.appendChild(description);
+      body.appendChild(renderDealNotes(deal));
       card.appendChild(body);
     }
 
@@ -351,6 +591,7 @@
     if (!ctx.companyId) {
       localState.deals = [];
       localState.loadedCompanyId = "";
+      localState.dealNotesByDealId = {};
       setDealsStatus("");
       renderDeals();
       return;
@@ -370,6 +611,7 @@
       }
       localState.deals = Array.isArray(resp.rows) ? resp.rows : [];
       localState.loadedCompanyId = ctx.companyId;
+      localState.dealNotesByDealId = {};
       setDealsStatus(localState.deals.length ? "" : "No deals found.");
       renderDeals();
     } catch (e) {
@@ -393,6 +635,7 @@
       localState.isCreating = true;
       localState.expandedDealId = null;
       localState.editingDealId = null;
+      localState.addingNoteDealId = null;
       renderDeals();
     });
   }

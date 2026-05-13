@@ -154,7 +154,7 @@
     return wrap;
   }
 
-  function renderEditor(note, { isNew = false } = {}) {
+  function renderEditor(note, { isNew = false, contextOverride = null, onSaved = null, onCancel = null, statusSetter = null } = {}) {
     const editor = document.createElement("div");
     editor.className = "note-editor";
 
@@ -252,13 +252,24 @@
     editor.appendChild(actions);
 
     cancelBtn.addEventListener("click", () => {
+      if (typeof onCancel === "function") {
+        onCancel();
+        return;
+      }
       if (isNew) localState.isCreating = false;
       localState.expandedNoteId = null;
       renderNotes();
     });
 
     saveBtn.addEventListener("click", async () => {
-      const ctx = getPersonContext();
+      const ctx = typeof contextOverride === "function"
+        ? contextOverride()
+        : contextOverride || getPersonContext();
+      if (ctx.requirePersonId && !safeTrim(ctx.personId)) {
+        const setStatus = typeof statusSetter === "function" ? statusSetter : setNotesStatus;
+        setStatus("Select a person before saving this deal note.");
+        return;
+      }
       const payload = {
         note_id: note?.note_id,
         note_title: titleInput.value,
@@ -269,22 +280,28 @@
         duration: normalizeDuration(durationInput.value) || null,
         main_person_id: ctx.personId,
         company_id: ctx.companyId,
-        deal_id: "",
+        deal_id: safeTrim(ctx.dealId),
       };
       try {
         saveBtn.disabled = true;
-        setNotesStatus("Saving note...");
+        const setStatus = typeof statusSetter === "function" ? statusSetter : setNotesStatus;
+        setStatus("Saving note...");
         const type = isNew ? "DB_CREATE_NOTE" : "DB_UPDATE_NOTE";
         const result = await sendRuntimeMessage(type, { payload });
         const resp = result.data || {};
         if (!result.ok || resp?.ok === false) {
           throw new Error(getErrorMessage(result.error || resp?.error));
         }
-        localState.isCreating = false;
-        localState.expandedNoteId = null;
-        await refreshNotes({ force: true });
+        if (typeof onSaved === "function") {
+          await onSaved(resp.note || null);
+        } else {
+          localState.isCreating = false;
+          localState.expandedNoteId = null;
+          await refreshNotes({ force: true });
+        }
       } catch (e) {
-        setNotesStatus(getErrorMessage(e));
+        const setStatus = typeof statusSetter === "function" ? statusSetter : setNotesStatus;
+        setStatus(getErrorMessage(e));
       } finally {
         saveBtn.disabled = false;
       }
@@ -456,11 +473,32 @@
     setActiveSubtab("notes");
   }
 
+  function renderNoteEditorForContext(options = {}) {
+    return renderEditor(
+      options.note || {
+        note_title: "",
+        note_description: "",
+        date: new Date().toISOString(),
+        status: "ready",
+        notes_type: "note",
+        duration: "",
+      },
+      {
+        isNew: options.isNew !== false,
+        contextOverride: options.contextOverride || null,
+        onSaved: options.onSaved || null,
+        onCancel: options.onCancel || null,
+        statusSetter: options.statusSetter || null,
+      },
+    );
+  }
+
   const api = {
     init,
     refreshNotes,
     renderNotes,
     setActiveSubtab,
+    renderNoteEditorForContext,
   };
 
   globalObj.PopupNotesController = Object.freeze(api);
