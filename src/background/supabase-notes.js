@@ -210,10 +210,37 @@
     }
   }
 
+  async function supabaseDeleteNote(payload = {}) {
+    const { supabaseUrl, supabaseAnonKey, accessToken } =
+      await getSupabaseRequestContext();
+    const noteId = normalizeProfileField(payload.note_id);
+    if (!noteId) throw new Error("Note id is required.");
+    const url = `${supabaseUrl}/rest/v1/note?note_id=eq.${encodeURIComponent(noteId)}`;
+    const res = await fetchWithTimeout(
+      url,
+      {
+        method: "DELETE",
+        headers: {
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          Prefer: "return=minimal",
+        },
+      },
+      15000,
+      "Supabase request",
+    );
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      throw createProviderHttpError("supabase", res.status, txt);
+    }
+  }
+
   globalObj.LEFSupabaseNotes = Object.freeze({
     supabaseListNotes,
     supabaseCreateNote,
     supabaseUpdateNote,
     supabaseArchiveNote,
+    supabaseDeleteNote,
   });
 })(typeof globalThis !== "undefined" ? globalThis : self);

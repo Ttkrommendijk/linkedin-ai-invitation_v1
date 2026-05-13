@@ -154,7 +154,17 @@
     return wrap;
   }
 
-  function renderEditor(note, { isNew = false, contextOverride = null, onSaved = null, onCancel = null, statusSetter = null } = {}) {
+  function renderEditor(
+    note,
+    {
+      isNew = false,
+      contextOverride = null,
+      onSaved = null,
+      onCancel = null,
+      onDeleted = null,
+      statusSetter = null,
+    } = {},
+  ) {
     const editor = document.createElement("div");
     editor.className = "note-editor";
 
@@ -239,6 +249,23 @@
 
     const actions = document.createElement("div");
     actions.className = "note-actions";
+
+    const deleteGroup = document.createElement("div");
+    deleteGroup.className = "note-actions-left";
+    const submitGroup = document.createElement("div");
+    submitGroup.className = "note-actions-right";
+
+    let deleteBtn = null;
+    if (!isNew && safeTrim(note?.note_id)) {
+      deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "btn-icon-danger note-delete-btn";
+      deleteBtn.title = "Delete note permanently";
+      deleteBtn.setAttribute("aria-label", "Delete note permanently");
+      deleteBtn.textContent = "🗑";
+      deleteGroup.appendChild(deleteBtn);
+    }
+
     const saveBtn = document.createElement("button");
     saveBtn.type = "button";
     saveBtn.className = "btn-small-primary";
@@ -247,8 +274,8 @@
     cancelBtn.type = "button";
     cancelBtn.className = "btn-small-secondary";
     cancelBtn.textContent = "Cancel";
-    actions.appendChild(saveBtn);
-    actions.appendChild(cancelBtn);
+    submitGroup.append(saveBtn, cancelBtn);
+    actions.append(deleteGroup, submitGroup);
     editor.appendChild(actions);
 
     cancelBtn.addEventListener("click", () => {
@@ -259,6 +286,45 @@
       if (isNew) localState.isCreating = false;
       localState.expandedNoteId = null;
       renderNotes();
+    });
+
+    deleteBtn?.addEventListener("click", async () => {
+      const noteId = safeTrim(note?.note_id);
+      if (!noteId) return;
+      const confirmed = globalObj.confirm
+        ? globalObj.confirm("Delete this note permanently?")
+        : true;
+      if (!confirmed) return;
+      try {
+        deleteBtn.disabled = true;
+        saveBtn.disabled = true;
+        cancelBtn.disabled = true;
+        const setStatus = typeof statusSetter === "function" ? statusSetter : setNotesStatus;
+        setStatus("Deleting note...");
+        const result = await sendRuntimeMessage("DB_DELETE_NOTE", {
+          payload: { note_id: noteId },
+        });
+        const resp = result.data || {};
+        if (!result.ok || resp?.ok === false) {
+          throw new Error(getErrorMessage(result.error || resp?.error));
+        }
+        localState.expandedNoteId = null;
+        localState.notes = localState.notes.filter(
+          (item) => safeTrim(item?.note_id) !== noteId,
+        );
+
+        if (typeof onDeleted === "function") {
+          await onDeleted(noteId);
+        }
+
+        await refreshAllNoteRelatedViews({ statusSetter });
+      } catch (e) {
+        const setStatus = typeof statusSetter === "function" ? statusSetter : setNotesStatus;
+        setStatus(getErrorMessage(e));
+        deleteBtn.disabled = false;
+        saveBtn.disabled = false;
+        cancelBtn.disabled = false;
+      }
     });
 
     saveBtn.addEventListener("click", async () => {
@@ -401,6 +467,18 @@
     }
   }
 
+  async function refreshAllNoteRelatedViews({ statusSetter = null } = {}) {
+    const setStatus = typeof statusSetter === "function" ? statusSetter : setNotesStatus;
+    try {
+      await refreshNotes({ force: true });
+      if (typeof globalObj.refreshDeals === "function") {
+        await globalObj.refreshDeals({ force: true });
+      }
+    } catch (e) {
+      setStatus(getErrorMessage(e));
+    }
+  }
+
   async function refreshNotes({ force = false } = {}) {
     if (!hasRequiredDom() || !sendRuntimeMessage) return;
     const ctx = getPersonContext();
@@ -488,6 +566,7 @@
         contextOverride: options.contextOverride || null,
         onSaved: options.onSaved || null,
         onCancel: options.onCancel || null,
+        onDeleted: options.onDeleted || null,
         statusSetter: options.statusSetter || null,
       },
     );
@@ -497,6 +576,7 @@
     init,
     refreshNotes,
     renderNotes,
+    refreshAllNoteRelatedViews,
     setActiveSubtab,
     renderNoteEditorForContext,
   };

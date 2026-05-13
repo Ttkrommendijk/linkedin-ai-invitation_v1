@@ -17,5 +17,6 @@
     DB_CREATE_NOTE: "DB_CREATE_NOTE",
     DB_UPDATE_NOTE: "DB_UPDATE_NOTE",
     DB_ARCHIVE_NOTE: "DB_ARCHIVE_NOTE",
+    DB_DELETE_NOTE: "DB_DELETE_NOTE",
   });
 })(typeof globalThis !== "undefined" ? globalThis : self);

@@ -538,6 +538,15 @@ const ROUTES = {
     },
   },
 
+
+  DB_DELETE_NOTE: {
+    errorCode: "SUPABASE_DELETE_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Deleting note...");
+      await LEF_SUPABASE_NOTES.supabaseDeleteNote(msg?.payload || {});
+      return { ok: true };
+    },
+  },
   DB_LIST_CAMPAIGNS: {
     errorCode: "SUPABASE_GET_FAILED",
     handler: async () => {

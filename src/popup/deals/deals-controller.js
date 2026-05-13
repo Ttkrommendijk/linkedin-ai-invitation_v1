@@ -147,6 +147,10 @@
                 editorWrap.hidden = true;
                 await refreshDeals({ force: true });
               },
+              onDeleted: async () => {
+                editorWrap.hidden = true;
+                await refreshDeals({ force: true });
+              },
               onCancel: () => {
                 editorWrap.hidden = true;
               },

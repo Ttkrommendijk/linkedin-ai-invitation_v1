@@ -985,12 +985,40 @@
 }
 .note-actions {
     display: flex;
-    justify-content: flex-end;
+    justify-content: space-between;
+    align-items: center;
     gap: 8px;
+}
+.note-actions-left,
+.note-actions-right {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.note-actions-right {
+    justify-content: flex-end;
 }
 .note-actions .btn-small-primary,
 .note-actions .btn-small-secondary {
     margin: 0;
+}
+.note-delete-btn {
+    width: 30px;
+    min-width: 30px;
+    min-height: 28px;
+    margin: 0;
+    padding: 4px 7px;
+    border: 1px solid #fecaca;
+    border-radius: 999px;
+    background: #fff1f2;
+    color: #b91c1c;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+.note-delete-btn:hover,
+.note-delete-btn:focus {
+    border-color: #fca5a5;
+    background: #fee2e2;
+    color: #991b1b;
 }
 
 .deals-list {
