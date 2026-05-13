@@ -811,6 +811,16 @@
     margin-top: 10px;
     margin-bottom: 8px;
 }
+
+.notes-toolbar-right {
+    display: flex;
+    justify-content: flex-end;
+    flex: 0 0 auto;
+    gap: 8px;
+    margin-top: 10px;
+    margin-bottom: 8px;
+}
+
 .notes-filter-group {
     display: inline-flex;
     align-items: center;
@@ -984,22 +994,22 @@
 }
 
 .deals-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
 .deal-meta {
-  color: #555;
-  font-size: 12px;
-  margin-bottom: 8px;
+    color: #555;
+    font-size: 12px;
+    margin-bottom: 8px;
 }
 
 .deal-description {
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-size: 13px;
-  line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 13px;
+    line-height: 1.4;
 }
 
 .deal-editor {
