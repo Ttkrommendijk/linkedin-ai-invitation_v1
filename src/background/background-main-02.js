@@ -479,6 +479,16 @@ const ROUTES = {
       return { ok: true, rows };
     },
   },
+  DB_LIST_DEALS: {
+    errorCode: "SUPABASE_GET_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Fetching deals...");
+      const rows = await LEF_SUPABASE_DEALS.supabaseListDeals(
+        msg?.payload || {},
+      );
+      return { ok: true, rows };
+    },
+  },
   DB_CREATE_NOTE: {
     errorCode: "SUPABASE_UPSERT_FAILED",
     handler: async ({ msg }) => {

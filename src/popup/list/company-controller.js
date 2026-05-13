@@ -12,7 +12,7 @@ companyExistingLinkInputEl, companyExistingLinkOptionsEl,
 companyExistingLinkSectionEl, companyExistingLinkStatusEl,
 companyLinkSearchInputEl, companyLinkSearchOptionsEl,
 companyPeopleListEl, companyPeopleSectionEl,
-companyProfileTabsRowEl, companyPersonsTabBtnEl, companyNotesTabBtnEl,
+companyProfileTabsRowEl, companyPersonsTabBtnEl, companyNotesTabBtnEl, companyDealsTabBtnEl,
 companyCampaignControlsEl, companyLinkedEmployeeNumberEl,
 companyLinkedIndicatorEl, companyLinkedNameEl,
 companyLinkedRowEl, companyQuickLinkBtn,
@@ -136,18 +136,27 @@ function setCompanyDetailTab(which = "persons") {
 const isCompanyProfileMode = requireFn("isCompanyProfileMode");
 const isCompany = isCompanyProfileMode();
 const showNotes = isCompany && which === "notes";
-if (companyPersonsTabBtnEl) companyPersonsTabBtnEl.classList.toggle("active", !showNotes);
+const showDeals = isCompany && which === "deals";
+const showPersons = isCompany && !showNotes && !showDeals;
+if (companyPersonsTabBtnEl) companyPersonsTabBtnEl.classList.toggle("active", showPersons);
 if (companyNotesTabBtnEl) companyNotesTabBtnEl.classList.toggle("active", showNotes);
-if (companyPeopleSectionEl) companyPeopleSectionEl.hidden = !isCompany || showNotes;
+if (companyDealsTabBtnEl) companyDealsTabBtnEl.classList.toggle("active", showDeals);
+if (companyPeopleSectionEl) companyPeopleSectionEl.hidden = !isCompany || !showPersons;
 if (PopupDom.detailNotesPanelEl) PopupDom.detailNotesPanelEl.hidden = !isCompany || !showNotes;
+if (PopupDom.detailDealsPanelEl) PopupDom.detailDealsPanelEl.hidden = !isCompany || !showDeals;
+if (PopupDom.detailPromptsPanelEl && isCompany) PopupDom.detailPromptsPanelEl.hidden = true;
 if (PopupDom.notesFilterCompanyEl?.parentElement) {
   PopupDom.notesFilterCompanyEl.parentElement.hidden = isCompany;
 }
 if (showNotes) {
   globalObj.refreshNotes?.({ force: true });
 }
+if (showDeals) {
+  globalObj.refreshDeals?.({ force: true });
+}
 }
 function getActiveCompanyDetailTab() {
+if (companyDealsTabBtnEl?.classList.contains("active")) return "deals";
 return companyNotesTabBtnEl?.classList.contains("active") ? "notes" : "persons";
 } function applyProfileModeUi() {
 const isCompanyProfileMode = requireFn("isCompanyProfileMode"); const isCompany = isCompanyProfileMode();
@@ -204,6 +213,9 @@ el.hidden = hideInvitationUi; el.style.display = hideInvitationUi ? "none" : "";
   if (companyProfileTabsRowEl) {
     companyProfileTabsRowEl.hidden = true;
     companyProfileTabsRowEl.style.display = "none";
+  }
+  if (PopupDom.detailDealsPanelEl) {
+    PopupDom.detailDealsPanelEl.hidden = !PopupDom.detailDealsTabBtnEl?.classList.contains("active");
   }
 }
 if (PopupDom.notesFilterCompanyEl?.parentElement) {
@@ -556,6 +568,7 @@ const matched = state.companyLinkSearchResults.find( (row) => safeTrim(row?.comp
 setCompanyDropdownSelected(matched); }
 } companyPersonsTabBtnEl?.addEventListener("click", () => setCompanyDetailTab("persons"));
 companyNotesTabBtnEl?.addEventListener("click", () => setCompanyDetailTab("notes"));
+companyDealsTabBtnEl?.addEventListener("click", () => setCompanyDetailTab("deals"));
 function renderCurrentCompany() {
 return renderDetailHeader({ force: true });
 } function refreshCurrentCompanyContext() {

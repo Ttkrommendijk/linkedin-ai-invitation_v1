@@ -115,11 +115,16 @@
 
   function setActiveSubtab(which) {
     const notesActive = which === "notes";
+    const dealsActive = which === "deals";
+    const promptsActive = which === "prompts";
     dom.detailNotesTabBtnEl?.classList.toggle("active", notesActive);
-    dom.detailPromptsTabBtnEl?.classList.toggle("active", !notesActive);
+    dom.detailDealsTabBtnEl?.classList.toggle("active", dealsActive);
+    dom.detailPromptsTabBtnEl?.classList.toggle("active", promptsActive);
     if (dom.detailNotesPanelEl) dom.detailNotesPanelEl.hidden = !notesActive;
-    if (dom.detailPromptsPanelEl) dom.detailPromptsPanelEl.hidden = notesActive;
+    if (dom.detailDealsPanelEl) dom.detailDealsPanelEl.hidden = !dealsActive;
+    if (dom.detailPromptsPanelEl) dom.detailPromptsPanelEl.hidden = !promptsActive;
     if (notesActive) refreshNotes({ force: false });
+    if (dealsActive) globalObj.refreshDeals?.({ force: false });
   }
 
   function setNotesStatus(text) {
@@ -426,6 +431,9 @@
     if (!hasRequiredDom()) return;
     dom.detailNotesTabBtnEl.addEventListener("click", () =>
       setActiveSubtab("notes"),
+    );
+    dom.detailDealsTabBtnEl?.addEventListener("click", () =>
+      setActiveSubtab("deals"),
     );
     dom.detailPromptsTabBtnEl.addEventListener("click", () =>
       setActiveSubtab("prompts"),

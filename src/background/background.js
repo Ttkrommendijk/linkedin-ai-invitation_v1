@@ -29,6 +29,7 @@ try {
   importScripts("./supabase-prompts.js");
   importScripts("./supabase-campaigns.js");
   importScripts("./supabase-notes.js");
+  importScripts("./supabase-deals.js");
   importScripts("./supabase-overview.js");
 } catch (e) {
   console.error("[LEF] failed to import supabase modules", e);
@@ -49,6 +50,7 @@ const LEF_SUPABASE_COMPANY = globalThis.LEFSupabaseCompany || {};
 const LEF_SUPABASE_PROMPTS = globalThis.LEFSupabasePrompts || {};
 const LEF_SUPABASE_CAMPAIGNS = globalThis.LEFSupabaseCampaigns || {};
 const LEF_SUPABASE_NOTES = globalThis.LEFSupabaseNotes || {};
+const LEF_SUPABASE_DEALS = globalThis.LEFSupabaseDeals || {};
 const LEF_SUPABASE_OVERVIEW = globalThis.LEFSupabaseOverview || {};
 
 const fetchWithTimeout = LEF_OPENAI.fetchWithTimeout;
@@ -1083,6 +1085,16 @@ const ROUTES = {
     handler: async ({ msg }) => {
       emitUiStatus("Fetching notes\u2026");
       const rows = await LEF_SUPABASE_NOTES.supabaseListNotes(
+        msg?.payload || {},
+      );
+      return { ok: true, rows };
+    },
+  },
+  DB_LIST_DEALS: {
+    errorCode: "SUPABASE_GET_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Fetching deals...");
+      const rows = await LEF_SUPABASE_DEALS.supabaseListDeals(
         msg?.payload || {},
       );
       return { ok: true, rows };

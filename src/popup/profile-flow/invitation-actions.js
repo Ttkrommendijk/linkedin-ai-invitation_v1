@@ -460,6 +460,9 @@ function runPopupInit() {
   if (globalThis.PopupNotesController?.init) {
     globalThis.PopupNotesController.init();
   }
+  if (globalThis.PopupDealsController?.init) {
+    globalThis.PopupDealsController.init();
+  }
   renderDetailHeader();
   updatePhaseButtons();
   loadProfileContextOnOpen().catch((_e) => {});
