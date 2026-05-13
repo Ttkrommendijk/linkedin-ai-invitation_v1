@@ -121,9 +121,37 @@ function openEmailForCurrentPerson() {
 const email = getPersonEmailValue(); if (!email) return;
 window.open(`mailto:${encodeURIComponent(email)}`, "_blank");
 }
-function openWhatsappForCurrentPerson() {
+async function openExternalAppUrl({ targetUrl, appUrlPatterns }) {
+const url = safeTrim(targetUrl);
+const patterns = Array.isArray(appUrlPatterns)
+? appUrlPatterns.map(safeTrim).filter(Boolean)
+: [];
+if (!url) return;
+if (!chrome?.tabs?.query || !chrome?.tabs?.update || !chrome?.tabs?.create) {
+window.open(url, "_blank");
+return;
+}
+try {
+const tabs = patterns.length ? await chrome.tabs.query({ url: patterns }) : [];
+const tab = tabs.find((item) => Number.isInteger(item?.id));
+if (tab) {
+await chrome.tabs.update(tab.id, { url, active: true });
+if (Number.isInteger(tab.windowId) && chrome?.windows?.update) {
+await chrome.windows.update(tab.windowId, { focused: true }).catch(() => null);
+}
+return;
+}
+await chrome.tabs.create({ url, active: true });
+} catch (_e) {
+window.open(url, "_blank");
+}
+}
+async function openWhatsappForCurrentPerson() {
 const phone = normalizeWhatsappPhone(getPersonPhoneValue()); if (!phone) return;
-window.open(`https://web.whatsapp.com/send?phone=${encodeURIComponent(phone)}`, "_blank");
+await openExternalAppUrl({
+targetUrl: `https://web.whatsapp.com/send?phone=${encodeURIComponent(phone)}`,
+appUrlPatterns: ["https://web.whatsapp.com/*"],
+});
 }
 function renderProfileEditControls() { const isCompanyProfileMode = requireFn("isCompanyProfileMode");
 const getDetailNameLinkedinUrl = requireFn("getDetailNameLinkedinUrl"); const isLinkedInProfileLikeUrl = requireFn("isLinkedInProfileLikeUrl");
