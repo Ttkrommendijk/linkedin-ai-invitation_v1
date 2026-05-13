@@ -198,14 +198,7 @@
     title.appendChild(titleText);
 
     noteInfo.append(meta, title);
-
-    const editBtn = document.createElement("button");
-    editBtn.type = "button";
-    editBtn.className = "deal-note-edit-btn";
-    editBtn.innerHTML = "✎";
-    editBtn.title = "Edit note";
-
-    top.append(noteInfo, editBtn);
+    top.append(noteInfo);
 
     const description = document.createElement("div");
     description.className = "deal-linked-note-description";
@@ -214,36 +207,46 @@
     const editorWrap = document.createElement("div");
     editorWrap.hidden = true;
 
-    editBtn.addEventListener("click", () => {
-      editorWrap.hidden = !editorWrap.hidden;
+    function ensureEditor() {
+      if (editorWrap.childElementCount) return true;
+      const noteApi = globalObj.PopupNotesController;
+      if (typeof noteApi?.renderNoteEditorForContext !== "function") return false;
 
-      if (!editorWrap.childElementCount) {
-        const noteApi = globalObj.PopupNotesController;
+      editorWrap.appendChild(
+        noteApi.renderNoteEditorForContext({
+          note,
+          isNew: false,
+          onSaved: async () => {
+            editorWrap.hidden = true;
+            await refreshDeals({ force: true });
+          },
+          onDeleted: async () => {
+            editorWrap.hidden = true;
+            await refreshDeals({ force: true });
+          },
+          onCancel: () => {
+            editorWrap.hidden = true;
+          },
+          statusSetter: setDealsStatus,
+        }),
+      );
+      return true;
+    }
 
-        if (typeof noteApi?.renderNoteEditorForContext === "function") {
-          editorWrap.appendChild(
-            noteApi.renderNoteEditorForContext({
-              note,
-              isNew: false,
-              onSaved: async () => {
-                editorWrap.hidden = true;
-                await refreshDeals({ force: true });
-              },
-              onDeleted: async () => {
-                editorWrap.hidden = true;
-                await refreshDeals({ force: true });
-              },
-              onCancel: () => {
-                editorWrap.hidden = true;
-              },
-              statusSetter: setDealsStatus,
-            }),
-          );
-        }
-      }
+    card.tabIndex = 0;
+    card.setAttribute("role", "button");
+    card.setAttribute("aria-label", `Edit note ${safeTrim(note?.note_title) || "without title"}`);
+    card.addEventListener("click", (event) => {
+      if (event.target?.closest?.(".note-editor, button, input, select, textarea, a")) return;
+      if (ensureEditor()) editorWrap.hidden = !editorWrap.hidden;
+    });
+    card.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      if (ensureEditor()) editorWrap.hidden = !editorWrap.hidden;
     });
 
-    card.append(top, meta, description, editorWrap);
+    card.append(top, description, editorWrap);
     return card;
   }
 
