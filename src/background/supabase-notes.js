@@ -30,15 +30,8 @@
     return date.toISOString();
   }
 
-  function deriveStatus(dateValue, statusValue) {
-    const explicitStatus = normalizeProfileField(statusValue);
-    const date = new Date(toIsoDateTime(dateValue));
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (!Number.isNaN(date.getTime()) && date.getTime() > today.getTime()) {
-      return "planned";
-    }
-    return explicitStatus || "ready";
+  function getSelectedStatus(statusValue) {
+    return normalizeProfileField(statusValue) || "ready";
   }
 
   function normalizeNotePayload(payload = {}) {
@@ -46,7 +39,7 @@
       note_title: normalizeProfileField(payload.note_title) || null,
       note_description: normalizeProfileField(payload.note_description) || null,
       date: toIsoDateTime(payload.date),
-      status: deriveStatus(payload.date, payload.status),
+      status: getSelectedStatus(payload.status),
       notes_type: normalizeProfileField(payload.notes_type) || "note",
     };
 

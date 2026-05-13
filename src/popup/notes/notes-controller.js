@@ -72,14 +72,8 @@
     }
   }
 
-  function deriveStatus(dateValue, selectedStatus) {
-    const rawStatus = safeTrim(selectedStatus) || "ready";
-    const date = new Date(dateValue);
-    const now = new Date();
-    if (!Number.isNaN(date.getTime()) && date.getTime() > now.getTime()) {
-      return "planned";
-    }
-    return rawStatus;
+  function getSelectedStatus(selectedStatus) {
+    return safeTrim(selectedStatus) || "ready";
   }
 
   function normalizeDuration(value) {
@@ -195,7 +189,7 @@
       statusSelect.appendChild(option);
     });
     statusSelect.value =
-      safeTrim(note?.status) || deriveStatus(dateInput.value, "ready");
+      safeTrim(note?.status) || getSelectedStatus("ready");
     dateStatusRow.appendChild(
       createField({ label: "Status", child: statusSelect }),
     );
@@ -235,10 +229,6 @@
       createField({ label: "Duration in minutes", child: durationInput }),
     );
     editor.appendChild(typeDurationRow);
-
-    dateInput.addEventListener("change", () => {
-      statusSelect.value = deriveStatus(dateInput.value, statusSelect.value);
-    });
 
     const descriptionInput = document.createElement("textarea");
     descriptionInput.className = "form-control note-description-input";
@@ -346,7 +336,7 @@
         note_title: titleInput.value,
         note_description: descriptionInput.value,
         date: dateInput.value,
-        status: deriveStatus(dateInput.value, statusSelect.value),
+        status: getSelectedStatus(statusSelect.value),
         notes_type: typeSelect.value,
         duration: normalizeDuration(durationInput.value) || null,
         main_person_id: ctx.personId,
