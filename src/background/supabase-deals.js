@@ -53,7 +53,55 @@
     return Array.isArray(rows) ? rows : [];
   }
 
+
+  async function supabaseCreateDeal(payload = {}) {
+    const { supabaseUrl, supabaseAnonKey, accessToken } =
+      await getSupabaseRequestContext();
+    const companyId = normalizeProfileField(payload.company_id);
+    const dealName = normalizeProfileField(payload.deal_name);
+    const dealPhase = normalizeProfileField(payload.deal_phase);
+    if (!companyId) throw new Error("company_id is required to create a deal.");
+    if (!dealName) throw new Error("deal_name is required to create a deal.");
+    if (!dealPhase) throw new Error("deal_phase is required to create a deal.");
+
+    const row = {
+      deal_name: dealName,
+      deal_description: normalizeProfileField(payload.deal_description) || null,
+      deal_value:
+        payload.deal_value === null || payload.deal_value === undefined || payload.deal_value === ""
+          ? null
+          : Number(payload.deal_value),
+      company_id: companyId,
+      deal_phase: dealPhase,
+    };
+
+    const url = `${supabaseUrl}/rest/v1/deal`;
+    const res = await fetchWithTimeout(
+      url,
+      {
+        method: "POST",
+        headers: {
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          Prefer: "return=representation",
+        },
+        body: JSON.stringify(row),
+      },
+      15000,
+      "Supabase request",
+    );
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      throw createProviderHttpError("supabase", res.status, txt);
+    }
+    const rows = await res.json();
+    return Array.isArray(rows) ? rows[0] || null : rows || null;
+  }
+
+
   globalObj.LEFSupabaseDeals = Object.freeze({
     supabaseListDeals,
+    supabaseCreateDeal,
   });
 })(typeof globalThis !== "undefined" ? globalThis : self);

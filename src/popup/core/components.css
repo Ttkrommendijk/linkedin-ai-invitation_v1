@@ -1001,3 +1001,32 @@
   font-size: 13px;
   line-height: 1.4;
 }
+
+.deal-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.deal-editor-row {
+    display: flex;
+    gap: 8px;
+}
+.deal-field {
+    flex: 1;
+}
+.deal-field small {
+    display: block;
+    margin-bottom: 4px;
+}
+.deal-field input,
+.deal-field textarea {
+    width: 100%;
+}
+.deal-actions {
+    display: flex;
+    gap: 8px;
+}
+.deal-actions .btn-small-primary,
+.deal-actions .btn-small-secondary {
+    flex: 1;
+}

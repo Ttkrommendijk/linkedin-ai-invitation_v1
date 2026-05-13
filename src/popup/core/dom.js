@@ -153,6 +153,7 @@
     addNoteBtnEl: document.getElementById("addNoteBtn"),
     notesStatusEl: document.getElementById("notesStatus"),
     notesListEl: document.getElementById("notesList"),
+    addDealBtnEl: document.getElementById("addDealBtn"),
     dealsStatusEl: document.getElementById("dealsStatus"),
     dealsListEl: document.getElementById("dealsList"),
     statusStepperEl: document.getElementById("statusStepper"),
