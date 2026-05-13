@@ -888,12 +888,11 @@
 }
 .note-card-header {
     width: 100%;
-    min-height: 34px;
+    min-height: 48px;
     margin: 0;
     padding: 8px 10px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 8px;
     border: none;
     background: #ffffff;
@@ -910,6 +909,27 @@
     font-weight: 600;
     color: var(--text);
 }
+.note-card-header-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    width: 100%;
+}
+.note-card-top-row,
+.note-card-title-row {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    width: 100%;
+}
+.note-card-top-row {
+    justify-content: space-between;
+    gap: 8px;
+}
+.note-card-title-row {
+    gap: 6px;
+}
 .note-card-summary {
     display: inline-flex;
     align-items: center;
@@ -917,11 +937,67 @@
     min-width: 0;
     flex: 1 1 auto;
 }
+.note-related-icon,
 .note-type-icon {
     width: 18px;
     min-width: 18px;
     text-align: center;
     font-size: 13px;
+    line-height: 1;
+}
+.note-type-title-icon {
+    color: #475569;
+}
+.note-type-linkedin-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    background: #0a66c2;
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 700;
+    font-family: Arial, sans-serif;
+}
+.note-card-status-wrap {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+}
+.note-status-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    min-width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+}
+.note-status-overdue {
+    border: 1px solid #f97316;
+    background: #fff7ed;
+    color: #c2410c;
+}
+.note-status-ready {
+    border: 1px solid #86efac;
+    background: #f0fdf4;
+    color: #15803d;
+}
+.note-status-canceled {
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    color: #64748b;
+}
+.note-status-open {
+    border: 1px solid #bfdbfe;
+    background: #eff6ff;
+    color: #2563eb;
 }
 .note-date {
     color: var(--muted);
@@ -936,66 +1012,15 @@
     font-size: 12px;
     font-weight: 600;
 }
-.note-card-right {
-    display: inline-flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 6px;
-    min-width: 0;
-    flex: 0 1 auto;
-}
 .note-card-title {
-    max-width: 140px;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: var(--muted);
-    font-size: 11px;
-    text-align: right;
-}
-.note-status-icon {
-    width: 18px;
-    min-width: 18px;
-    height: 18px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 999px;
+    color: var(--text);
     font-size: 12px;
-    font-weight: 800;
-    line-height: 1;
-}
-.note-status-icon-overdue {
-    color: #b91c1c;
-    background: #fee2e2;
-    border: 1px solid #fecaca;
-}
-.note-status-icon-ready {
-    color: #166534;
-    background: #dcfce7;
-    border: 1px solid #bbf7d0;
-}
-.note-status-icon-canceled {
-    color: #6b7280;
-    background: #f3f4f6;
-    border: 1px solid #d1d5db;
-}
-.note-status-icon-open,
-.note-status-icon-planned {
-    color: #1d4ed8;
-    background: #dbeafe;
-    border: 1px solid #bfdbfe;
-}
-.note-card-status-overdue {
-    border-color: #fca5a5;
-    box-shadow: inset 3px 0 0 #ef4444;
-}
-.note-card-status-ready {
-    box-shadow: inset 3px 0 0 #22c55e;
-}
-.note-card-status-canceled {
-    opacity: 0.82;
-    box-shadow: inset 3px 0 0 #9ca3af;
+    font-weight: 600;
+    text-align: left;
 }
 .note-card-body {
     border-top: 1px solid var(--line-soft);
@@ -1194,13 +1219,39 @@
     padding: 8px;
     background: #fff;
 }
+.deal-linked-note-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+}
+.deal-linked-note-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    flex: 1 1 auto;
+}
 .deal-linked-note-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
     font-size: 12px;
     font-weight: 700;
     color: var(--text);
 }
+.deal-linked-note-title span:last-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 .deal-linked-note-meta {
-    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     color: var(--muted);
     font-size: 11px;
 }

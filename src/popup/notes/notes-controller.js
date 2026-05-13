@@ -95,50 +95,66 @@
     return "note";
   }
 
-
-  function normalizeNoteStatus(note) {
-    return safeTrim(note?.status).toLowerCase();
-  }
-
-  function isNoteOverdue(note) {
-    const status = normalizeNoteStatus(note);
-    if (status === "ready" || status === "done" || status === "canceled" || status === "cancelled") {
-      return false;
-    }
-    const date = new Date(note?.date || note?.created_at);
-    return !Number.isNaN(date.getTime()) && date.getTime() < Date.now();
-  }
-
-  function getNoteStatusMeta(note) {
-    const status = normalizeNoteStatus(note);
-    if (isNoteOverdue(note)) {
-      return { key: "overdue", icon: "⏰", label: "Overdue" };
-    }
-    if (status === "ready" || status === "done") {
-      return { key: "ready", icon: "✓", label: "Ready" };
-    }
-    if (status === "canceled" || status === "cancelled") {
-      return { key: "canceled", icon: "⊘", label: "Canceled" };
-    }
-    return { key: status || "open", icon: "○", label: status || "Open" };
-  }
-
-  function createNoteStatusIcon(note) {
-    const meta = getNoteStatusMeta(note);
-    const el = document.createElement("span");
-    el.className = `note-status-icon note-status-icon-${meta.key}`;
-    el.textContent = meta.icon;
-    el.title = meta.label;
-    el.setAttribute("aria-label", meta.label);
-    return el;
-  }
-
-  function getNoteIcon(note) {
+  function getRelatedEntityIcon(note) {
     const kind = getNoteKind(note);
     if (kind === "deal") return "💼";
     if (kind === "person") return "👤";
     if (kind === "company") return "🏢";
     return "📝";
+  }
+
+  function getNoteTypeIcon(note) {
+    const type = safeTrim(note?.notes_type).toLowerCase();
+    if (type === "whatsapp") return "💬";
+    if (type === "linkedin") return "in";
+    if (type === "meeting") return "🤝";
+    if (type === "telefone" || type === "phone" || type === "telephone") return "☎";
+    if (type === "email") return "✉";
+    return "📝";
+  }
+
+  function isNoteOverdue(note) {
+    const status = safeTrim(note?.status).toLowerCase();
+    if (status === "ready" || status === "done" || status === "completed" || status === "canceled" || status === "cancelled") {
+      return false;
+    }
+    const date = new Date(note?.date);
+    return !Number.isNaN(date.getTime()) && date.getTime() < Date.now();
+  }
+
+  function getNoteStatusIndicator(note) {
+    const status = safeTrim(note?.status).toLowerCase();
+    if (isNoteOverdue(note)) {
+      return { className: "note-status-icon note-status-overdue", text: "⏱", label: "Overdue" };
+    }
+    if (status === "ready" || status === "done" || status === "completed") {
+      return { className: "note-status-icon note-status-ready", text: "✓", label: "Ready" };
+    }
+    if (status === "canceled" || status === "cancelled") {
+      return { className: "note-status-icon note-status-canceled", text: "✕", label: "Canceled" };
+    }
+    return { className: "note-status-icon note-status-open", text: "○", label: status || "Open" };
+  }
+
+  function appendNoteTypeIcon(parent, note) {
+    const icon = document.createElement("span");
+    icon.className = "note-type-icon note-type-title-icon";
+    if (safeTrim(note?.notes_type).toLowerCase() === "linkedin") {
+      icon.classList.add("note-type-linkedin-icon");
+    }
+    icon.textContent = getNoteTypeIcon(note);
+    icon.title = safeTrim(note?.notes_type) || "Note";
+    parent.appendChild(icon);
+  }
+
+  function appendNoteStatusIndicator(parent, note) {
+    const indicator = getNoteStatusIndicator(note);
+    const icon = document.createElement("span");
+    icon.className = indicator.className;
+    icon.textContent = indicator.text;
+    icon.title = indicator.label;
+    icon.setAttribute("aria-label", indicator.label);
+    parent.appendChild(icon);
   }
 
   function getRelatedName(note, ctx) {
@@ -427,33 +443,45 @@
     const expanded = localState.expandedNoteId === noteId;
     const card = document.createElement("div");
     card.className = "note-card";
-    const statusMeta = getNoteStatusMeta(note);
-    card.classList.add(`note-card-status-${statusMeta.key}`);
 
     const header = document.createElement("button");
     header.type = "button";
     header.className = "note-card-header";
+
+    const stack = document.createElement("span");
+    stack.className = "note-card-header-stack";
+
+    const topRow = document.createElement("span");
+    topRow.className = "note-card-top-row";
+
     const left = document.createElement("span");
     left.className = "note-card-summary";
-    const icon = document.createElement("span");
-    icon.className = "note-type-icon";
-    icon.textContent = getNoteIcon(note);
+    const relatedIcon = document.createElement("span");
+    relatedIcon.className = "note-related-icon";
+    relatedIcon.textContent = getRelatedEntityIcon(note);
     const date = document.createElement("span");
     date.className = "note-date";
     date.textContent = formatDate(note?.date || note?.created_at);
     const related = document.createElement("span");
     related.className = "note-related-name";
     related.textContent = getRelatedName(note, ctx);
-    left.append(icon, date, related);
+    left.append(relatedIcon, date, related);
 
-    const right = document.createElement("span");
-    right.className = "note-card-right";
-    const statusIcon = createNoteStatusIcon(note);
+    const statusWrap = document.createElement("span");
+    statusWrap.className = "note-card-status-wrap";
+    appendNoteStatusIndicator(statusWrap, note);
+    topRow.append(left, statusWrap);
+
+    const titleRow = document.createElement("span");
+    titleRow.className = "note-card-title-row";
+    appendNoteTypeIcon(titleRow, note);
     const title = document.createElement("span");
     title.className = "note-card-title";
     title.textContent = safeTrim(note?.note_title) || "(no title)";
-    right.append(statusIcon, title);
-    header.append(left, right);
+    titleRow.appendChild(title);
+
+    stack.append(topRow, titleRow);
+    header.appendChild(stack);
     header.addEventListener("click", () => {
       localState.expandedNoteId = expanded ? null : noteId;
       localState.isCreating = false;

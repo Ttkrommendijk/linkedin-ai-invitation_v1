@@ -59,44 +59,6 @@
     return [];
   }
 
-
-  function normalizeNoteStatus(note) {
-    return safeTrim(note?.status).toLowerCase();
-  }
-
-  function isNoteOverdue(note) {
-    const status = normalizeNoteStatus(note);
-    if (status === "ready" || status === "done" || status === "canceled" || status === "cancelled") {
-      return false;
-    }
-    const date = new Date(note?.date || note?.created_at);
-    return !Number.isNaN(date.getTime()) && date.getTime() < Date.now();
-  }
-
-  function getNoteStatusMeta(note) {
-    const status = normalizeNoteStatus(note);
-    if (isNoteOverdue(note)) {
-      return { key: "overdue", icon: "⏰", label: "Overdue" };
-    }
-    if (status === "ready" || status === "done") {
-      return { key: "ready", icon: "✓", label: "Ready" };
-    }
-    if (status === "canceled" || status === "cancelled") {
-      return { key: "canceled", icon: "⊘", label: "Canceled" };
-    }
-    return { key: status || "open", icon: "○", label: status || "Open" };
-  }
-
-  function createNoteStatusIcon(note) {
-    const meta = getNoteStatusMeta(note);
-    const el = document.createElement("span");
-    el.className = `note-status-icon note-status-icon-${meta.key}`;
-    el.textContent = meta.icon;
-    el.title = meta.label;
-    el.setAttribute("aria-label", meta.label);
-    return el;
-  }
-
   function formatDate(value) {
     const date = value ? new Date(value) : null;
     if (!date || Number.isNaN(date.getTime())) return "-";
@@ -109,6 +71,55 @@
     } catch (_e) {
       return date.toISOString().slice(0, 10);
     }
+  }
+
+
+  function getNoteTypeIcon(note) {
+    const type = safeTrim(note?.notes_type).toLowerCase();
+    if (type === "whatsapp") return "💬";
+    if (type === "linkedin") return "in";
+    if (type === "meeting") return "🤝";
+    if (type === "telefone" || type === "phone" || type === "telephone") return "☎";
+    if (type === "email") return "✉";
+    return "📝";
+  }
+
+  function isNoteOverdue(note) {
+    const status = safeTrim(note?.status).toLowerCase();
+    if (status === "ready" || status === "done" || status === "completed" || status === "canceled" || status === "cancelled") {
+      return false;
+    }
+    const date = new Date(note?.date);
+    return !Number.isNaN(date.getTime()) && date.getTime() < Date.now();
+  }
+
+  function getNoteStatusIndicator(note) {
+    const status = safeTrim(note?.status).toLowerCase();
+    if (isNoteOverdue(note)) return { className: "note-status-icon note-status-overdue", text: "⏱", label: "Overdue" };
+    if (status === "ready" || status === "done" || status === "completed") return { className: "note-status-icon note-status-ready", text: "✓", label: "Ready" };
+    if (status === "canceled" || status === "cancelled") return { className: "note-status-icon note-status-canceled", text: "✕", label: "Canceled" };
+    return { className: "note-status-icon note-status-open", text: "○", label: status || "Open" };
+  }
+
+  function appendDealNoteTypeIcon(parent, note) {
+    const icon = document.createElement("span");
+    icon.className = "note-type-icon note-type-title-icon";
+    if (safeTrim(note?.notes_type).toLowerCase() === "linkedin") {
+      icon.classList.add("note-type-linkedin-icon");
+    }
+    icon.textContent = getNoteTypeIcon(note);
+    icon.title = safeTrim(note?.notes_type) || "Note";
+    parent.appendChild(icon);
+  }
+
+  function appendDealNoteStatusIndicator(parent, note) {
+    const indicator = getNoteStatusIndicator(note);
+    const icon = document.createElement("span");
+    icon.className = indicator.className;
+    icon.textContent = indicator.text;
+    icon.title = indicator.label;
+    icon.setAttribute("aria-label", indicator.label);
+    parent.appendChild(icon);
   }
 
   function formatMoney(value) {
@@ -137,17 +148,33 @@
   function createMiniNoteCard(note) {
     const card = document.createElement("div");
     card.className = "deal-linked-note-card";
-    const statusMeta = getNoteStatusMeta(note);
-    card.classList.add(`note-card-status-${statusMeta.key}`);
 
     const top = document.createElement("div");
     top.className = "deal-linked-note-top";
 
+    const noteInfo = document.createElement("div");
+    noteInfo.className = "deal-linked-note-info";
+
+    const meta = document.createElement("div");
+    meta.className = "deal-linked-note-meta";
+    const metaText = document.createElement("span");
+    metaText.textContent = [
+      formatDate(note?.date || note?.created_at),
+      safeTrim(note?.person_name),
+    ]
+      .filter(Boolean)
+      .join(" | ");
+    meta.appendChild(metaText);
+    appendDealNoteStatusIndicator(meta, note);
+
     const title = document.createElement("div");
     title.className = "deal-linked-note-title";
-    title.textContent = safeTrim(note?.note_title) || "(no title)";
+    appendDealNoteTypeIcon(title, note);
+    const titleText = document.createElement("span");
+    titleText.textContent = safeTrim(note?.note_title) || "(no title)";
+    title.appendChild(titleText);
 
-    const statusIcon = createNoteStatusIcon(note);
+    noteInfo.append(meta, title);
 
     const editBtn = document.createElement("button");
     editBtn.type = "button";
@@ -155,17 +182,7 @@
     editBtn.innerHTML = "✎";
     editBtn.title = "Edit note";
 
-    top.append(title, statusIcon, editBtn);
-
-    const meta = document.createElement("div");
-    meta.className = "deal-linked-note-meta";
-    meta.textContent = [
-      formatDate(note?.date || note?.created_at),
-      safeTrim(note?.notes_type),
-      safeTrim(note?.person_name),
-    ]
-      .filter(Boolean)
-      .join(" | ");
+    top.append(noteInfo, editBtn);
 
     const description = document.createElement("div");
     description.className = "deal-linked-note-description";
