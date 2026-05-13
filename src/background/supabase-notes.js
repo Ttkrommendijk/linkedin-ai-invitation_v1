@@ -68,6 +68,7 @@
     const personId = normalizeProfileField(payload.person_id || payload.main_person_id);
     const companyId = normalizeProfileField(payload.company_id);
     const filter = normalizeProfileField(payload.filter) || "company";
+    const listAll = payload.all === true;
 
     const dealId = normalizeProfileField(payload.deal_id);
 
@@ -78,15 +79,17 @@
       order: "date.desc",
     };
 
-    if (filter === "deal" && dealId) {
-      params.deal_id = `eq.${dealId}`;
-      if (companyId) params.company_id = `eq.${companyId}`;
-    } else if (filter === "person" && personId) {
-      params.main_person_id = `eq.${personId}`;
-    } else if (companyId) {
-      params.company_id = `eq.${companyId}`;
-    } else if (personId) {
-      params.main_person_id = `eq.${personId}`;
+    if (!listAll) {
+      if (filter === "deal" && dealId) {
+        params.deal_id = `eq.${dealId}`;
+        if (companyId) params.company_id = `eq.${companyId}`;
+      } else if (filter === "person" && personId) {
+        params.main_person_id = `eq.${personId}`;
+      } else if (companyId) {
+        params.company_id = `eq.${companyId}`;
+      } else if (personId) {
+        params.main_person_id = `eq.${personId}`;
+      }
     }
 
     const url = `${supabaseUrl}/rest/v1/notes_view?${buildQuery(params)}`;

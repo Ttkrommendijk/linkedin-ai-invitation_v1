@@ -19,19 +19,7 @@
       .join("&");
   }
 
-  async function supabaseListDeals(payload = {}) {
-    const { supabaseUrl, supabaseAnonKey, accessToken } =
-      await getSupabaseRequestContext();
-    const companyId = normalizeProfileField(payload.company_id);
-    if (!companyId) return [];
-
-    const params = {
-      select: "deal_id,created_at,deal_name,deal_description,deal_value,company_id,deal_phase",
-      company_id: `eq.${companyId}`,
-      order: "created_at.desc",
-    };
-
-    const url = `${supabaseUrl}/rest/v1/deal?${buildQuery(params)}`;
+  async function fetchDealRows(url, { supabaseAnonKey, accessToken }) {
     const res = await fetchWithTimeout(
       url,
       {
@@ -51,6 +39,59 @@
     }
     const rows = await res.json();
     return Array.isArray(rows) ? rows : [];
+  }
+
+  function normalizeDealRow(row = {}) {
+    const company = row.company && typeof row.company === "object" ? row.company : {};
+    return {
+      ...row,
+      company_name:
+        normalizeProfileField(row.company_name) || normalizeProfileField(company.company_name),
+      company_linkedin_id:
+        normalizeProfileField(row.company_linkedin_id) || normalizeProfileField(company.linkedin_id),
+      person_name: normalizeProfileField(row.person_name || row.full_name),
+      person_linkedin_url: normalizeProfileField(row.person_linkedin_url || row.linkedin_url),
+    };
+  }
+
+  async function supabaseListDeals(payload = {}) {
+    const { supabaseUrl, supabaseAnonKey, accessToken } =
+      await getSupabaseRequestContext();
+    const companyId = normalizeProfileField(payload.company_id);
+    const listAll = payload.all === true;
+    if (!companyId && !listAll) return [];
+
+    if (listAll) {
+      const viewParams = {
+        select:
+          "deal_id,created_at,deal_name,deal_description,deal_value,company_id,company_name,company_linkedin_id,person_name,person_linkedin_url,deal_phase",
+        order: "created_at.desc",
+      };
+      const viewUrl = `${supabaseUrl}/rest/v1/deals_view?${buildQuery(viewParams)}`;
+      try {
+        const rows = await fetchDealRows(viewUrl, { supabaseAnonKey, accessToken });
+        return rows.map(normalizeDealRow);
+      } catch (_viewError) {
+        const fallbackParams = {
+          select:
+            "deal_id,created_at,deal_name,deal_description,deal_value,company_id,deal_phase,company(company_name,linkedin_id)",
+          order: "created_at.desc",
+        };
+        const fallbackUrl = `${supabaseUrl}/rest/v1/deal?${buildQuery(fallbackParams)}`;
+        const rows = await fetchDealRows(fallbackUrl, { supabaseAnonKey, accessToken });
+        return rows.map(normalizeDealRow);
+      }
+    }
+
+    const params = {
+      select: "deal_id,created_at,deal_name,deal_description,deal_value,company_id,deal_phase",
+      company_id: `eq.${companyId}`,
+      order: "created_at.desc",
+    };
+
+    const url = `${supabaseUrl}/rest/v1/deal?${buildQuery(params)}`;
+    const rows = await fetchDealRows(url, { supabaseAnonKey, accessToken });
+    return rows.map(normalizeDealRow);
   }
 
 

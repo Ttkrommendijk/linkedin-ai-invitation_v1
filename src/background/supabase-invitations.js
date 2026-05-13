@@ -379,6 +379,36 @@
     return rows[0] || null;
   }
 
+
+
+  async function supabaseGetInvitationById(id) {
+    const { supabaseUrl, supabaseAnonKey, accessToken } =
+      await getSupabaseRequestContext();
+    const targetId = normalizeProfileField(id);
+    if (!targetId) return null;
+    const url = `${supabaseUrl}/rest/v1/linkedin_invitations?id=eq.${encodeURIComponent(targetId)}&select=id,linkedin_url,status,message,generated_at,invited_at,accepted,accepted_at,first_message,first_message_generated_at,first_message_sent_at,message_count,company,company_id,headline,comments,language,full_name,campaign&limit=1`;
+    const res = await fetchWithTimeout(
+      url,
+      {
+        method: "GET",
+        headers: {
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          Prefer: "count=exact",
+        },
+      },
+      15000,
+      "Supabase request",
+    );
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      throw createProviderHttpError("supabase", res.status, txt);
+    }
+    const rows = await res.json();
+    return Array.isArray(rows) && rows.length ? rows[0] : null;
+  }
+
   async function supabaseIncrementMessageCount({ linkedin_url, delta }) {
     const { supabaseUrl, supabaseAnonKey, accessToken } =
       await getSupabaseRequestContext();
@@ -537,6 +567,7 @@
     supabaseUpdateProfileDetailsOnly,
     supabaseUpdateProfileFields,
     supabaseGetInvitationByLinkedinUrl,
+    supabaseGetInvitationById,
     supabaseIncrementMessageCount,
     supabaseSetMessageCount,
     supabaseArchiveInvitation,

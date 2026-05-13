@@ -916,6 +916,16 @@ const ROUTES = {
       return { ok: true, row };
     },
   },
+  DB_GET_INVITATION_BY_ID: {
+    errorCode: "SUPABASE_GET_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Fetching…");
+      const row = await LEF_SUPABASE_INVITATIONS.supabaseGetInvitationById(
+        msg?.payload?.id,
+      );
+      return { ok: true, row };
+    },
+  },
   DB_FIND_COMPANY_BY_NAME: {
     errorCode: "SUPABASE_GET_FAILED",
     handler: async ({ msg }) => {

@@ -26,11 +26,13 @@ function initTabsModule(deps = {}) {
     const tabMainBtn = getEl("tabMainBtn");
     const tabOverviewBtn = getEl("tabOverviewBtn");
     const tabConfigBtn = getEl("tabConfigBtn");
+    const tabTodoBtn = getEl("tabTodoBtn");
     const tabSupabaseAuthBtn = getEl("tabSupabaseAuthBtn");
     const tabMain = getEl("tabMain");
     const tabMessage = getEl("tabMessage");
     const tabOverview = getEl("tabOverview");
     const tabConfig = getEl("tabConfig");
+    const tabTodo = getEl("tabTodo");
 
     if (!tabMainBtn || !tabConfigBtn || !tabMain || !tabConfig) {
       return;
@@ -40,17 +42,20 @@ function initTabsModule(deps = {}) {
     const detailActive =
       which === "detail" || which === "invitation" || freePromptActive;
     const overviewActive = deps.OVERVIEW_ENABLED && which === "overview";
+    const todoActive = which === "todo";
     const configActive = which === "config" || which === "supabase_login";
     const supabaseAuthActive = which === "supabase_login";
 
     tabMainBtn.classList.toggle("active", detailActive);
     if (tabOverviewBtn) tabOverviewBtn.classList.toggle("active", overviewActive);
+    if (tabTodoBtn) tabTodoBtn.classList.toggle("active", todoActive);
     tabConfigBtn.classList.toggle("active", configActive);
     if (tabSupabaseAuthBtn)
       tabSupabaseAuthBtn.classList.toggle("active", supabaseAuthActive);
 
     tabMain.classList.toggle("active", detailActive);
     if (tabOverview) tabOverview.classList.toggle("active", overviewActive);
+    if (tabTodo) tabTodo.classList.toggle("active", todoActive);
     tabConfig.classList.toggle("active", configActive);
     setConfigInnerTab(supabaseAuthActive ? "supabase" : "general");
 
@@ -73,6 +78,10 @@ function initTabsModule(deps = {}) {
 
     if (overviewActive) {
       deps.fetchOverviewPage?.();
+    }
+
+    if (todoActive) {
+      globalThis.PopupTodoController?.setActiveTodoTab?.("notes");
     }
   }
 

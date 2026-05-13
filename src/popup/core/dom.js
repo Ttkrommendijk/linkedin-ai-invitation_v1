@@ -173,6 +173,7 @@
     tabMainBtn: document.getElementById("tabMainBtn"),
     tabMessageBtn: document.getElementById("tabMessageBtn"),
     tabOverviewBtn: document.getElementById("tabOverviewBtn"),
+    tabTodoBtn: document.getElementById("tabTodoBtn"),
     tabConfigBtn: document.getElementById("tabConfigBtn"),
     tabSupabaseAuthBtn: document.getElementById("tabSupabaseAuthBtn"),
     tabMain: document.getElementById("tabMain"),

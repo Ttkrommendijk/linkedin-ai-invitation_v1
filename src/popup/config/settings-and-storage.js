@@ -202,6 +202,7 @@ function renderOverviewTable(rows) {
   scheduleOverviewAutoSize();
 }
 
+globalThis.openPersonDetailsFromOverviewRow = openPersonDetailsFromOverviewRow;
 async function openPersonDetailsFromOverviewRow(row) {
   const linkedinUrl = canonicalizeLinkedInUrl(row?.url || "");
   if (!isLinkedInProfileLikeUrl(linkedinUrl)) return;

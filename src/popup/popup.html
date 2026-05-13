@@ -14,7 +14,7 @@
                 >
                     Open in side panel
                 </button>
-                <div class="tabs">
+                <div class="tabs main-tabs">
                     <button
                         id="tabMainBtn"
                         class="tab-btn active"
@@ -23,8 +23,16 @@
                         Detail</button
                     ><button id="tabOverviewBtn" class="tab-btn" type="button">
                         Contacts</button
-                    ><button id="tabConfigBtn" class="tab-btn" type="button">
-                        Configuration</button
+                    ><button id="tabTodoBtn" class="tab-btn" type="button">
+                        To Do</button
+                    ><button
+                        id="tabConfigBtn"
+                        class="tab-btn tab-icon-btn"
+                        type="button"
+                        title="Configuration"
+                        aria-label="Configuration"
+                    >
+                        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M19.43 12.98c.04-.32.07-.65.07-.98s-.02-.66-.07-.98l2.11-1.65a.5.5 0 0 0 .12-.64l-2-3.46a.5.5 0 0 0-.6-.22l-2.49 1a7.3 7.3 0 0 0-1.69-.98L14.5 2.42A.5.5 0 0 0 14 2h-4a.5.5 0 0 0-.5.42L9.12 5.07c-.61.24-1.18.56-1.69.98l-2.49-1a.5.5 0 0 0-.6.22l-2 3.46a.5.5 0 0 0 .12.64l2.11 1.65c-.04.32-.08.65-.08.98s.03.66.08.98l-2.11 1.65a.5.5 0 0 0-.12.64l2 3.46c.13.22.39.31.6.22l2.49-1c.51.4 1.08.73 1.69.98l.38 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.38-2.65c.61-.25 1.18-.58 1.69-.98l2.49 1c.22.08.47 0 .6-.22l2-3.46a.5.5 0 0 0-.12-.64l-2.11-1.65ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z"/></svg></button
                     ><button
                         id="tabSupabaseAuthBtn"
                         class="tab-btn hidden"
@@ -1287,6 +1295,29 @@
                         </div>
                     </div>
                 </div>
+
+                <div id="tabTodo" class="tab-panel">
+                    <div class="row inline detail-tabs" id="todoTabsRow">
+                        <button id="todoNotesTabBtn" class="detail-tab-btn active" type="button">Notes</button><button id="todoDealsTabBtn" class="detail-tab-btn" type="button">Deals</button>
+                    </div>
+                    <div id="todoNotesPanel" class="detail-inner-panel">
+                        <div class="overview-filters list-filters row">
+                            <div class="filter-field"><label for="todoNotesStatusFilter"><small>Status</small></label><select id="todoNotesStatusFilter" class="form-control"><option value="">All</option><option value="open">open</option><option value="planned">planned</option><option value="ready">ready</option><option value="done">done</option><option value="canceled">canceled</option></select></div>
+                            <div class="filter-field"><label for="todoNotesTypeFilter"><small>Note type</small></label><select id="todoNotesTypeFilter" class="form-control"><option value="">All</option><option value="note">note</option><option value="linkedin">linkedin</option><option value="whatsapp">whatsapp</option><option value="meeting">meeting</option><option value="email">email</option><option value="phone">phone</option></select></div>
+                            <div class="filter-field"><label for="todoNotesDateFilter"><small>Date</small></label><select id="todoNotesDateFilter" class="form-control"><option value="today">today</option><option value="past">past</option><option value="this_week">this week</option><option value="this_month">this month</option><option value="all">all</option></select></div>
+                            <div class="filter-field"><label for="todoNotesSearch"><small>Search</small></label><input id="todoNotesSearch" class="form-control" placeholder="Search title, person, company" /></div>
+                        </div>
+                        <div id="todoNotesStatus" class="notes-status">Loading notes...</div>
+                        <div class="overview-grid-wrap row"><table id="todoNotesGrid" class="overview-grid standard-grid"><thead><tr></tr></thead><tbody id="todoNotesTbody"></tbody></table></div>
+                    </div>
+                    <div id="todoDealsPanel" class="detail-inner-panel" hidden>
+                        <div class="overview-filters list-filters row">
+                            <div class="filter-field"><label for="todoDealsStatusFilter"><small>Status</small></label><select id="todoDealsStatusFilter" class="form-control"><option value="open">open</option><option value="to_develop">to develop</option><option value="follow">follow</option><option value="full_attention">Full attention</option><option value="all">all</option></select></div>
+                        </div>
+                        <div id="todoDealsStatus" class="notes-status">Loading deals...</div>
+                        <div class="overview-grid-wrap row"><table id="todoDealsGrid" class="overview-grid standard-grid"><thead><tr></tr></thead><tbody id="todoDealsTbody"></tbody></table></div>
+                    </div>
+                </div>
                 <div id="tabConfig" class="tab-panel">
                     <div class="row inline config-inner-tabs">
                         <button
@@ -1490,6 +1521,7 @@
         <script src="deals/deals-controller.js"></script>
         <script src="messaging/free-prompt-controller.js"></script>
         <script src="list/grid.js"></script>
+        <script src="todo/todo-controller.js"></script>
         <script src="core/tabs.js"></script>
         <script src="config/config.js"></script>
         <script src="messaging/prompts.js"></script>
