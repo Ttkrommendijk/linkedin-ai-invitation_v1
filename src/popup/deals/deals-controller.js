@@ -93,10 +93,26 @@
     const row = document.createElement("div");
     row.className = "deal-editor-row";
 
-    const phaseInput = document.createElement("input");
+    const phaseInput = document.createElement("select");
     phaseInput.className = "form-control deal-phase-input";
-    phaseInput.placeholder = "Required deal phase";
-    phaseInput.value = safeTrim(deal?.deal_phase);
+    const phaseOptions = [
+      ["", "Select phase"],
+      ["identification", "Identification"],
+      ["confirmed", "Confirmed"],
+      ["first_meeting", "First meeting"],
+      ["follow", "Follow"],
+      ["negotiation", "Negotiation"],
+      ["closed", "Closed"],
+      ["cancelled", "Cancelled"],
+    ];
+    const currentPhase = safeTrim(deal?.deal_phase);
+    for (const [value, label] of phaseOptions) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      phaseInput.appendChild(option);
+    }
+    phaseInput.value = currentPhase;
     row.appendChild(createField({ label: "Phase", child: phaseInput }));
 
     const valueInput = document.createElement("input");
