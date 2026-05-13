@@ -116,9 +116,31 @@
 
   function getFilteredDeals() {
     const phases = getDealStatusPhases(getEl("todoDealsStatusFilter")?.value);
-    if (!phases.length) return state.deals;
+    const search = normalize(getEl("todoDealsSearch")?.value);
     const allowed = new Set(phases);
-    return state.deals.filter((deal) => allowed.has(normalize(deal.deal_phase)));
+
+    return state.deals.filter((deal) => {
+      if (phases.length && !allowed.has(normalize(deal.deal_phase))) {
+        return false;
+      }
+
+      if (search) {
+        const haystack = [
+          deal.deal_name,
+          deal.company_name,
+          deal.person_name,
+          deal.full_name,
+        ]
+          .map(normalize)
+          .join(" ");
+
+        if (!haystack.includes(search)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
   }
 
   async function openCompanyDetail(row, { openDeals = false } = {}) {
@@ -208,7 +230,7 @@
         { key: "note_title", label: "Note title", width: "180px", className: "overview-cell-text" },
         { key: "date", label: "Date of execution", width: "130px", className: "overview-cell-text", value: (row) => formatDate(row.date), sortValue: (row) => row.date || "" },
         { key: "status", label: "Status", width: "95px", className: "overview-cell-text" },
-        { key: "person_name", label: "Linked person name", width: "150px", className: "overview-cell-text", value: (row) => textButton(row.person_name, () => openPersonDetail(row)) },
+        { key: "person_name", label: "Linked person name", width: "150px", className: "overview-cell-text", value: (row) => textButton(row.person_name || row.full_name || "-", () => openPersonDetail(row)) },
         { key: "company_name", label: "Linked company name", width: "160px", className: "overview-cell-text", value: (row) => textButton(row.company_name, () => openCompanyDetail(row)) },
         { key: "deal_name", label: "Linked deal name", width: "150px", className: "overview-cell-text", value: (row) => textButton(row.deal_name, () => openCompanyDetail(row, { openDeals: true })) },
       ],
@@ -234,7 +256,7 @@
       columns: [
         { key: "deal_phase", label: "Deal phase", width: "140px", className: "overview-cell-text" },
         { key: "company_name", label: "Company", width: "190px", className: "overview-cell-text", value: (row) => textButton(row.company_name, () => openCompanyDetail(row)) },
-        { key: "person_name", label: "Person name", width: "170px", className: "overview-cell-text", value: (row) => textButton(row.person_name, () => openPersonDetail(row)) },
+        { key: "person_name", label: "Person name", width: "170px", className: "overview-cell-text", value: (row) => textButton(row.person_name || row.full_name || "-", () => openPersonDetail(row)) },
       ],
     });
   }
