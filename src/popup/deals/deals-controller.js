@@ -73,6 +73,48 @@
     }
   }
 
+  function normalizeNoteStatus(note) {
+    const status = safeTrim(note?.status).toLowerCase();
+    if (status === "canceled" || status === "cancelled") return "canceled";
+    if (status === "ready" || status === "done" || status === "completed") {
+      return "ready";
+    }
+    return "open";
+  }
+
+  function isNoteOverdue(note) {
+    const status = normalizeNoteStatus(note);
+    if (status === "ready" || status === "canceled") return false;
+    const date = note?.date ? new Date(note.date) : null;
+    return Boolean(date && !Number.isNaN(date.getTime()) && date.getTime() < Date.now());
+  }
+
+  function getStatusLabel(status) {
+    if (status === "ready") return "Ready";
+    if (status === "canceled") return "Canceled";
+    return "Open";
+  }
+
+  function createNoteStatusBadges(note) {
+    const wrap = document.createElement("span");
+    wrap.className = "note-status-badges";
+
+    if (isNoteOverdue(note)) {
+      const overdue = document.createElement("span");
+      overdue.className = "note-status-badge note-status-badge-overdue";
+      overdue.textContent = "Overdue";
+      wrap.appendChild(overdue);
+    }
+
+    const status = normalizeNoteStatus(note);
+    const badge = document.createElement("span");
+    badge.className = `note-status-badge note-status-badge-${status}`;
+    badge.textContent = getStatusLabel(status);
+    wrap.appendChild(badge);
+
+    return wrap;
+  }
+
   function formatMoney(value) {
     if (value === null || value === undefined || value === "") return "";
     const number = Number(value);
@@ -98,7 +140,14 @@
 
   function createMiniNoteCard(note) {
     const card = document.createElement("div");
-    card.className = "deal-linked-note-card";
+    const normalizedStatus = normalizeNoteStatus(note);
+    card.className = [
+      "deal-linked-note-card",
+      `note-card-status-${normalizedStatus}`,
+      isNoteOverdue(note) ? "note-card-overdue" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
 
     const top = document.createElement("div");
     top.className = "deal-linked-note-top";
@@ -113,7 +162,11 @@
     editBtn.innerHTML = "✎";
     editBtn.title = "Edit note";
 
-    top.append(title, editBtn);
+    const topMeta = document.createElement("div");
+    topMeta.className = "deal-linked-note-top-meta";
+    topMeta.append(createNoteStatusBadges(note), editBtn);
+
+    top.append(title, topMeta);
 
     const meta = document.createElement("div");
     meta.className = "deal-linked-note-meta";

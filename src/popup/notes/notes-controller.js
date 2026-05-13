@@ -72,8 +72,56 @@
     }
   }
 
-  function getSelectedStatus(selectedStatus) {
-    return safeTrim(selectedStatus) || "ready";
+  function normalizeNoteStatus(note) {
+    const status = safeTrim(note?.status).toLowerCase();
+    if (status === "canceled" || status === "cancelled") return "canceled";
+    if (status === "ready" || status === "done" || status === "completed") {
+      return "ready";
+    }
+    return "open";
+  }
+
+  function isNoteOverdue(note) {
+    const status = normalizeNoteStatus(note);
+    if (status === "ready" || status === "canceled") return false;
+    const date = note?.date ? new Date(note.date) : null;
+    return Boolean(date && !Number.isNaN(date.getTime()) && date.getTime() < Date.now());
+  }
+
+  function getStatusLabel(status) {
+    if (status === "ready") return "Ready";
+    if (status === "canceled") return "Canceled";
+    return "Open";
+  }
+
+  function createNoteStatusBadges(note) {
+    const wrap = document.createElement("span");
+    wrap.className = "note-status-badges";
+
+    if (isNoteOverdue(note)) {
+      const overdue = document.createElement("span");
+      overdue.className = "note-status-badge note-status-badge-overdue";
+      overdue.textContent = "Overdue";
+      wrap.appendChild(overdue);
+    }
+
+    const status = normalizeNoteStatus(note);
+    const badge = document.createElement("span");
+    badge.className = `note-status-badge note-status-badge-${status}`;
+    badge.textContent = getStatusLabel(status);
+    wrap.appendChild(badge);
+
+    return wrap;
+  }
+
+  function deriveStatus(dateValue, selectedStatus) {
+    const rawStatus = safeTrim(selectedStatus) || "ready";
+    const date = new Date(dateValue);
+    const now = new Date();
+    if (!Number.isNaN(date.getTime()) && date.getTime() > now.getTime()) {
+      return "planned";
+    }
+    return rawStatus;
   }
 
   function normalizeDuration(value) {
@@ -189,7 +237,7 @@
       statusSelect.appendChild(option);
     });
     statusSelect.value =
-      safeTrim(note?.status) || getSelectedStatus("ready");
+      safeTrim(note?.status) || deriveStatus(dateInput.value, "ready");
     dateStatusRow.appendChild(
       createField({ label: "Status", child: statusSelect }),
     );
@@ -229,6 +277,10 @@
       createField({ label: "Duration in minutes", child: durationInput }),
     );
     editor.appendChild(typeDurationRow);
+
+    dateInput.addEventListener("change", () => {
+      statusSelect.value = deriveStatus(dateInput.value, statusSelect.value);
+    });
 
     const descriptionInput = document.createElement("textarea");
     descriptionInput.className = "form-control note-description-input";
@@ -336,7 +388,7 @@
         note_title: titleInput.value,
         note_description: descriptionInput.value,
         date: dateInput.value,
-        status: getSelectedStatus(statusSelect.value),
+        status: deriveStatus(dateInput.value, statusSelect.value),
         notes_type: typeSelect.value,
         duration: normalizeDuration(durationInput.value) || null,
         main_person_id: ctx.personId,
@@ -378,7 +430,14 @@
     const noteId = safeTrim(note?.note_id);
     const expanded = localState.expandedNoteId === noteId;
     const card = document.createElement("div");
-    card.className = "note-card";
+    const normalizedStatus = normalizeNoteStatus(note);
+    card.className = [
+      "note-card",
+      `note-card-status-${normalizedStatus}`,
+      isNoteOverdue(note) ? "note-card-overdue" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
 
     const header = document.createElement("button");
     header.type = "button";
@@ -394,7 +453,8 @@
     const related = document.createElement("span");
     related.className = "note-related-name";
     related.textContent = getRelatedName(note, ctx);
-    left.append(icon, date, related);
+    const badges = createNoteStatusBadges(note);
+    left.append(icon, date, related, badges);
 
     const right = document.createElement("span");
     right.className = "note-card-title";
