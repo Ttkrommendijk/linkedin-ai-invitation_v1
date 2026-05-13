@@ -15,6 +15,7 @@
   const localState = {
     deals: [],
     expandedDealId: null,
+    editingDealId: null,
     isCreating: false,
     loadedCompanyId: "",
   };
@@ -81,6 +82,8 @@
   }
 
   function renderEditor(deal = {}) {
+    const dealId = safeTrim(deal?.deal_id);
+    const isEditing = Boolean(dealId);
     const editor = document.createElement("div");
     editor.className = "deal-editor";
 
@@ -137,7 +140,7 @@
     const saveBtn = document.createElement("button");
     saveBtn.type = "button";
     saveBtn.className = "btn-small-primary";
-    saveBtn.textContent = "Save deal";
+    saveBtn.textContent = isEditing ? "Update deal" : "Save deal";
     const cancelBtn = document.createElement("button");
     cancelBtn.type = "button";
     cancelBtn.className = "btn-small-secondary";
@@ -147,6 +150,7 @@
 
     cancelBtn.addEventListener("click", () => {
       localState.isCreating = false;
+      localState.editingDealId = null;
       renderDeals();
     });
 
@@ -155,7 +159,11 @@
       const dealName = safeTrim(nameInput.value);
       const dealPhase = safeTrim(phaseInput.value);
       if (!ctx.companyId) {
-        setDealsStatus("Link or save the company before creating a deal.");
+        setDealsStatus(
+          isEditing
+            ? "Link or save the company before editing this deal."
+            : "Link or save the company before creating a deal.",
+        );
         return;
       }
       if (!dealName) {
@@ -180,14 +188,18 @@
 
       try {
         saveBtn.disabled = true;
-        setDealsStatus("Saving deal...");
-        const result = await sendRuntimeMessage("DB_CREATE_DEAL", { payload });
+        setDealsStatus(isEditing ? "Updating deal..." : "Saving deal...");
+        const messageType = isEditing ? "DB_UPDATE_DEAL" : "DB_CREATE_DEAL";
+        const result = await sendRuntimeMessage(messageType, {
+          payload: isEditing ? { ...payload, deal_id: dealId } : payload,
+        });
         const resp = result.data || {};
         if (!result.ok || resp?.ok === false) {
           throw new Error(getErrorMessage(result.error || resp?.error));
         }
         localState.isCreating = false;
-        localState.expandedDealId = safeTrim(resp.deal?.deal_id) || null;
+        localState.editingDealId = null;
+        localState.expandedDealId = safeTrim(resp.deal?.deal_id) || dealId || null;
         await refreshDeals({ force: true });
       } catch (e) {
         setDealsStatus(getErrorMessage(e));
@@ -219,9 +231,10 @@
     const card = document.createElement("div");
     card.className = "deal-card note-card";
 
-    const header = document.createElement("button");
-    header.type = "button";
+    const header = document.createElement("div");
     header.className = "deal-card-header note-card-header";
+    header.setAttribute("role", "button");
+    header.tabIndex = 0;
 
     const left = document.createElement("span");
     left.className = "note-card-summary";
@@ -239,17 +252,45 @@
     const right = document.createElement("span");
     right.className = "note-card-title";
     right.textContent = safeTrim(deal?.deal_name) || "(no title)";
-    header.append(left, right);
-    header.addEventListener("click", () => {
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "deal-edit-btn";
+    editBtn.title = "Edit deal";
+    editBtn.setAttribute("aria-label", "Edit deal");
+    editBtn.textContent = "✎";
+    editBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      localState.isCreating = false;
+      localState.expandedDealId = dealId;
+      localState.editingDealId = dealId;
+      renderDeals();
+    });
+
+    header.append(left, right, editBtn);
+    const toggleExpanded = () => {
       localState.expandedDealId = expanded ? null : dealId;
+      localState.editingDealId = null;
       localState.isCreating = false;
       renderDeals();
+    };
+    header.addEventListener("click", toggleExpanded);
+    header.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        toggleExpanded();
+      }
     });
     card.appendChild(header);
 
     if (expanded) {
       const body = document.createElement("div");
       body.className = "deal-card-body note-card-body";
+
+      if (localState.editingDealId === dealId) {
+        body.appendChild(renderEditor(deal));
+        card.appendChild(body);
+        return card;
+      }
 
       const meta = document.createElement("div");
       meta.className = "deal-meta";
@@ -351,6 +392,7 @@
       }
       localState.isCreating = true;
       localState.expandedDealId = null;
+      localState.editingDealId = null;
       renderDeals();
     });
   }

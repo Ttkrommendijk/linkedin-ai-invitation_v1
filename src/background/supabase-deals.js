@@ -100,8 +100,61 @@
   }
 
 
+  async function supabaseUpdateDeal(payload = {}) {
+    const { supabaseUrl, supabaseAnonKey, accessToken } =
+      await getSupabaseRequestContext();
+    const dealId = normalizeProfileField(payload.deal_id);
+    const companyId = normalizeProfileField(payload.company_id);
+    const dealName = normalizeProfileField(payload.deal_name);
+    const dealPhase = normalizeProfileField(payload.deal_phase);
+    if (!dealId) throw new Error("deal_id is required to update a deal.");
+    if (!companyId) throw new Error("company_id is required to update a deal.");
+    if (!dealName) throw new Error("deal_name is required to update a deal.");
+    if (!dealPhase) throw new Error("deal_phase is required to update a deal.");
+
+    const patch = {
+      deal_name: dealName,
+      deal_description: normalizeProfileField(payload.deal_description) || null,
+      deal_value:
+        payload.deal_value === null || payload.deal_value === undefined || payload.deal_value === ""
+          ? null
+          : Number(payload.deal_value),
+      company_id: companyId,
+      deal_phase: dealPhase,
+    };
+
+    const params = buildQuery({
+      deal_id: `eq.${dealId}`,
+      select: "deal_id,created_at,deal_name,deal_description,deal_value,company_id,deal_phase",
+    });
+    const url = `${supabaseUrl}/rest/v1/deal?${params}`;
+    const res = await fetchWithTimeout(
+      url,
+      {
+        method: "PATCH",
+        headers: {
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          Prefer: "return=representation",
+        },
+        body: JSON.stringify(patch),
+      },
+      15000,
+      "Supabase request",
+    );
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      throw createProviderHttpError("supabase", res.status, txt);
+    }
+    const rows = await res.json();
+    return Array.isArray(rows) ? rows[0] || null : rows || null;
+  }
+
+
   globalObj.LEFSupabaseDeals = Object.freeze({
     supabaseListDeals,
     supabaseCreateDeal,
+    supabaseUpdateDeal,
   });
 })(typeof globalThis !== "undefined" ? globalThis : self);

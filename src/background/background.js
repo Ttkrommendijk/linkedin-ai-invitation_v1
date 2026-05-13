@@ -1110,6 +1110,16 @@ const ROUTES = {
       return { ok: true, deal };
     },
   },
+  DB_UPDATE_DEAL: {
+    errorCode: "SUPABASE_UPDATE_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Updating deal...");
+      const deal = await LEF_SUPABASE_DEALS.supabaseUpdateDeal(
+        msg?.payload || {},
+      );
+      return { ok: true, deal };
+    },
+  },
   DB_CREATE_NOTE: {
     errorCode: "SUPABASE_UPSERT_FAILED",
     handler: async ({ msg }) => {
