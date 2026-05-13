@@ -122,7 +122,8 @@
     dom.detailPromptsTabBtnEl?.classList.toggle("active", promptsActive);
     if (dom.detailNotesPanelEl) dom.detailNotesPanelEl.hidden = !notesActive;
     if (dom.detailDealsPanelEl) dom.detailDealsPanelEl.hidden = !dealsActive;
-    if (dom.detailPromptsPanelEl) dom.detailPromptsPanelEl.hidden = !promptsActive;
+    if (dom.detailPromptsPanelEl)
+      dom.detailPromptsPanelEl.hidden = !promptsActive;
     if (notesActive) refreshNotes({ force: false });
     if (dealsActive) globalObj.refreshDeals?.({ force: false });
   }
@@ -187,7 +188,7 @@
 
     const statusSelect = document.createElement("select");
     statusSelect.className = "form-control";
-    ["ready", "planned"].forEach((status) => {
+    ["ready", "planned", "canceled"].forEach((status) => {
       const option = document.createElement("option");
       option.value = status;
       option.textContent = status;
@@ -299,7 +300,8 @@
         deleteBtn.disabled = true;
         saveBtn.disabled = true;
         cancelBtn.disabled = true;
-        const setStatus = typeof statusSetter === "function" ? statusSetter : setNotesStatus;
+        const setStatus =
+          typeof statusSetter === "function" ? statusSetter : setNotesStatus;
         setStatus("Deleting note...");
         const result = await sendRuntimeMessage("DB_DELETE_NOTE", {
           payload: { note_id: noteId },
@@ -319,7 +321,8 @@
 
         await refreshAllNoteRelatedViews({ statusSetter });
       } catch (e) {
-        const setStatus = typeof statusSetter === "function" ? statusSetter : setNotesStatus;
+        const setStatus =
+          typeof statusSetter === "function" ? statusSetter : setNotesStatus;
         setStatus(getErrorMessage(e));
         deleteBtn.disabled = false;
         saveBtn.disabled = false;
@@ -328,11 +331,13 @@
     });
 
     saveBtn.addEventListener("click", async () => {
-      const ctx = typeof contextOverride === "function"
-        ? contextOverride()
-        : contextOverride || getPersonContext();
+      const ctx =
+        typeof contextOverride === "function"
+          ? contextOverride()
+          : contextOverride || getPersonContext();
       if (ctx.requirePersonId && !safeTrim(ctx.personId)) {
-        const setStatus = typeof statusSetter === "function" ? statusSetter : setNotesStatus;
+        const setStatus =
+          typeof statusSetter === "function" ? statusSetter : setNotesStatus;
         setStatus("Select a person before saving this deal note.");
         return;
       }
@@ -350,7 +355,8 @@
       };
       try {
         saveBtn.disabled = true;
-        const setStatus = typeof statusSetter === "function" ? statusSetter : setNotesStatus;
+        const setStatus =
+          typeof statusSetter === "function" ? statusSetter : setNotesStatus;
         setStatus("Saving note...");
         const type = isNew ? "DB_CREATE_NOTE" : "DB_UPDATE_NOTE";
         const result = await sendRuntimeMessage(type, { payload });
@@ -360,13 +366,15 @@
         }
         if (typeof onSaved === "function") {
           await onSaved(resp.note || null);
+          await refreshAllNoteRelatedViews({ statusSetter });
         } else {
           localState.isCreating = false;
           localState.expandedNoteId = null;
-          await refreshNotes({ force: true });
+          await refreshAllNoteRelatedViews({ statusSetter });
         }
       } catch (e) {
-        const setStatus = typeof statusSetter === "function" ? statusSetter : setNotesStatus;
+        const setStatus =
+          typeof statusSetter === "function" ? statusSetter : setNotesStatus;
         setStatus(getErrorMessage(e));
       } finally {
         saveBtn.disabled = false;
@@ -468,7 +476,8 @@
   }
 
   async function refreshAllNoteRelatedViews({ statusSetter = null } = {}) {
-    const setStatus = typeof statusSetter === "function" ? statusSetter : setNotesStatus;
+    const setStatus =
+      typeof statusSetter === "function" ? statusSetter : setNotesStatus;
     try {
       await refreshNotes({ force: true });
       if (typeof globalObj.refreshDeals === "function") {

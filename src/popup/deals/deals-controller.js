@@ -255,6 +255,9 @@
       onSaved: async () => {
         localState.addingNoteDealId = null;
         await loadDealNotes(dealId, { force: true });
+        await globalObj.PopupNotesController?.refreshAllNoteRelatedViews?.({
+          statusSetter: setDealsStatus,
+        });
       },
       statusSetter: setDealsStatus,
     });
