@@ -31,7 +31,12 @@
       if (resp?.phone) {
         await chrome.runtime.sendMessage({
           type: "WHATSAPP_ACTIVE_CHAT_CHANGED",
-          payload: { phone: resp.phone, url: resp.url || "", reason },
+          payload: {
+            ...(resp.payload || {}),
+            phone: resp.phone,
+            url: resp.payload?.url || resp.url || "",
+            reason,
+          },
         }).catch(() => null);
       }
       return;
@@ -51,7 +56,12 @@
           if (!resp?.phone) return;
           return chrome.runtime.sendMessage({
             type: "WHATSAPP_ACTIVE_CHAT_CHANGED",
-            payload: { phone: resp.phone, url: resp.url || "", reason },
+            payload: {
+              ...(resp.payload || {}),
+              phone: resp.phone,
+              url: resp.payload?.url || resp.url || "",
+              reason,
+            },
           });
         }).catch(() => null);
       }, 350);
@@ -137,13 +147,17 @@
     }
   }
 
+  function isRefreshableProfileSourceUrl(url) {
+    return isLinkedInProfileLikeUrl(url) || isWhatsappWebUrl(url);
+  }
+
   function scheduleSidePanelRefresh(
     tabId,
     url,
     reason,
     { force = false } = {},
   ) {
-    if (!Number.isInteger(tabId) || !isLinkedInProfileLikeUrl(url)) return;
+    if (!Number.isInteger(tabId) || !isRefreshableProfileSourceUrl(url)) return;
 
     const existingTimer = sidePanelRefreshTimers.get(tabId);
     if (existingTimer) clearTimeout(existingTimer);

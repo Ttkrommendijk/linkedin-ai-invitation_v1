@@ -83,9 +83,40 @@ companyNotesBtnEl?.addEventListener("click", () => {
     setTimeout(() => panel.classList.add("is-hidden"), 1800);
   }
 
+  function focusWhatsappSelectedPerson(row, phone) {
+    console.log("[LEF][WA][debug] focusing selected person", {
+      phone,
+      id: row?.id || null,
+      linkedin_url: row?.linkedin_url || "",
+      full_name: row?.full_name || "",
+    });
+
+    if (typeof globalObj.setNoProfileStateVisible === "function") {
+      globalObj.setNoProfileStateVisible(false);
+    }
+
+    if (typeof globalObj.setActiveTab === "function") {
+      globalObj.setActiveTab("detail", { userInitiated: true });
+    }
+
+    if (typeof globalObj.setDetailInnerTab === "function") {
+      globalObj.setDetailInnerTab("notes");
+    }
+
+    window.focus?.();
+
+    requestAnimationFrame(() => {
+      const nameEl = document.getElementById("detailPersonName");
+      if (nameEl && typeof nameEl.focus === "function") {
+        nameEl.focus({ preventScroll: true });
+      }
+      document.getElementById("tabMain")?.scrollTo?.({ top: 0, behavior: "smooth" });
+    });
+  }
+
   function renderLifecycleForSelectedRow(row) {
     if (typeof globalObj.applyLifecycleUiState === "function") {
-      globalObj.applyLifecycleUiState(row, { preserveTabs: false });
+      globalObj.applyLifecycleUiState(row, { preserveTabs: true });
     }
     if (typeof globalObj.renderDetailHeader === "function") {
       globalObj.renderDetailHeader();
@@ -116,9 +147,7 @@ companyNotesBtnEl?.addEventListener("click", () => {
     state.lastProfileContextEnriched = null;
     state.dbInvitationRow = row || null;
 
-    if (typeof globalObj.setActiveTab === "function") {
-      globalObj.setActiveTab("detail", { userInitiated: false });
-    }
+    focusWhatsappSelectedPerson(row, phone);
     renderLifecycleForSelectedRow(row);
     if (typeof globalObj.renderProfileContext === "function") {
       globalObj.renderProfileContext();
@@ -157,6 +186,11 @@ companyNotesBtnEl?.addEventListener("click", () => {
 
     if (!phone) return false;
     if (rows.length === 1) {
+      console.log("[LEF][WA][debug] exactly one WhatsApp match found; selecting and focusing", {
+        phone,
+        id: rows[0]?.id || null,
+        linkedin_url: rows[0]?.linkedin_url || "",
+      });
       selectWhatsappCandidate(rows[0], phone);
       return false;
     }

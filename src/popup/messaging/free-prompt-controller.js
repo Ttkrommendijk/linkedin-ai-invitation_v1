@@ -69,15 +69,26 @@
 
       let profileForGeneration = null;
       if (includeProfile) {
-        const activeTab = await profileController.getActiveTabForProfileCheck?.().catch(() => null);
-        const pageInfo = globalObj.detectLinkedInPageType(activeTab?.url || "");
-        profileForGeneration = await profileController.getFreshScrapeForPage?.(pageInfo, {
-          source: "free_prompt",
-        });
-        const linkedinUrl = globalObj.getLinkedinUrlFromContext(profileForGeneration);
-        if (!profileForGeneration || !linkedinUrl) {
+        const existingContext = globalObj.PopupState?.currentProfileContext || null;
+        const existingLinkedinUrl = globalObj.getLinkedinUrlFromContext(existingContext);
+        if (existingContext && (existingLinkedinUrl || existingContext.id || existingContext.phone)) {
+          profileForGeneration = { ...existingContext };
+        } else {
+          const activeTab = await profileController.getActiveTabForProfileCheck?.().catch(() => null);
+          const pageInfo = globalObj.detectLinkedInPageType(activeTab?.url || "");
+          profileForGeneration = await profileController.getFreshScrapeForPage?.(pageInfo, {
+            source: "free_prompt",
+          });
+        }
+        const hasUsableProfile = Boolean(
+          profileForGeneration &&
+            (globalObj.getLinkedinUrlFromContext(profileForGeneration) ||
+              profileForGeneration.id ||
+              profileForGeneration.phone),
+        );
+        if (!hasUsableProfile) {
           globalObj.setFooterStatus?.(
-            "Profile context is missing. Open a LinkedIn profile and try again.",
+            "Profile context is missing. Open a LinkedIn profile, WhatsApp Web conversation, or a person from contacts and try again.",
           );
           messageController.updateFreePromptCopyButtonState?.();
           return;

@@ -14,6 +14,7 @@
   ],
   "host_permissions": [
     "https://www.linkedin.com/*",
+    "https://web.whatsapp.com/*",
     "https://api.openai.com/*"
   ],
   "action": {
@@ -34,6 +35,17 @@
       ],
       "js": ["src/content/content.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://web.whatsapp.com/*"],
+      "js": ["src/content/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["src/content/whatsapp-page-bridge.js"],
+      "matches": ["https://web.whatsapp.com/*"]
     }
   ]
 }

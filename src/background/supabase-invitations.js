@@ -566,21 +566,94 @@
     return String(value || "").replace(/\D+/g, "").replace(/^0+/, "");
   }
 
+  function addBrazilianMobileVariants(variants, digits) {
+    const add = (value) => {
+      const normalized = normalizePhoneDigits(value);
+      if (normalized) variants.add(normalized);
+    };
+
+    const local = digits.startsWith("55") && digits.length > 11
+      ? digits.slice(2)
+      : digits;
+
+    if (local.length === 11 && local[2] === "9") {
+      const withoutNinthDigit = `${local.slice(0, 2)}${local.slice(3)}`;
+      add(withoutNinthDigit);
+      add(`55${withoutNinthDigit}`);
+    }
+
+    if (local.length === 10) {
+      const withNinthDigit = `${local.slice(0, 2)}9${local.slice(2)}`;
+      add(withNinthDigit);
+      add(`55${withNinthDigit}`);
+    }
+  }
+
+  function getPhoneMatchVariants(value) {
+    const digits = normalizePhoneDigits(value);
+    if (!digits) return [];
+
+    const variants = new Set([digits]);
+    if (digits.startsWith("55") && digits.length > 11) variants.add(digits.slice(2));
+    if (!digits.startsWith("55") && digits.length >= 10 && digits.length <= 11) {
+      variants.add(`55${digits}`);
+    }
+    addBrazilianMobileVariants(variants, digits);
+
+    const baseVariants = Array.from(variants);
+    baseVariants.forEach((variant) => {
+      if (variant.length >= 11) variants.add(variant.slice(-11));
+      if (variant.length >= 10) variants.add(variant.slice(-10));
+      if (variant.length >= 9) variants.add(variant.slice(-9));
+      if (variant.length >= 8) variants.add(variant.slice(-8));
+    });
+
+    return Array.from(variants).filter(Boolean);
+  }
+
+  function phonesMatch(left, right) {
+    const leftVariants = getPhoneMatchVariants(left);
+    const rightVariants = getPhoneMatchVariants(right);
+    if (!leftVariants.length || !rightVariants.length) return false;
+
+    return leftVariants.some((leftVariant) =>
+      rightVariants.some(
+        (rightVariant) =>
+          leftVariant === rightVariant ||
+          leftVariant.endsWith(rightVariant) ||
+          rightVariant.endsWith(leftVariant),
+      ),
+    );
+  }
+
   async function supabaseFindInvitationsByPhone({ phone, limit = 10 } = {}) {
     const normalizedPhone = normalizePhoneDigits(phone);
     if (!normalizedPhone) return [];
 
     const { supabaseUrl, supabaseAnonKey, accessToken } =
       await getSupabaseRequestContext();
-    const safeLimit = Math.min(Math.max(Number(limit) || 10, 1), 25);
+    const safeLimit = Math.min(Math.max(Number(limit) || 10, 1), 100);
     const select = "id,linkedin_url,status,message,generated_at,invited_at,accepted,accepted_at,first_message,first_message_generated_at,first_message_sent_at,message_count,company,company_id,headline,comments,phone,email,language,full_name,campaign";
-    const suffix8 = normalizedPhone.slice(-8);
-    const suffix4 = normalizedPhone.slice(-4);
-    const filters = [normalizedPhone, suffix8, suffix4]
-      .filter(Boolean)
+    const variants = getPhoneMatchVariants(normalizedPhone);
+    const suffixes = Array.from(
+      new Set(
+        variants
+          .flatMap((value) => [value, value.slice(-8), value.slice(-4)])
+          .filter((value) => value && value.length >= 4),
+      ),
+    );
+    const filters = suffixes
       .map((value) => `phone.ilike.*${encodeURIComponent(value)}*`)
       .join(",");
-    const url = `${supabaseUrl}/rest/v1/linkedin_invitations?or=(${filters})&select=${select}&limit=${safeLimit}`;
+    const query = filters ? `or=(${filters})&` : "";
+    const url = `${supabaseUrl}/rest/v1/linkedin_invitations?${query}select=${select}&limit=${safeLimit}`;
+
+    console.log("[LEF][WA][debug] phone lookup", {
+      inputPhone: phone,
+      normalizedPhone,
+      suffixes,
+      safeLimit,
+    });
 
     const res = await fetchWithTimeout(
       url,
@@ -604,10 +677,15 @@
 
     const rows = await res.json();
     const candidates = Array.isArray(rows) ? rows : [];
-    return candidates.filter(
-      (row) => normalizePhoneDigits(row?.phone).endsWith(normalizedPhone) ||
-        normalizedPhone.endsWith(normalizePhoneDigits(row?.phone)),
-    );
+    const matches = candidates.filter((row) => phonesMatch(row?.phone, normalizedPhone));
+
+    console.log("[LEF][WA][debug] phone lookup results", {
+      candidates: candidates.length,
+      matches: matches.length,
+      matchedPhones: matches.map((row) => row?.phone).filter(Boolean).slice(0, 10),
+    });
+
+    return matches;
   }
 
   globalObj.LEFSupabaseInvitations = Object.freeze({

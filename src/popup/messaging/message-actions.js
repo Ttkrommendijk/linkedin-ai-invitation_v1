@@ -426,7 +426,7 @@ function bindOpenSidePanelClickHandler() {
       }
       await chrome.sidePanel.setOptions({
         tabId,
-        path: "sidepanel.html",
+        path: "src/popup/sidepanel.html",
         enabled: true,
       });
       await chrome.sidePanel.open({ tabId });

@@ -200,6 +200,8 @@ function debug(...args) {
   if (DEBUG) console.log(...args);
 }
 
+
+
 function parseProfileExtractionJson(rawText) {
   let parsed;
   try {
@@ -610,18 +612,186 @@ async function sendMessageToTab(tabId, message) {
   }
 }
 
+function isWhatsappWebUrl(url) {
+  return /^https:\/\/web\.whatsapp\.com\//i.test(String(url || ""));
+}
+
+function normalizePhoneComparable(value) {
+  return normalizeProfileField(value).replace(/\D+/g, "").replace(/^0+/, "");
+}
+
+function phoneValuesMatch(a, b) {
+  const left = normalizePhoneComparable(a);
+  const right = normalizePhoneComparable(b);
+  if (!left || !right) return false;
+  if (left === right) return true;
+  if (left.length >= 8 && right.length >= 8) {
+    return left.endsWith(right) || right.endsWith(left);
+  }
+  return false;
+}
+
+function uniqueRowsByIdentity(rows) {
+  const seen = new Set();
+  const out = [];
+  for (const row of Array.isArray(rows) ? rows : []) {
+    if (!row || typeof row !== "object") continue;
+    const key = normalizeProfileField(row.id) || normalizeProfileField(row.linkedin_url) || JSON.stringify(row);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(row);
+  }
+  return out;
+}
+
+async function supabaseFindInvitationsByPhoneFallback({ phone, limit = 2000 }) {
+  const targetPhone = normalizePhoneComparable(phone);
+  if (!targetPhone) return [];
+
+  const { supabaseUrl, supabaseAnonKey, accessToken } = await getSupabaseRequestContext();
+  const safeLimit = Math.min(Math.max(Number(limit) || 2000, 1), 5000);
+  const select = [
+    "id",
+    "linkedin_url",
+    "status",
+    "message",
+    "generated_at",
+    "invited_at",
+    "accepted_at",
+    "first_message",
+    "first_message_generated_at",
+    "first_message_sent_at",
+    "company",
+    "headline",
+    "full_name",
+    "focus",
+    "positioning",
+    "phone",
+    "email",
+  ].join(",");
+  const url = `${supabaseUrl}/rest/v1/linkedin_invitations?select=${encodeURIComponent(select)}&phone=not.is.null&limit=${safeLimit}`;
+
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "GET",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    },
+    15000,
+    "Supabase request",
+  );
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw createProviderHttpError("supabase", res.status, txt);
+  }
+
+  const rows = await res.json();
+  if (!Array.isArray(rows)) return [];
+  return rows.filter((row) => phoneValuesMatch(targetPhone, row?.phone));
+}
+
+async function findInvitationsByPhoneRobust({ phone, limit = 10 } = {}) {
+  const targetPhone = normalizePhoneComparable(phone);
+  if (!targetPhone) return [];
+
+  let rows = [];
+  if (typeof LEF_SUPABASE_INVITATIONS.supabaseFindInvitationsByPhone === "function") {
+    rows = await LEF_SUPABASE_INVITATIONS.supabaseFindInvitationsByPhone({
+      phone: targetPhone,
+      limit,
+    });
+  }
+
+  rows = uniqueRowsByIdentity(rows);
+  if (rows.length > 0) return rows;
+
+  const fallbackRows = await supabaseFindInvitationsByPhoneFallback({
+    phone: targetPhone,
+    limit: 2000,
+  });
+  return uniqueRowsByIdentity(fallbackRows).slice(0, Math.max(Number(limit) || 10, 1));
+}
+
+function buildWhatsappSyncPayload({ phone, rows, tabId = null, url = "", reason = "" }) {
+  const cleanRows = uniqueRowsByIdentity(rows);
+  return {
+    phone: normalizePhoneComparable(phone),
+    rows: cleanRows,
+    row: cleanRows.length === 1 ? cleanRows[0] : null,
+    match_status:
+      cleanRows.length === 1 ? "matched" : cleanRows.length > 1 ? "multiple" : "not_found",
+    tabId,
+    url,
+    reason,
+  };
+}
+
+async function publishWhatsappSyncResult(payload) {
+  const normalizedPayload = buildWhatsappSyncPayload(payload || {});
+  await chrome.storage.local
+    .set({ lef_whatsapp_sync_result: normalizedPayload })
+    .catch(() => null);
+  await chrome.runtime
+    .sendMessage({ type: "WHATSAPP_SYNC_RESULT", payload: normalizedPayload })
+    .catch(() => null);
+  return normalizedPayload;
+}
+
+async function resolveWhatsappSyncForTab(tab, reason = "active_tab") {
+  if (!Number.isInteger(tab?.id) || !isWhatsappWebUrl(tab?.url || "")) {
+    return null;
+  }
+
+  const extractResp = await sendMessageToTab(tab.id, {
+    type: "EXTRACT_WHATSAPP_ACTIVE_CHAT",
+  });
+  const phone = normalizePhoneComparable(extractResp?.phone);
+  if (!phone) {
+    const payload = await publishWhatsappSyncResult({
+      phone: "",
+      rows: [],
+      tabId: tab.id,
+      url: tab?.url || "",
+      reason,
+    });
+    return payload;
+  }
+
+  const rows = await findInvitationsByPhoneRobust({ phone, limit: 10 });
+  return await publishWhatsappSyncResult({
+    phone,
+    rows,
+    tabId: tab.id,
+    url: tab?.url || "",
+    reason,
+  });
+}
+
+
 const ROUTES = {
   GET_ACTIVE_TAB_CONTEXT: {
     errorCode: "UNKNOWN_ERROR",
     handler: async () => {
       const tab = await getActiveTabInCurrentWindow();
-      return {
-        ok: true,
-        data: {
-          tabId: Number.isInteger(tab?.id) ? tab.id : null,
-          url: tab?.url || "",
-        },
+      const data = {
+        tabId: Number.isInteger(tab?.id) ? tab.id : null,
+        url: tab?.url || "",
       };
+
+      if (isWhatsappWebUrl(tab?.url || "")) {
+        data.page_type = "whatsapp";
+        data.whatsapp_sync = await resolveWhatsappSyncForTab(
+          tab,
+          "get_active_tab_context",
+        );
+      }
+
+      return { ok: true, data };
     },
   },
   SCRAPE_PROFILE_CONTEXT: {
@@ -907,35 +1077,47 @@ const ROUTES = {
     },
   },
 
+
+  INJECT_WHATSAPP_PAGE_BRIDGE: {
+    errorCode: "WHATSAPP_BRIDGE_INJECTION_FAILED",
+    handler: async ({ sender }) => {
+      const tabId = sender?.tab?.id;
+      if (!Number.isInteger(tabId)) {
+        throw new Error("Missing sender tab id.");
+      }
+      if (!chrome.scripting?.executeScript) {
+        throw new Error("chrome.scripting.executeScript is not available.");
+      }
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        files: ["src/content/whatsapp-page-bridge.js"],
+        world: "MAIN",
+      });
+      return { ok: true };
+    },
+  },
   DB_FIND_INVITATIONS_BY_PHONE: {
     errorCode: "SUPABASE_GET_FAILED",
     handler: async ({ msg }) => {
       emitUiStatus("Fetching\u2026");
-      const rows = await LEF_SUPABASE_INVITATIONS.supabaseFindInvitationsByPhone(
-        msg?.payload || {},
-      );
+      const rows = await findInvitationsByPhoneRobust(msg?.payload || {});
       return { ok: true, rows };
     },
   },
   WHATSAPP_ACTIVE_CHAT_CHANGED: {
     errorCode: "WHATSAPP_SYNC_FAILED",
     handler: async ({ msg, sender }) => {
-      const phone = normalizeProfileField(msg?.payload?.phone).replace(/\D+/g, "");
+      const phone = normalizePhoneComparable(msg?.payload?.phone);
       if (!phone) return { ok: false, error: "missing_phone" };
-      const rows = await LEF_SUPABASE_INVITATIONS.supabaseFindInvitationsByPhone({
+      const rows = await findInvitationsByPhoneRobust({ phone, limit: 10 });
+      const payload = await publishWhatsappSyncResult({
         phone,
-        limit: 10,
+        rows,
+        tabId: sender?.tab?.id || null,
+        url: msg?.payload?.url || sender?.tab?.url || "",
+        reason: msg?.payload?.reason || "content_script",
       });
-      await chrome.runtime.sendMessage({
-        type: "WHATSAPP_SYNC_RESULT",
-        payload: {
-          phone,
-          rows,
-          tabId: sender?.tab?.id || null,
-          url: msg?.payload?.url || sender?.tab?.url || "",
-        },
-      }).catch(() => null);
-      return { ok: true, rows };
+      return { ok: true, rows: payload.rows, row: payload.row, match_status: payload.match_status };
     },
   },
   DB_GET_INVITATION: {
@@ -1325,6 +1507,13 @@ const ROUTES = {
         currentWindow: true,
       });
       const url = tab?.url || "";
+      if (tab?.id && isWhatsappWebUrl(url)) {
+        const whatsapp_sync = await resolveWhatsappSyncForTab(
+          tab,
+          "sidepanel.request",
+        );
+        return { ok: true, whatsapp_sync };
+      }
       if (
         tab?.id &&
         globalThis.LEFNavigationWatcher?.scheduleSidePanelRefresh &&
