@@ -135,39 +135,19 @@
   function isWhatsappWebUrl(url) {
     return /^https:\/\/web\.whatsapp\.com\//i.test(String(url || ""));
   }
-  async function requestWhatsappActiveChatSync(activeTab, reason = "popup.refresh") {
+  async function requestWhatsappActiveChatSync(activeTab, _reason = "popup.refresh") {
     if (!Number.isInteger(activeTab?.id) || !isWhatsappWebUrl(activeTab?.url || "")) {
       return null;
     }
-    let resp = null;
     try {
-      resp = await chrome.tabs.sendMessage(activeTab.id, {
-        type: "EXTRACT_WHATSAPP_ACTIVE_CHAT",
+      const resp = await chrome.runtime.sendMessage({
+        type: "GET_ACTIVE_TAB_CONTEXT",
       });
+      const phone = safeTrim(resp?.data?.whatsapp_sync?.phone).replace(/\D+/g, "");
+      return phone || null;
     } catch (_e) {
-      try {
-        await chrome.scripting.executeScript({
-          target: { tabId: activeTab.id },
-          files: ["src/content/content.js"],
-        });
-        resp = await chrome.tabs.sendMessage(activeTab.id, {
-          type: "EXTRACT_WHATSAPP_ACTIVE_CHAT",
-        });
-      } catch (_injectError) {
-        return null;
-      }
+      return null;
     }
-    const phone = safeTrim(resp?.phone).replace(/\D+/g, "");
-    if (!phone) return null;
-    try {
-      await chrome.runtime.sendMessage({
-        type: "WHATSAPP_ACTIVE_CHAT_CHANGED",
-        payload: { phone, url: resp?.url || activeTab.url || "", reason },
-      });
-    } catch (_e) {
-      // Runtime may not have a visible popup receiver yet; ignore.
-    }
-    return phone;
   }
   async function extractProfileContextFromActiveTab({ source = "" } = {}) {
     const activeTab = await getActiveTabForProfileCheck().catch(() => null);

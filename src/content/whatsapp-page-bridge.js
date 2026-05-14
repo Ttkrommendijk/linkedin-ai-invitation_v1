@@ -22,7 +22,8 @@
   const BLOCKED_KEYS =
     /^(msgs|_models|models|collection|children|child|sibling|return|alternate|firstEffect|lastEffect|stateNode|ref|refs)$/i;
   let lastPhone = "";
-  let timer = null;
+  let lastRequestId = 0;
+  let lastEmitAt = 0;
 
   function getFiberKey(el) {
     if (!el) return "";
@@ -176,52 +177,37 @@
   }
 
   function publish(reason, requestId = 0) {
+    const now = Date.now();
     const result = findActiveChat();
     const phone = result.phone || "";
     const extractReason = result.extractReason || "unknown";
 
-    if (extractReason !== VALID_EXTRACT_REASON) {
-      if (reason !== "request") return;
-      window.postMessage(buildPayload(result, reason, requestId), "*");
+    if (requestId && requestId === lastRequestId) return;
+
+    if (
+      phone &&
+      phone === lastPhone &&
+      now - lastEmitAt < 1000
+    ) {
       return;
     }
 
-    if (phone === lastPhone && reason !== "request") return;
-    lastPhone = phone;
+    if (requestId) lastRequestId = requestId;
+
+    if (extractReason === VALID_EXTRACT_REASON) {
+      lastPhone = phone;
+      lastEmitAt = now;
+    }
 
     window.postMessage(buildPayload(result, reason, requestId), "*");
   }
 
-  function schedule(reason) {
-    window.clearTimeout(timer);
-    timer = window.setTimeout(() => publish(reason), 250);
-  }
-
-  function patchHistory(name) {
-    const original = history[name];
-    if (typeof original !== "function") return;
-    history[name] = function (...args) {
-      const out = original.apply(this, args);
-      schedule(name);
-      return out;
-    };
-  }
-
-  patchHistory("pushState");
-  patchHistory("replaceState");
-  window.addEventListener("popstate", () => schedule("popstate"));
-  window.addEventListener("focus", () => schedule("focus"));
-  document.addEventListener("visibilitychange", () => schedule("visibilitychange"));
   window.addEventListener("message", (event) => {
     if (event.source !== window) return;
+    if (event.data?.source !== "LEF_EXTENSION_CONTENT") return;
     if (event.data?.type !== REQUEST_TYPE) return;
     publish("request", Number(event.data?.requestId || 0));
   });
-
-  const observer = new MutationObserver(() => schedule("mutation"));
-  if (document.body) {
-    observer.observe(document.body, { childList: true, subtree: true });
-  }
 
   window.postMessage(
     {
@@ -232,5 +218,4 @@
     },
     "*",
   );
-  schedule("installed");
 })();

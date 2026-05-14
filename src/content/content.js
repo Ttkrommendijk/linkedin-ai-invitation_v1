@@ -348,30 +348,8 @@ function extractChatHistoryFromInteropShadow() {
     if (!isWhatsappWebPage() || state.bridgeRequested) return;
     state.bridgeRequested = true;
 
-    chrome.runtime.sendMessage({ type: "INJECT_WHATSAPP_PAGE_BRIDGE" }, (resp) => {
+    chrome.runtime.sendMessage({ type: "INJECT_WHATSAPP_PAGE_BRIDGE" }, () => {
       void chrome.runtime.lastError;
-      if (resp?.ok) {
-        requestWhatsappActiveChat("background_injected");
-        return;
-      }
-
-      // Fallback for older manifests. This is file based, not inline.
-      try {
-        const existing = document.getElementById("lef-whatsapp-page-bridge");
-        if (existing) {
-          requestWhatsappActiveChat("script_tag_existing");
-          return;
-        }
-        const script = document.createElement("script");
-        script.id = "lef-whatsapp-page-bridge";
-        script.src = chrome.runtime.getURL("src/content/whatsapp-page-bridge.js");
-        script.async = false;
-        script.onload = () => script.remove();
-        (document.head || document.documentElement).appendChild(script);
-        setTimeout(() => requestWhatsappActiveChat("script_tag_injected"), 250);
-      } catch (_e) {
-        // Keep silent. WhatsApp CSP errors are noisy enough and extraction can be retried.
-      }
     });
   }
 
@@ -381,7 +359,7 @@ function extractChatHistoryFromInteropShadow() {
     if (data.source !== "LEF_WHATSAPP_PAGE_BRIDGE") return;
 
     if (data.type === "LEF_WA_BRIDGE_READY") {
-      requestWhatsappActiveChat("bridge_ready");
+      getState().bridgeReady = true;
       return;
     }
 
@@ -436,14 +414,9 @@ function extractChatHistoryFromInteropShadow() {
 
     if (isWhatsappWebPage()) {
       requestWhatsappBridgeInjection();
-      window.addEventListener("focus", () => requestWhatsappActiveChat("focus"));
-      document.addEventListener("visibilitychange", () =>
-        requestWhatsappActiveChat("visibilitychange"),
-      );
     }
   } else if (isWhatsappWebPage()) {
     requestWhatsappBridgeInjection();
-    requestWhatsappActiveChat("content_reloaded");
   }
 })();
 

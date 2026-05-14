@@ -22,23 +22,12 @@
     return /^https:\/\/web\.whatsapp\.com\//i.test(String(url || ""));
   }
 
-  async function ensureWhatsappContentScript(tabId, reason) {
+  async function ensureWhatsappContentScript(tabId, _reason) {
     if (!Number.isInteger(tabId)) return;
     try {
-      const resp = await chrome.tabs.sendMessage(tabId, {
+      await chrome.tabs.sendMessage(tabId, {
         type: "EXTRACT_WHATSAPP_ACTIVE_CHAT",
       });
-      if (resp?.phone) {
-        await chrome.runtime.sendMessage({
-          type: "WHATSAPP_ACTIVE_CHAT_CHANGED",
-          payload: {
-            ...(resp.payload || {}),
-            phone: resp.phone,
-            url: resp.payload?.url || resp.url || "",
-            reason,
-          },
-        }).catch(() => null);
-      }
       return;
     } catch (_e) {
       // Content script may not be injected for WhatsApp yet.
@@ -49,22 +38,6 @@
         target: { tabId },
         files: ["src/content/content.js"],
       });
-      setTimeout(() => {
-        chrome.tabs.sendMessage(tabId, {
-          type: "EXTRACT_WHATSAPP_ACTIVE_CHAT",
-        }).then((resp) => {
-          if (!resp?.phone) return;
-          return chrome.runtime.sendMessage({
-            type: "WHATSAPP_ACTIVE_CHAT_CHANGED",
-            payload: {
-              ...(resp.payload || {}),
-              phone: resp.phone,
-              url: resp.payload?.url || resp.url || "",
-              reason,
-            },
-          });
-        }).catch(() => null);
-      }, 350);
     } catch (_e) {
       // Ignore tabs where injection is not permitted.
     }

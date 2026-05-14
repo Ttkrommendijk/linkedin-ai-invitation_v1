@@ -717,7 +717,20 @@ async function findInvitationsByPhoneRobust({ phone, limit = 10 } = {}) {
   return uniqueRowsByIdentity(fallbackRows).slice(0, Math.max(Number(limit) || 10, 1));
 }
 
-function buildWhatsappSyncPayload({ phone, rows, tabId = null, url = "", reason = "" }) {
+const WHATSAPP_SYNC_DEDUPE_MS = 1000;
+const lastWhatsappSyncByTab = new Map();
+
+function buildWhatsappSyncPayload({
+  phone,
+  rows,
+  tabId = null,
+  url = "",
+  reason = "",
+  titleText = "",
+  historyChatId = "",
+  extractReason = "",
+  extractPath = "",
+} = {}) {
   const cleanRows = uniqueRowsByIdentity(rows);
   return {
     phone: normalizePhoneComparable(phone),
@@ -728,7 +741,23 @@ function buildWhatsappSyncPayload({ phone, rows, tabId = null, url = "", reason 
     tabId,
     url,
     reason,
+    titleText,
+    historyChatId,
+    extractReason,
+    extractPath,
   };
+}
+
+function isDuplicateWhatsappSync({ phone, tabId }) {
+  const cleanPhone = normalizePhoneComparable(phone);
+  const key = Number.isInteger(tabId) ? String(tabId) : "unknown";
+  const prev = lastWhatsappSyncByTab.get(key);
+  const now = Date.now();
+  if (prev?.phone === cleanPhone && now - prev.ts < WHATSAPP_SYNC_DEDUPE_MS) {
+    return true;
+  }
+  lastWhatsappSyncByTab.set(key, { phone: cleanPhone, ts: now });
+  return false;
 }
 
 async function publishWhatsappSyncResult(payload) {
@@ -751,6 +780,7 @@ async function resolveWhatsappSyncForTab(tab, reason = "active_tab") {
     type: "EXTRACT_WHATSAPP_ACTIVE_CHAT",
   });
   const phone = normalizePhoneComparable(extractResp?.phone);
+  const waPayload = extractResp?.payload || {};
   if (!phone) {
     const payload = await publishWhatsappSyncResult({
       phone: "",
@@ -769,6 +799,10 @@ async function resolveWhatsappSyncForTab(tab, reason = "active_tab") {
     tabId: tab.id,
     url: tab?.url || "",
     reason,
+    titleText: waPayload.titleText || "",
+    historyChatId: waPayload.historyChatId || "",
+    extractReason: waPayload.extractReason || waPayload.extract_reason || "",
+    extractPath: waPayload.extractPath || "",
   });
 }
 
@@ -1107,15 +1141,45 @@ const ROUTES = {
   WHATSAPP_ACTIVE_CHAT_CHANGED: {
     errorCode: "WHATSAPP_SYNC_FAILED",
     handler: async ({ msg, sender }) => {
-      const phone = normalizePhoneComparable(msg?.payload?.phone);
+      const rawPhone = msg?.payload?.phone;
+      const phone = normalizePhoneComparable(rawPhone);
+      const tabId = sender?.tab?.id || null;
+      const extractReason = msg?.payload?.extractReason || msg?.payload?.extract_reason || "";
       if (!phone) return { ok: false, error: "missing_phone" };
+
+      console.log("[LEF][WA][lookup]", {
+        rawPhone,
+        normalizedPhone: phone,
+        tabId,
+        titleText: msg?.payload?.titleText || "",
+        historyChatId: msg?.payload?.historyChatId || "",
+        extractReason,
+      });
+
+      if (isDuplicateWhatsappSync({ phone, tabId })) {
+        const { lef_whatsapp_sync_result: latest } = await chrome.storage.local
+          .get(["lef_whatsapp_sync_result"])
+          .catch(() => ({}));
+        return {
+          ok: true,
+          duplicate: true,
+          rows: latest?.rows || [],
+          row: latest?.row || null,
+          match_status: latest?.match_status || "duplicate",
+        };
+      }
+
       const rows = await findInvitationsByPhoneRobust({ phone, limit: 10 });
       const payload = await publishWhatsappSyncResult({
         phone,
         rows,
-        tabId: sender?.tab?.id || null,
+        tabId,
         url: msg?.payload?.url || sender?.tab?.url || "",
         reason: msg?.payload?.reason || "content_script",
+        titleText: msg?.payload?.titleText || "",
+        historyChatId: msg?.payload?.historyChatId || "",
+        extractReason,
+        extractPath: msg?.payload?.extractPath || "",
       });
       return { ok: true, rows: payload.rows, row: payload.row, match_status: payload.match_status };
     },
