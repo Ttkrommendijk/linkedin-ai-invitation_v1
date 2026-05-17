@@ -267,14 +267,10 @@ function bindProfileEditControls() {
             company_name: safeTrim(
               enrichedPayload.company_name || payload.company_name,
             ),
-            employee_number: safeTrim(
-              enrichedPayload.employee_number || payload.employee_number,
-            ),
+            employee_number: safeTrim(enrichedPayload.employee_number),
             sector: safeTrim(enrichedPayload.sector || payload.sector),
             city: safeTrim(enrichedPayload.city || payload.city),
-            it_members: safeTrim(
-              enrichedPayload.it_members || payload.it_members,
-            ),
+            it_members: safeTrim(enrichedPayload.it_members),
           };
         }
         const result = linkedExistingCompanyId

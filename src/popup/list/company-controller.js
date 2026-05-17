@@ -387,12 +387,8 @@ const debug = typeof globalObj.debug === "function" ? globalObj.debug : () => {}
 if (isCompanyProfileMode()) { const scraped = PopupState.currentProfileContext || {};
 const row = globalObj.dbCompanyRow || {}; const companyName = coalesceDbThenScraped(
 row.company_name, scraped.company_name || scraped.name || scraped.full_name || "",
-); const employeeNumber = coalesceDbThenScraped(
-row.employee_number, scraped.employee_number || "",
-); const sector = coalesceDbThenScraped(row.sector, scraped.sector || "");
-const city = coalesceDbThenScraped(row.city, scraped.city || ""); const itMembers = coalesceDbThenScraped(
-row.it_members, scraped.it_members || "",
-); if (!(isProfileEditMode && !force)) {
+); const employeeNumber = safeTrim(row.employee_number); const sector = coalesceDbThenScraped(row.sector, scraped.sector || "");
+const city = coalesceDbThenScraped(row.city, scraped.city || ""); const itMembers = safeTrim(row.it_members); if (!(isProfileEditMode && !force)) {
 if (detailPersonNameEl) detailPersonNameEl.value = companyName.trim() || "-"; if (detailEmployeeNumberEl) {
 detailEmployeeNumberEl.value = employeeNumber.trim() || "-"; }
 if (detailHeadlineEl) detailHeadlineEl.value = sector.trim() || "-"; if (detailItMembersEl) detailItMembersEl.value = itMembers.trim() || "-";

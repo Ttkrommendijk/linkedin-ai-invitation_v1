@@ -194,8 +194,6 @@ function extractCompanyProfile() {
       '.org-top-card-summary-info-list__info-item:nth-child(2)',
     ]);
 
-  const employee_number = extractCompanyNumberFromText(mainText);
-  const it_members = extractCompanyItMembersFromText(mainText);
   const company_page_excerpt = sanitizeExcerpt(mainText.slice(0, 6000), 1500);
 
   return {
@@ -203,10 +201,10 @@ function extractCompanyProfile() {
     linkedin_id,
     is_company_profile: true,
     company_name: name,
-    employee_number,
+    employee_number: "",
     sector,
     city,
-    it_members,
+    it_members: "",
     company_page_excerpt,
   };
 }

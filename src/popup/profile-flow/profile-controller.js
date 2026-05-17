@@ -629,12 +629,10 @@
     return {
       linkedin_id,
       company_name: safeTrim(enrichResp.company_name || profileContext.company_name),
-      employee_number: safeTrim(
-        enrichResp.employee_number || profileContext.employee_number,
-      ),
+      employee_number: safeTrim(enrichResp.employee_number),
       sector: safeTrim(enrichResp.sector || profileContext.sector),
       city: safeTrim(enrichResp.city || profileContext.city),
-      it_members: safeTrim(enrichResp.it_members || profileContext.it_members),
+      it_members: safeTrim(enrichResp.it_members),
     };
   }
   async function extractProfileDetailsFromLlm(scrapedProfileContext = null) {
