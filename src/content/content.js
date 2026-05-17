@@ -127,6 +127,90 @@ function extractProfile() {
   return profile;
 }
 
+
+function extractLinkedInCompanyIdFromUrl(url) {
+  const value = String(url || "");
+  const match = value.match(/^https:\/\/www\.linkedin\.com\/(company|school)\/[^/?#]+\/?/i);
+  return match ? match[0].replace(/\/+$/, "/") : value.split(/[?#]/)[0];
+}
+
+function textAfterLabel(text, labels) {
+  const source = cleanText(text);
+  if (!source) return "";
+  for (const label of labels) {
+    const pattern = new RegExp(`${label}\\s*[:\\n]\\s*([^\\n|•]+)`, "i");
+    const match = source.match(pattern);
+    if (match?.[1]) return cleanText(match[1]);
+  }
+  return "";
+}
+
+function extractCompanyNumberFromText(text) {
+  const source = cleanText(text);
+  if (!source) return "";
+  const patterns = [
+    /(?:tamanho da empresa|company size)\s*[:\n]?\s*([^\n|•]{2,80}?(?:funcion[aá]rios|employees|employee))/i,
+    /([^\n|•]{1,80}?(?:funcion[aá]rios|employees|employee))/i,
+  ];
+  for (const pattern of patterns) {
+    const match = source.match(pattern);
+    if (match?.[1]) return cleanText(match[1]);
+  }
+  return "";
+}
+
+function extractCompanyItMembersFromText(text) {
+  const source = cleanText(text);
+  if (!source) return "";
+  const patterns = [
+    /([^\n|•]{1,80}?(?:profissionais|pessoas|members|employees)[^\n|•]{0,40}?(?:ti|it|technology|tecnologia))/i,
+    /(?:ti|it|technology|tecnologia)[^\n|•]{0,40}?([0-9][0-9.,\s]*(?:\+| mil|k)?[^\n|•]{0,40}?(?:profissionais|pessoas|members|employees)?)/i,
+  ];
+  for (const pattern of patterns) {
+    const match = source.match(pattern);
+    if (match?.[1]) return cleanText(match[1]);
+  }
+  return "";
+}
+
+function extractCompanyProfile() {
+  const url = window.location.href;
+  const linkedin_id = extractLinkedInCompanyIdFromUrl(url);
+  const mainText = cleanText(document.querySelector("main")?.innerText || document.body?.innerText || "");
+  const name =
+    cleanText(document.querySelector("main h1")?.innerText) ||
+    cleanText(document.querySelector("h1")?.innerText) ||
+    nameFromTitle();
+
+  const sector = firstNonEmptyText([
+    '[data-test-org-about-company-module__industry]',
+    '.org-top-card-summary-info-list__info-item',
+  ]) || textAfterLabel(mainText, ["Setor", "Industry"]);
+
+  const city =
+    textAfterLabel(mainText, ["Sede", "Headquarters", "Localidade", "Location"]) ||
+    firstNonEmptyText([
+      '[data-test-org-about-company-module__headquarters]',
+      '.org-top-card-summary-info-list__info-item:nth-child(2)',
+    ]);
+
+  const employee_number = extractCompanyNumberFromText(mainText);
+  const it_members = extractCompanyItMembersFromText(mainText);
+  const company_page_excerpt = sanitizeExcerpt(mainText.slice(0, 6000), 1500);
+
+  return {
+    url: linkedin_id,
+    linkedin_id,
+    is_company_profile: true,
+    company_name: name,
+    employee_number,
+    sector,
+    city,
+    it_members,
+    company_page_excerpt,
+  };
+}
+
 function isUiNoiseLine(text) {
   const t = cleanText(text).toLowerCase();
   if (!t) return true;
@@ -430,6 +514,23 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         ok: false,
         error: {
           code: "EXTRACTION_FAILED",
+          message: e instanceof Error ? e.message : String(e || "unknown"),
+        },
+      });
+    }
+    return true;
+  }
+
+
+  if (msg?.type === "EXTRACT_COMPANY_CONTEXT") {
+    try {
+      const company = extractCompanyProfile();
+      sendResponse({ ok: true, company });
+    } catch (e) {
+      sendResponse({
+        ok: false,
+        error: {
+          code: "COMPANY_EXTRACTION_FAILED",
           message: e instanceof Error ? e.message : String(e || "unknown"),
         },
       });

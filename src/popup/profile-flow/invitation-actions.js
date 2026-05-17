@@ -230,9 +230,14 @@ function logPopupInitError(error) {
   }
 }
 
-function readCompanyProfileSaveField(fieldEl, fallback = "") {
+function readCompanyProfileSaveField(fieldEl, fallback = "", options = {}) {
   const rawValue = fieldEl?.value || "";
   const value = rawValue.trim() === "-" ? "" : rawValue;
+
+  if (options.preferFieldValue) {
+    return normalizeWhitespace(value);
+  }
+
   return normalizeWhitespace(value || fallback || "");
 }
 
@@ -261,6 +266,7 @@ function buildCompanyProfileSavePayload() {
     it_members: readCompanyProfileSaveField(
       detailItMembersEl,
       row.it_members || scraped.it_members,
+      { preferFieldValue: true },
     ),
   };
 }
