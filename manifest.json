@@ -15,7 +15,8 @@
   "host_permissions": [
     "https://www.linkedin.com/*",
     "https://web.whatsapp.com/*",
-    "https://api.openai.com/*"
+    "https://api.openai.com/*",
+    "https://nkhujuqjnbzsfqyqfndc.supabase.co/*"
   ],
   "action": {
     "default_popup": "src/popup/popup.html"

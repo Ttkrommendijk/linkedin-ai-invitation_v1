@@ -1,30 +1,12 @@
 (function initSupabaseService(globalObj) {
   const LEF_UTILS = globalObj.LEFUtils || {};
+  const DEFAULT_SUPABASE_PUBLISHABLE_KEY =
+    "sb_publishable_hiUnHo7PidpGYrl6WYvF3Q_n4CVi2nx";
 
   async function getSupabaseConfig() {
-    const [
-      { webhookSecret, [STORAGE_KEY_SUPABASE_URL]: supabaseUrlLocal },
-      { webhookBaseUrl },
-    ] = await Promise.all([
-      chrome.storage.local.get(["webhookSecret", STORAGE_KEY_SUPABASE_URL]),
-      chrome.storage.sync.get(["webhookBaseUrl"]),
-    ]);
-
-    const supabaseUrl = String(
-      supabaseUrlLocal || webhookBaseUrl || DEFAULT_SUPABASE_URL,
-    )
-      .trim()
-      .replace(/\/+$/, "");
-
-    if (!supabaseUrl || !webhookSecret) {
-      throw new Error(
-        "Missing config. Set Supabase URL and Supabase publishable key.",
-      );
-    }
-
     return {
-      supabaseUrl,
-      supabaseAnonKey: webhookSecret,
+      supabaseUrl: DEFAULT_SUPABASE_URL,
+      supabaseAnonKey: DEFAULT_SUPABASE_PUBLISHABLE_KEY,
     };
   }
 

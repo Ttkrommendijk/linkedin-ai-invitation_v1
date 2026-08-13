@@ -83,6 +83,15 @@ const ensureSupabaseSession = LEF_SUPABASE.ensureSupabaseSession;
 
 const getSupabaseRequestContext = LEF_SUPABASE.getSupabaseRequestContext;
 
+const callSupabaseAuthSignup = LEF_SUPABASE.callSupabaseAuthSignup;
+
+const callSupabaseAuthLogin = LEF_SUPABASE.callSupabaseAuthLogin;
+
+const callSupabaseAuthResetPassword =
+  LEF_SUPABASE.callSupabaseAuthResetPassword;
+
+const callSupabaseAuthLogout = LEF_SUPABASE.callSupabaseAuthLogout;
+
 const safeTrim =
   typeof LEF_UTILS.safeTrim === "function"
     ? LEF_UTILS.safeTrim
