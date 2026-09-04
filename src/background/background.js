@@ -31,6 +31,7 @@ try {
   importScripts("./supabase-notes.js");
   importScripts("./supabase-deals.js");
   importScripts("./supabase-overview.js");
+  importScripts("./supabase-reminders.js");
 } catch (e) {
   console.error("[LEF] failed to import supabase modules", e);
 }
@@ -52,6 +53,7 @@ const LEF_SUPABASE_CAMPAIGNS = globalThis.LEFSupabaseCampaigns || {};
 const LEF_SUPABASE_NOTES = globalThis.LEFSupabaseNotes || {};
 const LEF_SUPABASE_DEALS = globalThis.LEFSupabaseDeals || {};
 const LEF_SUPABASE_OVERVIEW = globalThis.LEFSupabaseOverview || {};
+const LEF_SUPABASE_REMINDERS = globalThis.LEFSupabaseReminders || {};
 
 const fetchWithTimeout = LEF_OPENAI.fetchWithTimeout;
 const fetchOpenAIWithRetry = LEF_OPENAI.fetchOpenAIWithRetry;
@@ -1425,6 +1427,29 @@ const ROUTES = {
         msg?.payload || {},
       );
       return { ok: true, note };
+    },
+  },
+  DB_CREATE_NOTE_WITH_REMINDER: {
+    errorCode: "SUPABASE_UPSERT_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Saving note and reminder…");
+      const result = await LEF_SUPABASE_REMINDERS.createNoteWithOptionalReminder(msg?.payload || {});
+      return { ok: true, note: result?.note || null, reminder: result?.reminder || null };
+    },
+  },
+  DB_LIST_REMINDERS: {
+    errorCode: "SUPABASE_GET_FAILED",
+    handler: async ({ msg }) => {
+      const rows = await LEF_SUPABASE_REMINDERS.listReminders(msg?.payload || {});
+      return { ok: true, rows: Array.isArray(rows) ? rows : [] };
+    },
+  },
+  DB_COMPLETE_REMINDER_WITH_NOTE: {
+    errorCode: "SUPABASE_UPDATE_FAILED",
+    handler: async ({ msg }) => {
+      emitUiStatus("Logging interaction and completing reminder…");
+      const result = await LEF_SUPABASE_REMINDERS.completeReminderWithNote(msg?.payload || {});
+      return { ok: true, note: result?.note || null, reminder: result?.reminder || null };
     },
   },
   DB_UPDATE_NOTE: {

@@ -1,0 +1,1 @@
+create index if not exists admin_reimbursement_batches_payment_period_fk_idx on public.admin_reimbursement_batches(payment_period_id);;

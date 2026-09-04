@@ -163,11 +163,16 @@
       };
     }
     globalObj.setNoProfileStateVisible?.(false);
+    globalObj.PopupCompanyController?.setCompanyDetailTab?.("persons");
     globalObj.renderDetailHeader?.({ force: true });
     await globalObj.refreshCompanyPeopleList?.();
     await globalObj.refreshCompanyUrlMismatchBanner?.();
     globalObj.setActiveTab?.("detail", { userInitiated: true });
-    if (openDeals) globalObj.PopupNotesController?.setActiveSubtab?.("deals");
+    if (openDeals) {
+      globalObj.PopupCompanyController?.setCompanyDetailTab?.("deals");
+    } else {
+      globalObj.PopupCompanyController?.setCompanyDetailTab?.("persons");
+    }
   }
 
   async function openPersonDetail(row) {

@@ -74,7 +74,7 @@
 
     const params = {
       select:
-        "note_id,note_title,note_description,created_at,status,date,notes_type,duration,person_name,company_name,deal_name,deal_description,archived,main_person_id,company_id,deal_id",
+        "note_id,note_title,note_description,created_at,status,date,notes_type,duration,person_name,company_name,deal_name,deal_description,archived,main_person_id,company_id,deal_id,source_reminder_id,source_reminder_title,source_reminder_at,completed_reminder_id,completed_reminder_title",
       archived: "eq.false",
       order: "date.desc",
     };
@@ -92,7 +92,7 @@
       }
     }
 
-    const url = `${supabaseUrl}/rest/v1/notes_view?${buildQuery(params)}`;
+    const url = `${supabaseUrl}/rest/v1/notes_with_reminders_view?${buildQuery(params)}`;
     const res = await fetchWithTimeout(
       url,
       {

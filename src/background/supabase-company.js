@@ -35,6 +35,7 @@
       "linked_person_count",
       "sector",
       "campaigns",
+      "next_reminder_at",
       "archived",
     ]);
     const field = String(value || "");
@@ -383,7 +384,7 @@
     const params = new URLSearchParams();
     params.set(
       "select",
-      "company_id,company_name,linkedin_id,archived,employee_number,company_size,linked_person_count,customer_potential_score,sector,campaigns",
+      "company_id,company_name,linkedin_id,archived,employee_number,company_size,linked_person_count,customer_potential_score,sector,campaigns,next_reminder_id,next_reminder_title,next_reminder_at,active_reminder_count",
     );
     params.set("limit", String(safePageSize));
     params.set("offset", String(offset));
@@ -401,11 +402,11 @@
       const q = String(search).trim().replace(/\*/g, "");
       params.set(
         "or",
-        `(company_name.ilike.*${q}*,company_size.ilike.*${q}*,sector.ilike.*${q}*,campaigns.ilike.*${q}*)`,
+        `(company_name.ilike.*${q}*,sector.ilike.*${q}*,campaigns.ilike.*${q}*)`,
       );
     }
 
-    const url = `${supabaseUrl}/rest/v1/vw_company_overview?${params.toString()}`;
+    const url = `${supabaseUrl}/rest/v1/vw_company_reminder_overview?${params.toString()}`;
     const res = await fetchWithTimeout(
       url,
       {
@@ -441,6 +442,10 @@
       customer_potential_score: Number(row?.customer_potential_score || 0),
       sector: normalizeProfileField(row?.sector),
       campaigns: normalizeProfileField(row?.campaigns),
+      next_reminder_id: normalizeProfileField(row?.next_reminder_id),
+      next_reminder_title: normalizeProfileField(row?.next_reminder_title),
+      next_reminder_at: normalizeProfileField(row?.next_reminder_at),
+      active_reminder_count: Number(row?.active_reminder_count || 0),
     }));
     return { rows, total };
   }

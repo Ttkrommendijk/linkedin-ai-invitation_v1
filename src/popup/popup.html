@@ -703,6 +703,13 @@
                         </button>
                     </div>
                     <div id="detailNotesPanel" class="detail-inner-panel">
+                        <section id="detailRemindersSection" class="detail-reminders-section">
+                            <div class="reminders-heading">
+                                <strong>Reminders</strong>
+                                <span id="detailRemindersStatus" class="notes-status"></span>
+                            </div>
+                            <div id="detailRemindersList" class="detail-reminders-list"></div>
+                        </section>
                         <div class="notes-toolbar">
                             <div
                                 class="notes-filter-group"
@@ -1085,6 +1092,7 @@
                                     <col class="overview-col-status" />
                                     <col class="overview-col-date" />
                                     <col class="overview-col-campaign" />
+                                    <col class="overview-col-date" />
                                 </colgroup>
                                 <thead>
                                     <tr>
@@ -1165,6 +1173,12 @@
                                                     class="sort-indicator"
                                                     data-overview-sort-indicator="campaigns"
                                                 ></span>
+                                            </button>
+                                        </th>
+                                        <th>
+                                            <button type="button" class="sort-btn" data-overview-sort="next_reminder_at">
+                                                Next reminder
+                                                <span class="sort-indicator" data-overview-sort-indicator="next_reminder_at"></span>
                                             </button>
                                         </th>
                                     </tr>
@@ -1319,6 +1333,12 @@
                                                     class="sort-indicator"
                                                     data-company-sort-indicator="campaigns"
                                                 ></span>
+                                            </button>
+                                        </th>
+                                        <th>
+                                            <button type="button" class="sort-btn" data-company-sort="next_reminder_at">
+                                                Next reminder
+                                                <span class="sort-indicator" data-company-sort-indicator="next_reminder_at"></span>
                                             </button>
                                         </th>
                                     </tr>
@@ -1566,6 +1586,7 @@
         <script src="list/company-controller.js"></script>
         <script src="list/auth-controller.js"></script>
         <script src="notes/notes-controller.js"></script>
+        <script src="reminders/reminders-controller.js"></script>
         <script src="deals/deals-controller.js"></script>
         <script src="messaging/free-prompt-controller.js"></script>
         <script src="list/grid.js"></script>

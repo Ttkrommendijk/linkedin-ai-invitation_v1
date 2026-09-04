@@ -15,6 +15,25 @@
     return canonicalizeLinkedInUrl(normalizeProfileField(value));
   }
 
+  function getLinkedinInvitationUrlVariants(value) {
+    const canonicalUrl = normalizeLinkedinInvitationUrl(value);
+    if (!canonicalUrl) return [];
+
+    const withoutSlash = canonicalUrl.replace(/\/+$/, "");
+    const withSlash = `${withoutSlash}/`;
+    const regionalWithoutSlash = withoutSlash.replace(
+      /^https:\/\/www\.linkedin\.com/i,
+      "https://br.linkedin.com",
+    );
+
+    return [...new Set([
+      withoutSlash,
+      withSlash,
+      regionalWithoutSlash,
+      `${regionalWithoutSlash}/`,
+    ])];
+  }
+
   // paste invitation functions here
 
   async function supabaseUpsertInvitation(row) {
@@ -347,15 +366,11 @@
   async function supabaseGetInvitationByLinkedinUrl(linkedin_url) {
     const { supabaseUrl, supabaseAnonKey, accessToken } =
       await getSupabaseRequestContext();
-    const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
-    if (!targetUrl) return null;
-    const targetUrlWithSlash = targetUrl.endsWith("/")
-      ? targetUrl
-      : `${targetUrl}/`;
-    const urlFilter =
-      targetUrl === targetUrlWithSlash
-        ? `linkedin_url.eq.${encodeURIComponent(targetUrl)}`
-        : `linkedin_url.eq.${encodeURIComponent(targetUrl)},linkedin_url.eq.${encodeURIComponent(targetUrlWithSlash)}`;
+    const targetUrls = getLinkedinInvitationUrlVariants(linkedin_url);
+    if (!targetUrls.length) return null;
+    const urlFilter = targetUrls
+      .map((targetUrl) => `linkedin_url.eq.${encodeURIComponent(targetUrl)}`)
+      .join(",");
     const url = `${supabaseUrl}/rest/v1/linkedin_invitations?or=(${urlFilter})&select=id,linkedin_url,status,message,generated_at,invited_at,accepted,accepted_at,first_message,first_message_generated_at,first_message_sent_at,message_count,company,company_id,headline,comments,phone,email,language,full_name,campaign&limit=1`;
 
     const res = await fetchWithTimeout(

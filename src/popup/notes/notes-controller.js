@@ -31,6 +31,18 @@
   }
 
   function getPersonContext() {
+    if (globalObj.isCompanyProfileMode?.()) {
+      const companyRow = globalObj.dbCompanyRow || {};
+      const profile = state.currentProfileContext || {};
+      return {
+        contextType: "company",
+        personId: "",
+        companyId: safeTrim(companyRow.company_id || profile.company_id),
+        dealId: "",
+        personName: "",
+        companyName: safeTrim(companyRow.company_name || profile.company_name),
+      };
+    }
     const row = state.dbInvitationRow || {};
     const profile = state.currentProfileContext || {};
     const personId = safeTrim(row.id || row.person_id);
@@ -201,7 +213,10 @@
     if (dom.detailDealsPanelEl) dom.detailDealsPanelEl.hidden = !dealsActive;
     if (dom.detailPromptsPanelEl)
       dom.detailPromptsPanelEl.hidden = !promptsActive;
-    if (notesActive) refreshNotes({ force: false });
+    if (notesActive) {
+      refreshNotes({ force: false });
+      globalObj.PopupRemindersController?.refresh?.();
+    }
     if (dealsActive) globalObj.refreshDeals?.({ force: false });
   }
 
@@ -325,6 +340,55 @@
       createField({ label: "Description", child: descriptionInput }),
     );
 
+    let reminderToggle = null;
+    let reminderOptions = null;
+    let reminderDateInput = null;
+    let reminderKindSelect = null;
+    let reminderTextInput = null;
+    if (isNew) {
+      const reminderWrap = document.createElement("div");
+      reminderWrap.className = "note-reminder-options";
+      const reminderLabel = document.createElement("label");
+      reminderLabel.className = "note-reminder-toggle";
+      reminderToggle = document.createElement("input");
+      reminderToggle.type = "checkbox";
+      reminderLabel.append(reminderToggle, document.createTextNode(" Remind me about this"));
+      reminderWrap.appendChild(reminderLabel);
+
+      reminderOptions = document.createElement("div");
+      reminderOptions.className = "note-editor-row note-reminder-fields";
+      reminderOptions.hidden = true;
+      reminderDateInput = document.createElement("input");
+      reminderDateInput.type = "datetime-local";
+      reminderDateInput.className = "form-control";
+      reminderKindSelect = document.createElement("select");
+      reminderKindSelect.className = "form-control";
+      [["due", "Action due"], ["review", "Reconsider later"]].forEach(([value, label]) => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        reminderKindSelect.appendChild(option);
+      });
+      reminderTextInput = document.createElement("input");
+      reminderTextInput.className = "form-control";
+      reminderTextInput.placeholder = "Optional reminder text";
+      reminderOptions.append(
+        createField({ label: "When should this return?", child: reminderDateInput }),
+        createField({ label: "Reminder type", child: reminderKindSelect }),
+        createField({ label: "Reminder text", child: reminderTextInput }),
+      );
+      reminderToggle.addEventListener("change", () => {
+        reminderOptions.hidden = !reminderToggle.checked;
+        if (reminderToggle.checked && !reminderDateInput.value) {
+          const nextWeek = new Date();
+          nextWeek.setDate(nextWeek.getDate() + 7);
+          reminderDateInput.value = toDateTimeInputValue(nextWeek);
+        }
+      });
+      reminderWrap.appendChild(reminderOptions);
+      editor.appendChild(reminderWrap);
+    }
+
     const actions = document.createElement("div");
     actions.className = "note-actions";
 
@@ -429,13 +493,26 @@
         main_person_id: ctx.personId,
         company_id: ctx.companyId,
         deal_id: safeTrim(ctx.dealId),
+        create_reminder: Boolean(reminderToggle?.checked),
+        reminder_at: reminderDateInput?.value || null,
+        reminder_kind: reminderKindSelect?.value || "due",
+        reminder_title: reminderTextInput?.value || titleInput.value,
       };
+      if (payload.create_reminder && !payload.reminder_at) {
+        const setStatus = typeof statusSetter === "function" ? statusSetter : setNotesStatus;
+        setStatus("Choose when the reminder should return.");
+        return;
+      }
       try {
         saveBtn.disabled = true;
         const setStatus =
           typeof statusSetter === "function" ? statusSetter : setNotesStatus;
         setStatus("Saving note...");
-        const type = isNew ? "DB_CREATE_NOTE" : "DB_UPDATE_NOTE";
+        const type = isNew
+          ? payload.create_reminder
+            ? "DB_CREATE_NOTE_WITH_REMINDER"
+            : "DB_CREATE_NOTE"
+          : "DB_UPDATE_NOTE";
         const result = await sendRuntimeMessage(type, { payload });
         const resp = result.data || {};
         if (!result.ok || resp?.ok === false) {
@@ -502,6 +579,19 @@
     title.className = "note-card-title";
     title.textContent = safeTrim(note?.note_title) || "(no title)";
     titleRow.appendChild(title);
+    if (note?.source_reminder_at) {
+      const reminderBadge = document.createElement("span");
+      reminderBadge.className = "note-reminder-badge";
+      reminderBadge.textContent = `💡 Reminder set for ${formatDate(note.source_reminder_at)}`;
+      reminderBadge.title = safeTrim(note.source_reminder_title) || "Reminder created from this note";
+      titleRow.appendChild(reminderBadge);
+    }
+    if (note?.completed_reminder_title) {
+      const completedBadge = document.createElement("span");
+      completedBadge.className = "note-reminder-badge note-reminder-completed";
+      completedBadge.textContent = `✓ Completed reminder: ${safeTrim(note.completed_reminder_title)}`;
+      titleRow.appendChild(completedBadge);
+    }
 
     stack.append(topRow, titleRow);
     header.appendChild(stack);
@@ -558,9 +648,9 @@
     if (!localState.notes.length && !localState.isCreating) {
       const empty = document.createElement("div");
       empty.className = "notes-empty";
-      empty.textContent = ctx.personId
+      empty.textContent = ctx.personId || ctx.companyId
         ? "No notes found."
-        : "Save or register this person before adding notes.";
+        : "Save or register this record before adding notes.";
       dom.notesListEl.appendChild(empty);
       return;
     }
@@ -595,10 +685,10 @@
       renderNotes();
       return;
     }
-    if (!ctx.personId) {
+    if (!ctx.personId && !ctx.companyId) {
       localState.notes = [];
       localState.loadedContextKey = key;
-      setNotesStatus("Person must exist before notes can be loaded.");
+      setNotesStatus("The record must exist before notes can be loaded.");
       renderNotes();
       return;
     }
@@ -619,6 +709,7 @@
       localState.loadedContextKey = key;
       setNotesStatus(localState.notes.length ? "" : "No notes found.");
       renderNotes();
+      globalObj.PopupRemindersController?.refresh?.();
     } catch (e) {
       localState.notes = [];
       setNotesStatus(getErrorMessage(e));
@@ -683,6 +774,7 @@
     refreshAllNoteRelatedViews,
     setActiveSubtab,
     renderNoteEditorForContext,
+    getPersonContext,
   };
 
   globalObj.PopupNotesController = Object.freeze(api);

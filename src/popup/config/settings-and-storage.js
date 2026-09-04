@@ -132,13 +132,30 @@ function setActiveListTab(which) {
   }
 }
 
+function renderNextReminderCell(row) {
+  if (!row?.next_reminder_at) return "";
+  const count = Number(row?.active_reminder_count || 0);
+  return `💡 ${formatLocalDateTime(row.next_reminder_at)}${count > 1 ? ` +${count - 1}` : ""}`;
+}
+
+function bindReminderGridCells(tbodyEl, rows) {
+  if (!tbodyEl || !Array.isArray(rows)) return;
+  Array.from(tbodyEl.querySelectorAll("tr")).forEach((tr, index) => {
+    const row = rows[index];
+    const cell = tr.children[tr.children.length - 1];
+    if (!row?.next_reminder_at || !cell) return;
+    cell.title = `${row.next_reminder_title || "Reminder"} — ${formatLocalDateTime(row.next_reminder_at)}`;
+    cell.classList.toggle("is-overdue", new Date(row.next_reminder_at).getTime() < Date.now());
+  });
+}
+
 function renderOverviewTable(rows) {
   const safeRows = applyOverviewClientFilters(rows);
   if (!LEF_GRID) return;
   LEF_GRID.renderGridRows({
     tbodyEl: overviewTbodyEl,
     rows: safeRows,
-    emptyColSpan: 7,
+    emptyColSpan: 8,
     actions: [
       {
         createButton: (row) => {
@@ -196,9 +213,11 @@ function renderOverviewTable(rows) {
         className: "overview-cell-text overview-cell-campaign",
         value: (row) => row?.campaigns || "",
       },
+      { className: "overview-cell-text reminder-grid-cell", value: renderNextReminderCell },
     ],
   });
   bindOverviewNameDetailActions(safeRows);
+  bindReminderGridCells(overviewTbodyEl, safeRows);
   scheduleOverviewAutoSize();
 }
 
@@ -316,7 +335,7 @@ function renderCompanyOverviewTable(rows) {
   LEF_GRID.renderGridRows({
     tbodyEl: companyOverviewTbodyEl,
     rows,
-    emptyColSpan: 7,
+    emptyColSpan: 8,
     actions: [
       {
         visible: (row) => isLinkedInProfileLikeUrl(row?.linkedin_url || ""),
@@ -383,10 +402,12 @@ function renderCompanyOverviewTable(rows) {
       },
       { className: "overview-cell-text", value: (row) => row?.sector || "" },
       { className: "overview-cell-text", value: (row) => row?.campaigns || "" },
+      { className: "overview-cell-text reminder-grid-cell", value: renderNextReminderCell },
     ],
   });
   bindCompanyLinkedPersonsActions(rows);
   bindCompanyNameDetailsActions(rows);
+  bindReminderGridCells(companyOverviewTbodyEl, rows);
   scheduleCompanyOverviewAutoSize();
 }
 
@@ -451,11 +472,13 @@ function bindCompanyNameDetailsActions(rows) {
           is_company_profile: true,
           company_name: safeTrim(companyRow?.company_name),
         };
+        PopupCompanyController.setCompanyDetailTab("persons");
         setNoProfileStateVisible(false);
         renderDetailHeader({ force: true });
         await refreshCompanyPeopleList();
         await refreshCompanyUrlMismatchBanner();
         setActiveTab("detail", { userInitiated: true });
+        PopupCompanyController.setCompanyDetailTab("persons");
         setFooterStatus("Company details loaded.");
       } catch (e) {
         setFooterStatus(`${UI_TEXT.dbErrorPrefix} ${getErrorMessage(e)}`);
@@ -484,7 +507,7 @@ async function fetchCompaniesOverviewPage() {
       LEF_GRID?.renderGridRows({
         tbodyEl: companyOverviewTbodyEl,
         rows: [],
-        emptyColSpan: 7,
+        emptyColSpan: 8,
         emptyText: getErrorMessage(result.error),
       });
       companyOverviewTotal = null;
@@ -503,7 +526,7 @@ async function fetchCompaniesOverviewPage() {
     LEF_GRID?.renderGridRows({
       tbodyEl: companyOverviewTbodyEl,
       rows: [],
-      emptyColSpan: 7,
+      emptyColSpan: 8,
       emptyText: getErrorMessage(e),
     });
     companyOverviewTotal = null;

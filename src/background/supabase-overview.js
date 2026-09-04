@@ -25,6 +25,7 @@
       "headline",
       "status",
       "most_relevant_date",
+      "next_reminder_at",
       "campaigns",
       "archived",
     ]);
@@ -77,7 +78,7 @@
     const params = new URLSearchParams();
     params.set(
       "select",
-      "url,name,company,headline,most_relevant_date,archived,campaigns,status,accepted",
+      "url,name,company,headline,most_relevant_date,archived,campaigns,status,accepted,next_reminder_id,next_reminder_title,next_reminder_at,active_reminder_count",
     );
     params.set("limit", String(safePageSize));
     params.set("offset", String(offset));
@@ -106,7 +107,7 @@
       params.set("or", `(name.ilike.*${q}*,company.ilike.*${q}*)`);
     }
 
-    const url = `${supabaseUrl}/rest/v1/vw_linkedin_invitations_overview?${params.toString()}`;
+    const url = `${supabaseUrl}/rest/v1/vw_linkedin_invitations_reminder_overview?${params.toString()}`;
     const res = await fetchWithTimeout(
       url,
       {
