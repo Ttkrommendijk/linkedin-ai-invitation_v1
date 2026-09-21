@@ -25,12 +25,14 @@ function initTabsModule(deps = {}) {
 
     const tabMainBtn = getEl("tabMainBtn");
     const tabOverviewBtn = getEl("tabOverviewBtn");
+    const tabTodayBtn = getEl("tabTodayBtn");
     const tabConfigBtn = getEl("tabConfigBtn");
     const tabTodoBtn = getEl("tabTodoBtn");
     const tabSupabaseAuthBtn = getEl("tabSupabaseAuthBtn");
     const tabMain = getEl("tabMain");
     const tabMessage = getEl("tabMessage");
     const tabOverview = getEl("tabOverview");
+    const tabToday = getEl("tabToday");
     const tabConfig = getEl("tabConfig");
     const tabTodo = getEl("tabTodo");
 
@@ -42,12 +44,14 @@ function initTabsModule(deps = {}) {
     const detailActive =
       which === "detail" || which === "invitation" || freePromptActive;
     const overviewActive = deps.OVERVIEW_ENABLED && which === "overview";
+    const todayActive = which === "today";
     const todoActive = which === "todo";
     const configActive = which === "config" || which === "supabase_login";
     const supabaseAuthActive = which === "supabase_login";
 
     tabMainBtn.classList.toggle("active", detailActive);
     if (tabOverviewBtn) tabOverviewBtn.classList.toggle("active", overviewActive);
+    if (tabTodayBtn) tabTodayBtn.classList.toggle("active", todayActive);
     if (tabTodoBtn) tabTodoBtn.classList.toggle("active", todoActive);
     tabConfigBtn.classList.toggle("active", configActive);
     if (tabSupabaseAuthBtn)
@@ -55,6 +59,7 @@ function initTabsModule(deps = {}) {
 
     tabMain.classList.toggle("active", detailActive);
     if (tabOverview) tabOverview.classList.toggle("active", overviewActive);
+    if (tabToday) tabToday.classList.toggle("active", todayActive);
     if (tabTodo) tabTodo.classList.toggle("active", todoActive);
     tabConfig.classList.toggle("active", configActive);
     setConfigInnerTab(supabaseAuthActive ? "supabase" : "general");
@@ -82,6 +87,10 @@ function initTabsModule(deps = {}) {
 
     if (todoActive) {
       globalThis.PopupTodoController?.setActiveTodoTab?.("notes");
+    }
+
+    if (todayActive) {
+      globalThis.PopupTodayController?.loadToday?.();
     }
   }
 

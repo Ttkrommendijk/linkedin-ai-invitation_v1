@@ -158,20 +158,53 @@
     if (globalObj.detectLinkedInPageType(activeTabUrl).page_type !== "person") {
       throw new Error("Active page is not a LinkedIn person profile.");
     }
+    const startedAt = Date.now();
+    const timeoutMs = 3000;
+    const retryDelayMs = 180;
     let resp = null;
-    try {
-      resp = await chrome.tabs.sendMessage(activeTab.id, {
-        type: "EXTRACT_PROFILE_CONTEXT",
-      });
-    } catch (e) {
-      throw new Error(
-        globalObj.getErrorMessage(e) || globalObj.UI_TEXT.couldNotExtractProfileContext,
+    let lastErrorMessage = "";
+    let contentBootstrapAttempted = false;
+    const isMissingReceiverError = (errorLike) => {
+      const text = String(globalObj.getErrorMessage(errorLike) || "").toLowerCase();
+      return (
+        text.includes("receiving end does not exist") ||
+        text.includes("could not establish connection")
       );
+    };
+    const ensurePersonContentScriptReady = async () => {
+      if (contentBootstrapAttempted) return;
+      contentBootstrapAttempted = true;
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: activeTab.id },
+          files: ["src/content/content.js"],
+        });
+      } catch (bootstrapError) {
+        lastErrorMessage =
+          globalObj.getErrorMessage(bootstrapError) || lastErrorMessage;
+      }
+    };
+    while (Date.now() - startedAt < timeoutMs) {
+      try {
+        resp = await chrome.tabs.sendMessage(activeTab.id, {
+          type: "EXTRACT_PROFILE_CONTEXT",
+        });
+      } catch (e) {
+        lastErrorMessage =
+          globalObj.getErrorMessage(e) || globalObj.UI_TEXT.couldNotExtractProfileContext;
+        if (isMissingReceiverError(e)) {
+          await ensurePersonContentScriptReady();
+        }
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+        continue;
+      }
+      if (resp?.ok && resp?.profile) break;
+      lastErrorMessage =
+        globalObj.getErrorMessage(resp?.error) || globalObj.UI_TEXT.couldNotExtractProfileContext;
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
     }
     if (!resp || !resp?.ok || !resp?.profile) {
-      throw new Error(
-        globalObj.getErrorMessage(resp?.error) || globalObj.UI_TEXT.couldNotExtractProfileContext,
-      );
+      throw new Error(lastErrorMessage || globalObj.UI_TEXT.couldNotExtractProfileContext);
     }
     const profile = globalObj.getProfileForGeneration(resp.profile);
     const scrapedUrl = globalObj.canonicalizeLinkedInUrl(globalObj.getLinkedinUrlFromContext(profile) || "");

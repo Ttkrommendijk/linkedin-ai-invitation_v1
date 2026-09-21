@@ -1,0 +1,35 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.22/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.22",
+  "version": "1.0.0",
+  "id": "0296dea2-b2e4-4366-9617-b026588f0e44",
+  "developer": {
+    "name": "LEF Brasil",
+    "websiteUrl": "https://lef.tec.br",
+    "privacyUrl": "https://lef.tec.br",
+    "termsOfUseUrl": "https://lef.tec.br"
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "name": {
+    "short": "LEF Assistant",
+    "full": "LEF Assistant"
+  },
+  "description": {
+    "short": "Personal LEF attention notifications and follow-up.",
+    "full": "Receives contextual LEF Assistant notifications and supports personal text follow-up without taking ownership of LEF domain records."
+  },
+  "accentColor": "#2563EB",
+  "bots": [
+    {
+      "botId": "0296dea2-b2e4-4366-9617-b026588f0e44",
+      "scopes": ["personal"],
+      "supportsFiles": false,
+      "isNotificationOnly": false
+    }
+  ],
+  "permissions": ["identity"],
+  "validDomains": ["nkhujuqjnbzsfqyqfndc.supabase.co"]
+}

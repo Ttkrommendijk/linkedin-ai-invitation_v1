@@ -23,6 +23,8 @@
                         Detail</button
                     ><button id="tabOverviewBtn" class="tab-btn" type="button">
                         Contacts</button
+                    ><button id="tabTodayBtn" class="tab-btn" type="button">
+                        Today</button
                     ><button id="tabTodoBtn" class="tab-btn" type="button">
                         To Do</button
                     ><button
@@ -1364,6 +1366,29 @@
                     </div>
                 </div>
 
+                <div id="tabToday" class="tab-panel">
+                    <div class="today-header">
+                        <div>
+                            <h2>Today</h2>
+                            <p>Current CRM evidence only. Calendar, email, projects, ideas, and unrecorded communication are not included yet.</p>
+                        </div>
+                        <button id="todayRefreshBtn" type="button" class="btn-small-secondary">Refresh</button>
+                    </div>
+                    <div id="todayStatus" class="notes-status">Open Today to load current items.</div>
+                    <section class="today-section">
+                        <h3>Reminders <span id="todayRemindersCount" class="today-count">0</span></h3>
+                        <div id="todayRemindersList" class="today-list"></div>
+                    </section>
+                    <section class="today-section">
+                        <h3>Due and overdue work <span id="todayWorkCount" class="today-count">0</span></h3>
+                        <div id="todayWorkList" class="today-list"></div>
+                    </section>
+                    <section class="today-section">
+                        <h3>Active deals <span id="todayDealsCount" class="today-count">0</span></h3>
+                        <div id="todayDealsList" class="today-list"></div>
+                    </section>
+                </div>
+
                 <div id="tabTodo" class="tab-panel">
                     <div class="row inline detail-tabs" id="todoTabsRow">
                         <button id="todoNotesTabBtn" class="detail-tab-btn active" type="button">Notes</button><button id="todoDealsTabBtn" class="detail-tab-btn" type="button">Deals</button>
@@ -1590,6 +1615,7 @@
         <script src="deals/deals-controller.js"></script>
         <script src="messaging/free-prompt-controller.js"></script>
         <script src="list/grid.js"></script>
+        <script src="today/today-controller.js"></script>
         <script src="todo/todo-controller.js"></script>
         <script src="core/tabs.js"></script>
         <script src="config/config.js"></script>

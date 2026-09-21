@@ -81,7 +81,7 @@ const DEFAULT_NAV_PACING_CONFIG = Object.freeze({
   quiet_reset_ms: 12000,
 });
 let refreshTimer = null;
-let lastNotifiedUrl = "";
+let settledRefreshTimer = null;
 let prevListUrl = "";
 let nextListUrl = "";
 let navListItems = [];
@@ -618,6 +618,17 @@ function scheduleRefresh(reason) {
   }, REFRESH_DEBOUNCE_MS);
 }
 
+function scheduleNavigationRefresh(reason) {
+  scheduleRefresh(reason);
+  if (settledRefreshTimer) clearTimeout(settledRefreshTimer);
+  settledRefreshTimer = setTimeout(() => {
+    refreshFromIframe(`${reason}-settled`).catch((error) => {
+      const msg = error instanceof Error ? error.message : "Refresh failed.";
+      setRefreshStatus(msg || "Refresh failed.");
+    });
+  }, 1800);
+}
+
 let sidePanelInitErrorLogged = false;
 function logSidePanelInitError(error) {
   if (sidePanelInitErrorLogged) return;
@@ -652,11 +663,36 @@ function runSidePanelInit() {
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg?.type !== "SIDEPANEL_REFRESH_CONTEXT") return;
 
-    const url = msg?.payload?.url || "";
-    if (url === lastNotifiedUrl) return;
-    lastNotifiedUrl = url;
+    scheduleNavigationRefresh(msg?.payload?.reason || "background");
+  });
 
-    scheduleRefresh(msg?.payload?.reason || "background");
+  chrome.tabs.onActivated.addListener(() => {
+    scheduleNavigationRefresh("tabs-activated");
+  });
+
+  chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
+    if (!tab?.active) return;
+    if (typeof changeInfo.url === "string") {
+      scheduleNavigationRefresh("tabs-url");
+      return;
+    }
+    if (changeInfo.status === "complete") {
+      scheduleNavigationRefresh("tabs-complete");
+    }
+  });
+
+  chrome.webNavigation.onHistoryStateUpdated.addListener(async (details) => {
+    if (details.frameId !== 0) return;
+    try {
+      const [activeTab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+      if (activeTab?.id !== details.tabId) return;
+      scheduleNavigationRefresh("history-state");
+    } catch (_e) {
+      // Ignore navigation events for tabs that closed during the lookup.
+    }
   });
 
   chrome.storage.onChanged.addListener((changes, areaName) => {

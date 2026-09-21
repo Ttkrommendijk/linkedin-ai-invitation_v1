@@ -393,6 +393,9 @@ function runPopupInit() {
   tabOverviewBtn?.addEventListener("click", () =>
     setActiveTab("overview", { userInitiated: true }),
   );
+  document.getElementById("tabTodayBtn")?.addEventListener("click", () =>
+    setActiveTab("today", { userInitiated: true }),
+  );
   document.getElementById("tabTodoBtn")?.addEventListener("click", () =>
     setActiveTab("todo", { userInitiated: true }),
   );
@@ -476,6 +479,9 @@ function runPopupInit() {
   }
   if (globalThis.PopupTodoController?.init) {
     globalThis.PopupTodoController.init();
+  }
+  if (globalThis.PopupTodayController?.init) {
+    globalThis.PopupTodayController.init();
   }
   renderDetailHeader();
   updatePhaseButtons();

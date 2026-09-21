@@ -1,0 +1,573 @@
+[
+  {
+    "name": "begin_calendar_connection",
+    "description": "Create a short-lived Microsoft sign-in link requesting delegated read-only access to the authenticated user's calendar.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "get_calendar_connection",
+    "description": "Check whether the authenticated user has an active Microsoft 365 calendar connection. Never returns tokens.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "list_calendar_events",
+    "description": "Read calendar events for an explicit range of at most 31 days. Calendar remains authoritative; events are not copied into LEF.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "start_at",
+        "end_at"
+      ],
+      "properties": {
+        "start_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "end_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "timezone": {
+          "type": "string",
+          "maxLength": 100
+        }
+      }
+    }
+  },
+  {
+    "name": "disconnect_calendar",
+    "description": "Delete the stored Microsoft calendar connection and encrypted refresh token after explicit user confirmation.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "confirmed"
+      ],
+      "properties": {
+        "confirmed": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    }
+  },
+  {
+    "name": "list_calendar_blocks",
+    "description": "List planning blocks previously created by LEF Assistant. Does not list or expose arbitrary calendar events.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      }
+    }
+  },
+  {
+    "name": "create_calendar_block",
+    "description": "Create one confirmed normal-visibility Outlook event. Optional attendees authorize Outlook invitations; an optional Teams meeting and location may be included. Use a stable idempotency key.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "title",
+        "starts_at",
+        "ends_at",
+        "idempotency_key",
+        "confirmed"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "purpose": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "location": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "attendees": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "required": [
+              "email"
+            ],
+            "properties": {
+              "email": {
+                "type": "string",
+                "format": "email",
+                "maxLength": 320
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "optional": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "is_online_meeting": {
+          "type": "boolean",
+          "default": false
+        },
+        "starts_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "ends_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "timezone": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "idempotency_key": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "check_in_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "confirmed": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    }
+  },
+  {
+    "name": "create_recurring_calendar_block",
+    "description": "Create one confirmed bounded recurring Outlook series, optionally with location, attendees, and a Teams meeting. Supports daily, weekdays, weekly, and monthly patterns.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "title",
+        "starts_at",
+        "ends_at",
+        "recurrence_type",
+        "idempotency_key",
+        "confirmed"
+      ],
+      "oneOf": [
+        {
+          "required": [
+            "end_date"
+          ]
+        },
+        {
+          "required": [
+            "number_of_occurrences"
+          ]
+        }
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "purpose": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "location": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "attendees": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "required": [
+              "email"
+            ],
+            "properties": {
+              "email": {
+                "type": "string",
+                "format": "email",
+                "maxLength": 320
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "optional": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "is_online_meeting": {
+          "type": "boolean",
+          "default": false
+        },
+        "starts_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "ends_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "timezone": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "recurrence_type": {
+          "type": "string",
+          "enum": [
+            "daily",
+            "weekdays",
+            "weekly",
+            "monthly"
+          ]
+        },
+        "interval": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 52,
+          "default": 1
+        },
+        "days_of_week": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "monday",
+              "tuesday",
+              "wednesday",
+              "thursday",
+              "friday",
+              "saturday",
+              "sunday"
+            ]
+          }
+        },
+        "day_of_month": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 31
+        },
+        "end_date": {
+          "type": "string",
+          "format": "date"
+        },
+        "number_of_occurrences": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 365
+        },
+        "idempotency_key": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "confirmed": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    }
+  },
+  {
+    "name": "reschedule_calendar_block",
+    "description": "Reschedule an exact mapped LEF-created planning block after immediate explicit user confirmation. Arbitrary Outlook events cannot be targeted.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "block_id",
+        "starts_at",
+        "ends_at",
+        "confirmed"
+      ],
+      "properties": {
+        "block_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "starts_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "ends_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "timezone": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "confirmed": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    }
+  },
+  {
+    "name": "cancel_calendar_block",
+    "description": "Cancel one exact LEF-created Outlook block or its whole recurring series after explicit confirmation. Occurrence-only cancellation is not supported.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "block_id",
+        "confirmed"
+      ],
+      "properties": {
+        "block_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "confirmed": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    }
+  },
+  {
+    "name": "set_calendar_event_alert",
+    "description": "Create or update an exact-time Teams alert for one explicitly selected Outlook event after confirmation. The default is five minutes before; alerts are never enabled for every meeting implicitly.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "event_id",
+        "confirmed"
+      ],
+      "properties": {
+        "event_id": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "minutes_before": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10080,
+          "default": 5
+        },
+        "timezone": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "confirmed": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    }
+  },
+  {
+    "name": "cancel_calendar_event_alert",
+    "description": "Cancel one exact calendar-alert schedule and its undelivered Teams notification after explicit confirmation.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "schedule_id",
+        "confirmed"
+      ],
+      "properties": {
+        "schedule_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "confirmed": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    }
+  },
+  {
+    "name": "list_mail_messages",
+    "description": "Read Outlook message metadata and previews within an explicit range of at most 31 days. Returns Outlook Focused messages by default; set focused_only=false only when the user asks to include Other. Optionally applies a bounded local relevance query. Does not change mailbox state or persist messages.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "start_at",
+        "end_at"
+      ],
+      "properties": {
+        "start_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "end_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "query": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "focused_only": {
+          "type": "boolean",
+          "default": true
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        }
+      }
+    }
+  },
+  {
+    "name": "read_mail_message",
+    "description": "Read the text content of one Outlook message selected from a bounded triage result. Content is capped and is not persisted by this tool.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "message_id"
+      ],
+      "properties": {
+        "message_id": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      }
+    }
+  },
+  {
+    "name": "list_reply_drafts",
+    "description": "List minimal mappings for reply drafts previously created by LEF Assistant. Does not expose draft bodies or arbitrary Outlook drafts.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      }
+    }
+  },
+  {
+    "name": "create_reply_draft",
+    "description": "Create an Outlook reply-to-sender draft for one selected source message after immediate explicit user confirmation. Never sends mail. Use a stable idempotency key.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "source_message_id",
+        "body_text",
+        "idempotency_key",
+        "confirmed"
+      ],
+      "properties": {
+        "source_message_id": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "body_text": {
+          "type": "string",
+          "maxLength": 20000
+        },
+        "idempotency_key": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "confirmed": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    }
+  },
+  {
+    "name": "update_reply_draft",
+    "description": "Replace the body of an exact mapped LEF-created Outlook reply draft after immediate explicit user confirmation. The remote message must still be a draft. Never sends mail or changes recipients.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "draft_id",
+        "body_text",
+        "confirmed"
+      ],
+      "properties": {
+        "draft_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "body_text": {
+          "type": "string",
+          "maxLength": 20000
+        },
+        "confirmed": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    }
+  },
+  {
+    "name": "get_standard_signature",
+    "description": "Read the configured standard-signature metadata and plain-text fallback. Does not expose embedded image data.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "save_standard_signature",
+    "description": "Save one explicitly approved standard Outlook signature after strict HTML validation. Images must be embedded PNG data and links are restricted.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "html_content",
+        "text_fallback",
+        "confirmed"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "html_content": {
+          "type": "string",
+          "maxLength": 100000
+        },
+        "text_fallback": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "confirmed": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    }
+  },
+  {
+    "name": "remove_standard_signature",
+    "description": "Deactivate the standard signature after explicit confirmation. Existing drafts are not rewritten.",
+    "inputSchema": {
+      "type": "object",
+      "required": [
+        "confirmed"
+      ],
+      "properties": {
+        "confirmed": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    }
+  }
+]

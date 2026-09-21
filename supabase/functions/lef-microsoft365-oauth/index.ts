@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { TEAMS_SCOPE, teamsTools, createTeamsReader, targetFor, scopesFor } from "./teams-channel-read.mjs";
 
 const PROJECT_URL = Deno.env.get("SUPABASE_URL")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -60,7 +61,10 @@ async function decryptToken(ciphertext: string, iv: string) { const plain = awai
 function confirmed(args: any) { if (args?.confirmed !== true) throw new Error("explicit user confirmation is required"); }
 function timestamp(value: unknown, field: string) { if (typeof value !== "string" || Number.isNaN(Date.parse(value))) throw new Error(`${field} must be an ISO timestamp`); return new Date(value).toISOString(); }
 
-async function beginConnection(userId: string) {
+async function beginConnection(userId: string, teamsRead = false) {
+  const current = await ownConnection(userId);
+  if (teamsRead) targetFor(userId, current);
+  const requestedScopes = scopesFor(GRAPH_SCOPES, current, teamsRead);
   if (!TENANT_ID || !CLIENT_ID || !CLIENT_SECRET) throw new Error("Microsoft 365 Assistant credentials are not configured");
   const state = base64url(crypto.getRandomValues(new Uint8Array(32)));
   const verifier = base64url(crypto.getRandomValues(new Uint8Array(64)));
@@ -68,8 +72,8 @@ async function beginConnection(userId: string) {
   await db(`microsoft365_oauth_states?owner_user_id=eq.${userId}&used_at=is.null`, { method: "DELETE" });
   await db("microsoft365_oauth_states", { method: "POST", body: JSON.stringify({ state_hash: await stateHash(state), owner_user_id: userId, code_verifier: verifier, redirect_uri: CALLBACK_URL, expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString() }) });
   const url = new URL("https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize");
-  url.searchParams.set("client_id", CLIENT_ID); url.searchParams.set("response_type", "code"); url.searchParams.set("redirect_uri", CALLBACK_URL); url.searchParams.set("response_mode", "query"); url.searchParams.set("scope", GRAPH_SCOPES); url.searchParams.set("state", state); url.searchParams.set("code_challenge", challenge); url.searchParams.set("code_challenge_method", "S256"); url.searchParams.set("prompt", "select_account");
-  return { authorization_url: url.toString(), expires_in_minutes: 10, requested_access: "Read the signed-in user's Outlook mail and calendar, and create confirmed calendar planning blocks." };
+  url.searchParams.set("client_id", CLIENT_ID); url.searchParams.set("response_type", "code"); url.searchParams.set("redirect_uri", CALLBACK_URL); url.searchParams.set("response_mode", "query"); url.searchParams.set("scope", requestedScopes); url.searchParams.set("state", state); url.searchParams.set("code_challenge", challenge); url.searchParams.set("code_challenge_method", "S256"); url.searchParams.set("prompt", "select_account");
+  return { authorization_url: url.toString(), expires_in_minutes: 10, requested_access: teamsRead ? "Read Teams channel messages accessible to your Microsoft account. LEF restricts reading to the configured HDI channel. Retain existing Outlook permissions. No Teams sending or editing." : "Read the signed-in user's Outlook mail and calendar, and create confirmed calendar planning blocks." };
 }
 
 async function tokenRequest(values: Record<string, string>) {
@@ -125,11 +129,12 @@ async function callback(url: URL) {
     const used = await db(`microsoft365_oauth_states?state_hash=eq.${hash}&used_at=is.null&select=*`, { method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify({ used_at: new Date().toISOString() }) });
     if (!used.length) throw new Error("The authorization request was already used");
     const stateRow = states[0];
-    const tokens = await tokenRequest({ grant_type: "authorization_code", code, redirect_uri: stateRow.redirect_uri, code_verifier: stateRow.code_verifier, scope: GRAPH_SCOPES });
+    const tokens = await tokenRequest({ grant_type: "authorization_code", code, redirect_uri: stateRow.redirect_uri, code_verifier: stateRow.code_verifier });
     if (!tokens.refresh_token) throw new Error("Microsoft did not return offline access");
     const profile = await graph("/me?$select=id,displayName,mail,userPrincipalName", tokens.access_token);
     const existing = await db(`microsoft365_connections?owner_user_id=eq.${stateRow.owner_user_id}&provider=eq.microsoft365&select=*`);
     const metadata = { tenant_id: TENANT_ID, microsoft_user_id: profile.id, email: profile.mail || profile.userPrincipalName || null, display_name: profile.displayName || null, granted_scopes: String(tokens.scope || "").split(" ").filter(Boolean), status: "active", connected_at: new Date().toISOString(), last_refreshed_at: new Date().toISOString(), last_verified_at: new Date().toISOString(), revoked_at: null };
+    if (metadata.granted_scopes.includes(TEAMS_SCOPE)) targetFor(stateRow.owner_user_id, { ...metadata, status: "active" });
     let connection;
     if (existing.length) connection = (await db(`microsoft365_connections?id=eq.${existing[0].id}&select=*`, { method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify(metadata) }))[0];
     else connection = (await db("microsoft365_connections?select=*", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify({ ...metadata, owner_user_id: stateRow.owner_user_id }) }))[0];
@@ -147,7 +152,7 @@ async function accessToken(userId: string) {
   const secrets = await db(`microsoft365_connection_secrets?connection_id=eq.${connection.id}&owner_user_id=eq.${userId}&select=*`); if (!secrets.length) throw new Error("Microsoft 365 connection credentials are missing");
   try {
     const refresh = await decryptToken(secrets[0].encrypted_refresh_token, secrets[0].encryption_iv);
-    const tokens = await tokenRequest({ grant_type: "refresh_token", refresh_token: refresh, scope: GRAPH_SCOPES });
+    const tokens = await tokenRequest({ grant_type: "refresh_token", refresh_token: refresh, scope: scopesFor(GRAPH_SCOPES, connection) });
     const encrypted = await encryptToken(tokens.refresh_token || refresh);
     await db(`microsoft365_connection_secrets?connection_id=eq.${connection.id}&owner_user_id=eq.${userId}`, { method: "PATCH", body: JSON.stringify(encrypted) });
     await db(`microsoft365_connections?id=eq.${connection.id}&owner_user_id=eq.${userId}`, { method: "PATCH", body: JSON.stringify({ last_refreshed_at: new Date().toISOString(), granted_scopes: String(tokens.scope || "").split(" ").filter(Boolean) }) });
@@ -530,8 +535,11 @@ async function cancelCalendarEventAlert(args: any, userId: string) {
   return { schedule: updated[0], cancelled: true };
 }
 
+const teamsReader = createTeamsReader({ getConnection: ownConnection, getToken: accessToken });
+
 const tools = [
-  { name: "begin_calendar_connection", description: "Create a short-lived Microsoft sign-in link requesting delegated read-only access to the authenticated user's calendar.", inputSchema: { type: "object", properties: {} } },
+  ...teamsTools,
+  { name: "begin_calendar_connection", description: "Create a Microsoft sign-in link for the existing Outlook integration. Optional include_teams_channel_read requests Teams reading only with confirmed:true; omission preserves existing access.", inputSchema: { type: "object", properties: { include_teams_channel_read: { type: "boolean", default: false }, confirmed: { type: "boolean", const: true } } } },
   { name: "get_calendar_connection", description: "Check whether the authenticated user has an active Microsoft 365 calendar connection. Never returns tokens.", inputSchema: { type: "object", properties: {} } },
   { name: "list_calendar_events", description: "Read calendar events for an explicit range of at most 31 days. Calendar remains authoritative; events are not copied into LEF.", inputSchema: { type: "object", required: ["start_at", "end_at"], properties: { start_at: { type: "string", format: "date-time" }, end_at: { type: "string", format: "date-time" }, timezone: { type: "string", maxLength: 100 } } } },
   { name: "disconnect_calendar", description: "Delete the stored Microsoft calendar connection and encrypted refresh token after explicit user confirmation.", inputSchema: { type: "object", required: ["confirmed"], properties: { confirmed: { type: "boolean", const: true } } } },
@@ -552,7 +560,14 @@ const tools = [
   { name: "remove_standard_signature", description: "Deactivate the standard signature after explicit confirmation. Existing drafts are not rewritten.", inputSchema: { type: "object", required: ["confirmed"], properties: { confirmed: { type: "boolean", const: true } } } },
 ];
 
-async function callTool(name: string, args: any, user: any) { if (name === "begin_calendar_connection") return beginConnection(user.id); if (name === "get_calendar_connection") return connectionStatus(user.id); if (name === "list_calendar_events") return listEvents(args || {}, user.id); if (name === "disconnect_calendar") return disconnect(args || {}, user.id); if (name === "list_calendar_blocks") return listBlocks(args || {}, user.id); if (name === "create_calendar_block") return createBlock(args || {}, user.id); if (name === "create_recurring_calendar_block") return createRecurringBlock(args || {}, user.id); if (name === "reschedule_calendar_block") return rescheduleBlock(args || {}, user.id); if (name === "cancel_calendar_block") return cancelBlock(args || {}, user.id); if (name === "set_calendar_event_alert") return setCalendarEventAlert(args || {}, user.id); if (name === "cancel_calendar_event_alert") return cancelCalendarEventAlert(args || {}, user.id); if (name === "list_mail_messages") return listMailMessages(args || {}, user.id); if (name === "read_mail_message") return readMailMessage(args || {}, user.id); if (name === "list_reply_drafts") return listReplyDrafts(args || {}, user.id); if (name === "create_reply_draft") return createReplyDraft(args || {}, user.id); if (name === "update_reply_draft") return updateReplyDraft(args || {}, user.id); if (name === "get_standard_signature") return getStandardSignature(user.id); if (name === "save_standard_signature") return saveStandardSignature(args || {}, user.id); if (name === "remove_standard_signature") return removeStandardSignature(args || {}, user.id); throw new Error(`unknown tool: ${name}`); }
+async function callTool(name: string, args: any, user: any) {
+  if (name === "get_teams_channel_connection") return teamsReader.status(user.id);
+  if (name === "begin_teams_channel_connection") { confirmed(args); return toolText(await beginConnection(user.id, true)); }
+  if (name === "list_teams_channel_posts") return teamsReader.posts(user.id, args || {});
+  if (name === "read_teams_channel_thread") return teamsReader.thread(user.id, args || {});
+  if (name === "list_teams_channel_media") return teamsReader.mediaList(user.id, args || {});
+  if (name === "read_teams_channel_media") return teamsReader.media(user.id, args || {});
+ if (name === "begin_calendar_connection") { if (args?.include_teams_channel_read === true) confirmed(args); return beginConnection(user.id, args?.include_teams_channel_read === true); } if (name === "get_calendar_connection") return connectionStatus(user.id); if (name === "list_calendar_events") return listEvents(args || {}, user.id); if (name === "disconnect_calendar") return disconnect(args || {}, user.id); if (name === "list_calendar_blocks") return listBlocks(args || {}, user.id); if (name === "create_calendar_block") return createBlock(args || {}, user.id); if (name === "create_recurring_calendar_block") return createRecurringBlock(args || {}, user.id); if (name === "reschedule_calendar_block") return rescheduleBlock(args || {}, user.id); if (name === "cancel_calendar_block") return cancelBlock(args || {}, user.id); if (name === "set_calendar_event_alert") return setCalendarEventAlert(args || {}, user.id); if (name === "cancel_calendar_event_alert") return cancelCalendarEventAlert(args || {}, user.id); if (name === "list_mail_messages") return listMailMessages(args || {}, user.id); if (name === "read_mail_message") return readMailMessage(args || {}, user.id); if (name === "list_reply_drafts") return listReplyDrafts(args || {}, user.id); if (name === "create_reply_draft") return createReplyDraft(args || {}, user.id); if (name === "update_reply_draft") return updateReplyDraft(args || {}, user.id); if (name === "get_standard_signature") return getStandardSignature(user.id); if (name === "save_standard_signature") return saveStandardSignature(args || {}, user.id); if (name === "remove_standard_signature") return removeStandardSignature(args || {}, user.id); throw new Error(`unknown tool: ${name}`); }
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
@@ -593,6 +608,6 @@ Deno.serve(async (req: Request) => {
   if (method === "initialize") return rpcResult(id, { protocolVersion: params?.protocolVersion || "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "lef-microsoft365", version: "1.0.0" } });
   if (method === "notifications/initialized") return new Response(null, { status: 202, headers: cors });
   if (method === "ping") return rpcResult(id, {}); if (method === "tools/list") return rpcResult(id, { tools });
-  if (method === "tools/call") { try { return rpcResult(id, toolText(await callTool(params?.name, params?.arguments || {}, user))); } catch (e) { return rpcResult(id, toolText({ error: e instanceof Error ? e.message : String(e) }, true)); } }
+  if (method === "tools/call") { try { const result = await callTool(params?.name, params?.arguments || {}, user); return rpcResult(id, teamsTools.some((tool: any) => tool.name === params?.name) ? result : toolText(result)); } catch (e) { return rpcResult(id, toolText({ error: e instanceof Error ? e.message : String(e) }, true)); } }
   return rpcError(id ?? null, -32601, "Method not found");
 });

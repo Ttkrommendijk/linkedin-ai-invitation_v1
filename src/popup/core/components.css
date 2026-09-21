@@ -1515,6 +1515,81 @@
 .todo-link-btn:hover {
     text-decoration: underline;
 }
+
+.today-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.today-header h2,
+.today-header p,
+.today-section h3 {
+  margin: 0;
+}
+
+.today-header p {
+  margin-top: 4px;
+  color: #666;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.today-section {
+  margin-top: 14px;
+}
+
+.today-section h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.today-count {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: #eef1f4;
+  color: #444;
+  font-size: 11px;
+  text-align: center;
+}
+
+.today-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.today-item,
+.today-empty {
+  padding: 8px 10px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.today-item-overdue {
+  border-left: 3px solid #c83d3d;
+}
+
+.today-item-title {
+  font-weight: 600;
+}
+
+.today-item-meta,
+.today-empty {
+  margin-top: 2px;
+  color: #666;
+  font-size: 11px;
+}
+
+.today-status-error {
+  color: #a12626;
+}
 .standard-grid th,
 .standard-grid td {
     min-width: 80px;

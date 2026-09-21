@@ -284,8 +284,25 @@ function integerLimit(value: unknown, fallback = 20, max = 100) {
   return number;
 }
 
+const CONTACT_FIELDS = "id,full_name,company,headline,email,phone,linkedin_url,company_id,created_at,updated_at,invited_at,accepted_at,first_message_sent_at,message_count";
+
 async function ownedContacts(userId: string) {
-  return db(`linkedin_invitations?uuid=eq.${userId}&archived=eq.false&select=id,full_name,company,headline,email,phone,linkedin_url,company_id,created_at,updated_at,invited_at,accepted_at,first_message_sent_at,message_count&limit=2000`);
+  const contacts: any[] = [];
+  let after = "";
+  // A server cap may be smaller than our requested page. Only an empty page
+  // proves completion; never turn a partial read into a no-match result.
+  for (let page = 0; page < 1000; page++) {
+    const rows = await db(`linkedin_invitations?uuid=eq.${userId}&archived=eq.false&select=${CONTACT_FIELDS}&order=id.asc&limit=500${after ? "&id=gt." + after : ""}`);
+    if (!Array.isArray(rows)) throw new Error("contact lookup returned an invalid page");
+    if (!rows.length) return contacts;
+    for (const row of rows) {
+      const next = uuid(row.id, "contact id").toLowerCase();
+      if (after && next <= after) throw new Error("contact lookup pagination did not advance");
+      after = next;
+      contacts.push(row);
+    }
+  }
+  throw new Error("contact lookup incomplete; narrow the request or retry");
 }
 
 async function searchContacts(args: any, userId: string) {
@@ -343,7 +360,9 @@ async function getContactContext(args: any, userId: string) {
   const contactId = args?.contact_id ? uuid(args.contact_id, "contact_id") : null;
   const query = boundedText(args?.query, "query", 300);
   if (!contactId && !query) throw new Error("provide contact_id or query");
-  const contacts = await ownedContacts(userId);
+  const contacts = contactId
+    ? await db(`linkedin_invitations?uuid=eq.${userId}&archived=eq.false&id=eq.${contactId}&select=${CONTACT_FIELDS}&limit=1`)
+    : await ownedContacts(userId);
   const matches = contactId
     ? contacts.filter((c: any) => c.id === contactId)
     : contacts.filter((c: any) => normalized([c.full_name, c.company, c.headline, c.email].join(" ")).includes(normalized(query)));
@@ -715,3 +734,5 @@ Deno.serve(async (req: Request) => {
   }
   return rpcError(id ?? null, -32601, "Method not found");
 });
+
+

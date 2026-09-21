@@ -342,7 +342,11 @@ function bindProfileEditControls() {
       );
       const companyToSave = selectedCompanyName || company;
 
-      const result = await sendRuntimeMessage("DB_UPDATE_PROFILE_FIELDS", {
+      const personExists = Boolean(safeTrim(PopupState.dbInvitationRow?.id));
+      const messageType = personExists
+        ? "DB_UPDATE_PROFILE_FIELDS"
+        : "DB_UPSERT_GENERATED";
+      const result = await sendRuntimeMessage(messageType, {
         payload: {
           linkedin_url: targetUrl,
           full_name,
@@ -352,6 +356,13 @@ function bindProfileEditControls() {
           comments,
           phone,
           email,
+          ...(personExists
+            ? {}
+            : {
+                language: getLanguage(),
+                status: "registered",
+                campaign: null,
+              }),
         },
       });
       const resp = result.data || {};
