@@ -282,12 +282,15 @@
         await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
         continue;
       }
-      if (resp?.ok && resp?.company) break;
+      if (resp?.ok && isCompanyScrapeReady(resp?.company) &&
+          globalObj.canonicalizeLinkedInUrl(resp.company.linkedin_id || resp.company.url || "") === activeTabUrl) break;
       lastErrorMessage =
-        globalObj.getErrorMessage(resp?.error) || "Could not extract company context.";
+        resp?.ok ? "Company details are still loading. Wait for the LinkedIn page and try again."
+          : globalObj.getErrorMessage(resp?.error) || "Could not extract company context.";
       await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
     }
-    if (!resp || !resp?.ok || !resp?.company) {
+    if (!resp?.ok || !isCompanyScrapeReady(resp?.company) ||
+        globalObj.canonicalizeLinkedInUrl(resp.company.linkedin_id || resp.company.url || "") !== activeTabUrl) {
       throw new Error(lastErrorMessage || "Could not extract company context.");
     }
     const company = resp.company || {};
@@ -308,6 +311,12 @@
     globalObj.latestCompanyScrape = companyContext;
     popupLogger.debug("[LEF][scrape] company saved", { linkedin_id });
     return companyContext;
+  }
+  function isCompanyScrapeReady(company) {
+    const name = safeTrim(company?.company_name);
+    if (!name || /:\s*(visão geral|overview)|\|\s*LinkedIn/i.test(name)) return false;
+    return Boolean(safeTrim(company?.sector) || safeTrim(company?.city) ||
+      safeTrim(company?.employee_number) || safeTrim(company?.company_page_excerpt).length > name.length + 40);
   }
   async function getFreshScrapeForPage(pageInfo, { source = "", force = false } = {}) {
     if (pageInfo?.page_type === "person") {
@@ -334,7 +343,7 @@
       }
     }
     if (pageInfo?.page_type === "company") {
-      if (!force && globalObj.getScrapeUrl(globalObj.latestCompanyScrape) === pageInfo.linkedin_id) {
+      if (!force && isCompanyScrapeReady(globalObj.latestCompanyScrape) && globalObj.getScrapeUrl(globalObj.latestCompanyScrape) === pageInfo.linkedin_id) {
         popupLogger.debug("[LEF][llm] using fresh company scrape", {
           linkedin_id: pageInfo.linkedin_id,
         });
@@ -622,18 +631,6 @@
       excerpt_chars: String(profileContext.company_page_excerpt || "").length,
     });
     const rawExcerpt = String(profileContext.company_page_excerpt || "");
-    const personLikeSignals = [
-      /enviar mensagem/i,
-      /sales navigator/i,
-      /conex[Ãµo]es em comum/i,
-      /dados de contato/i,
-      /gerente de ti/i,
-    ];
-    const personLikeHits = personLikeSignals.reduce(
-      (sum, pattern) => (pattern.test(rawExcerpt) ? sum + 1 : sum),
-      0,
-    );
-    const isPersonLikeExcerpt = personLikeHits >= 2;
     const companyPayload = {
       url: linkedin_id,
       is_company_profile: true,
@@ -643,7 +640,7 @@
       sector: profileContext.sector || "",
       city: profileContext.city || "",
       it_members: profileContext.it_members || "",
-      company_page_excerpt: isPersonLikeExcerpt ? "" : rawExcerpt,
+      company_page_excerpt: rawExcerpt,
     };
     popupLogger.debug("[LEF][company ai] payload", companyPayload);
     popupLogger.debug("[LEF][ai] payload sent", companyPayload);
@@ -750,6 +747,7 @@
     if (pageInfo.page_type === "company") {
       const companyContext = await getFreshScrapeForPage(pageInfo, {
         source: "llm_click",
+        force: true,
       });
       popupLogger.debug("[LEF][llm] using fresh company scrape", {
         linkedin_id: pageInfo.linkedin_id,

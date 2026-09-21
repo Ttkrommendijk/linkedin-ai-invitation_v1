@@ -121,7 +121,7 @@ async function onStepFirstMessageSentClick() {
       return;
     }
     const result = await sendRuntimeMessage(MESSAGE_TYPES.DB_MARK_FIRST_MESSAGE_SENT, {
-      payload: { linkedin_url },
+      payload: { id: PopupState.dbInvitationRow?.id, linkedin_url },
     });
     const resp = result.data || {};
     if (resp?.ok) {
@@ -160,7 +160,7 @@ async function setStatusOnlyForStepper(statusValue, successText) {
     const payloadStatus =
       statusValue === "message responded" ? "message responded" : statusValue;
     const result = await sendRuntimeMessage(MESSAGE_TYPES.DB_SET_STATUS_ONLY, {
-      payload: { linkedin_url, status: payloadStatus },
+      payload: { id: PopupState.dbInvitationRow?.id, linkedin_url, status: payloadStatus },
     });
     const resp = result.data || {};
     setFooterStatus(

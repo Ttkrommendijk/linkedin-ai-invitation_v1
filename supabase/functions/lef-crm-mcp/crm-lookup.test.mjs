@@ -3,6 +3,7 @@ import {stripTypeScriptTypes} from 'node:module';
 import vm from 'node:vm';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { emailTools, createEmailService } from './email.mjs';
 const source=readFileSync(process.env.CRM_SOURCE || new URL('./index.ts',import.meta.url),'utf8');
 const owner='7c17efbe-d8bf-4012-96b5-5d9a29968fcb';
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
@@ -19,7 +20,7 @@ function harness(cap=1000,failPage=false){
   if(p.get('id')?.startsWith('gt.')){if(failPage)throw Error('page failed');data=data.filter(x=>x.id>p.get('id').slice(3));}
   return data.slice(0,Math.min(cap,Number(p.get('limit')||cap)));
  };
- const ctx=vm.createContext({URL,Response,Request,console,Date,Deno:{env:{get:()=>''},serve:()=>{}},mockDb:db});
+ const ctx=vm.createContext({URL,Response,Request,console,Date,emailTools,createEmailService,Deno:{env:{get:()=>''},serve:()=>{}},mockDb:db});
  vm.runInContext(stripTypeScriptTypes(source.replace(/^import .*;\r?\n/gm,''))+'\ndb=mockDb;globalThis.api={searchContacts,getContactContext,createContact};',ctx);
  return {api:ctx.api,calls};
 }

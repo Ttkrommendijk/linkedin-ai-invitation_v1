@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { emailTools, createEmailService } from './email.mjs';
 
 const PROJECT_URL = Deno.env.get("SUPABASE_URL")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -651,6 +652,7 @@ async function updateReminder(args: any, userId: string) {
 
 
 const allTools = [
+  ...emailTools,
 
   { name: "create_company", description: "Create a CRM company after explicit user confirmation, or safely reuse an exact existing match. Search first when the name may be ambiguous.", inputSchema: { type: "object", required: ["name","confirmed"], properties: { name: { type: "string", maxLength: 500 }, confirmed: { type: "boolean", const: true }, linkedin_id: { type: "string", maxLength: 500 }, employee_number: { type: "string", maxLength: 100 }, it_members: { type: "string", maxLength: 100 }, sector: { type: "string", maxLength: 500 }, city: { type: "string", maxLength: 500 }, company_size: { type: "string", enum: ["1 - 100","101 - 250","251 - 500","500 - 1000","1001 - 2500","2501 - 5000","5001 - 10000","10001 - 20000","+ 20000"] } } } },
   { name: "create_contact", description: "Create a CRM contact owned by the authenticated user after explicit confirmation. LinkedIn information is optional. Link to an exact existing company_id when known; duplicate candidates are reused instead of creating another record.", inputSchema: { type: "object", required: ["full_name","confirmed"], properties: { full_name: { type: "string", maxLength: 500 }, confirmed: { type: "boolean", const: true }, company_id: { type: "string", format: "uuid" }, company_name: { type: "string", maxLength: 500 }, role: { type: "string", maxLength: 1000 }, email: { type: "string", maxLength: 500 }, phone: { type: "string", maxLength: 100 }, comments: { type: "string", maxLength: 10000 }, linkedin_url: { type: "string", maxLength: 2000 }, language: { type: "string", enum: ["portuguese","english","dutch","spanish"] } } } },
@@ -683,10 +685,12 @@ const allTools = [
   { name: "reopen_reminder", description: "Reopen one completed or cancelled reminder after explicit user confirmation.", inputSchema: { type: "object", required: ["reminder_id","confirmed"], properties: { reminder_id: { type: "string", format: "uuid" }, confirmed: { type: "boolean", const: true }, reason: { type: "string" } } } },
 ];
 
-const allowedToolNames = new Set(["create_company","create_contact","create_interaction","update_interaction","update_contact","update_deal","list_recent_interactions","search_contacts","get_contact_context","get_company_context"]);
+const allowedToolNames = new Set(["create_company","create_contact","create_interaction","update_interaction","update_contact","update_deal","list_recent_interactions","search_contacts","get_contact_context","get_company_context","get_crm_email_status","list_campaign_email_contacts","prepare_crm_email","send_crm_email","get_crm_email"]);
 const tools = allTools.filter((tool) => allowedToolNames.has(tool.name));
+const emailService = createEmailService({ db, env: (name: string) => Deno.env.get(name) });
 
 async function callTool(name: string, args: any, user: any) {
+  if (emailTools.some((tool) => tool.name === name)) return emailService.call(name, args || {}, user.id);
   if (!allowedToolNames.has(name)) throw new Error(`unknown tool: ${name}`);
   if (name === "create_company") return createCompany(args || {}, user.id);
   if (name === "create_contact") return createContact(args || {}, user.id);
@@ -734,5 +738,3 @@ Deno.serve(async (req: Request) => {
   }
   return rpcError(id ?? null, -32601, "Method not found");
 });
-
-

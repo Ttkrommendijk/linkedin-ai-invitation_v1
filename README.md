@@ -1,5 +1,7 @@
 # LEF browser extension
 
+CRM email setup and deployment status: [Resend integration](docs/crm-email-resend.md).
+
 This repository contains the current working LEF browser client. It began as the LEF LinkedIn Invite Generator and has expanded to support CRM workflows, browser integrations, and contextual reminders.
 
 ## Current development direction

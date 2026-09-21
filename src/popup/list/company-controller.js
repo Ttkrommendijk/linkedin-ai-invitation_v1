@@ -20,6 +20,7 @@ companySuggestionWarningEl, companyUrlMismatchBannerEl,
 detailCompanyEl, detailCompanyLabelEl,
 detailPhoneEl, detailPhoneLabelEl,
 detailEmailEl, detailEmailLabelEl,
+detailPhoneDisplayEl, detailEmailDisplayEl,
 emailProfileBtnEl, whatsappProfileBtnEl,
 detailCommentsEl, detailCommentsLabelEl,
 detailEmployeeNumberEl, detailEmployeeNumberLabelEl,
@@ -114,6 +115,12 @@ const isCompanyProfileMode = requireFn("isCompanyProfileMode"); const isCompany 
 const isEditing = Boolean(globalObj.isProfileEditMode);
 const showEmail = !isCompany && !isEditing && Boolean(getPersonEmailValue());
 const showWhatsapp = !isCompany && !isEditing && Boolean(normalizeWhatsappPhone(getPersonPhoneValue()));
+for (const [el, value] of [[detailPhoneDisplayEl, getPersonPhoneValue()], [detailEmailDisplayEl, getPersonEmailValue()]]) {
+if (!el) continue;
+el.textContent = value;
+el.title = value;
+setContactActionVisible(el, !isCompany && !isEditing && Boolean(value));
+}
 setContactActionVisible(emailProfileBtnEl, showEmail);
 setContactActionVisible(whatsappProfileBtnEl, showWhatsapp);
 }

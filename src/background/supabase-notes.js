@@ -141,7 +141,10 @@
       throw createProviderHttpError("supabase", res.status, txt);
     }
     const rows = await res.json();
-    return Array.isArray(rows) && rows.length ? rows[0] : null;
+    if (!Array.isArray(rows) || rows.length !== 1 || !rows[0]?.note_id) {
+      throw new Error("Could not confirm the saved note. Refresh the notes list before trying again.");
+    }
+    return rows[0];
   }
 
   async function supabaseUpdateNote(payload = {}) {
@@ -176,7 +179,10 @@
       throw createProviderHttpError("supabase", res.status, txt);
     }
     const rows = await res.json();
-    return Array.isArray(rows) && rows.length ? rows[0] : null;
+    if (!Array.isArray(rows) || rows.length !== 1 || String(rows[0]?.note_id) !== noteId) {
+      throw new Error("Note was not updated. Refresh the notes list and check your access.");
+    }
+    return rows[0];
   }
 
   async function supabaseArchiveNote(payload = {}) {

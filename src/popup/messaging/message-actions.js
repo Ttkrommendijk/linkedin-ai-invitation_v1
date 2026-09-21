@@ -50,18 +50,6 @@ async function extractCompanyDetailsFromLlm(scrapedProfileContext = null) {
     excerpt_chars: String(profileContext.company_page_excerpt || "").length,
   });
   const rawExcerpt = String(profileContext.company_page_excerpt || "");
-  const personLikeSignals = [
-    /enviar mensagem/i,
-    /sales navigator/i,
-    /conex[õo]es em comum/i,
-    /dados de contato/i,
-    /gerente de ti/i,
-  ];
-  const personLikeHits = personLikeSignals.reduce(
-    (sum, pattern) => (pattern.test(rawExcerpt) ? sum + 1 : sum),
-    0,
-  );
-  const isPersonLikeExcerpt = personLikeHits >= 2;
   const companyPayload = {
     url: linkedin_id,
     is_company_profile: true,
@@ -71,7 +59,7 @@ async function extractCompanyDetailsFromLlm(scrapedProfileContext = null) {
     sector: profileContext.sector || "",
     city: profileContext.city || "",
     it_members: profileContext.it_members || "",
-    company_page_excerpt: isPersonLikeExcerpt ? "" : rawExcerpt,
+    company_page_excerpt: rawExcerpt,
   };
   PopupLogger.debug("[LEF][company ai] payload", companyPayload);
   PopupLogger.debug("[LEF][ai] payload sent", companyPayload);
@@ -348,6 +336,7 @@ function bindProfileEditControls() {
         : "DB_UPSERT_GENERATED";
       const result = await sendRuntimeMessage(messageType, {
         payload: {
+          ...(personExists ? { id: PopupState.dbInvitationRow.id } : {}),
           linkedin_url: targetUrl,
           full_name,
           company: companyToSave,
@@ -368,7 +357,8 @@ function bindProfileEditControls() {
       const resp = result.data || {};
 
       if (!result.ok || !resp?.ok) {
-        throw new Error(getErrorMessage(result.error || resp?.error));
+        const saveError = resp?.error || result.error;
+        throw new Error(typeof saveError === "string" ? saveError : getErrorMessage(saveError));
       }
 
       if (PopupState.currentProfileContext) {

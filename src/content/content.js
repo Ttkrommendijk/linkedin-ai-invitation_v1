@@ -135,7 +135,7 @@ function extractLinkedInCompanyIdFromUrl(url) {
 }
 
 function textAfterLabel(text, labels) {
-  const source = cleanText(text);
+  const source = String(text || "").replace(/\r/g, "");
   if (!source) return "";
   for (const label of labels) {
     const pattern = new RegExp(`${label}\\s*[:\\n]\\s*([^\\n|•]+)`, "i");
@@ -176,23 +176,29 @@ function extractCompanyItMembersFromText(text) {
 function extractCompanyProfile() {
   const url = window.location.href;
   const linkedin_id = extractLinkedInCompanyIdFromUrl(url);
-  const mainText = cleanText(document.querySelector("main")?.innerText || document.body?.innerText || "");
+  const mainText = document.querySelector("main")?.innerText || "";
   const name =
     cleanText(document.querySelector("main h1")?.innerText) ||
-    cleanText(document.querySelector("h1")?.innerText) ||
-    nameFromTitle();
+    cleanText(document.querySelector("h1")?.innerText);
 
   const sector = firstNonEmptyText([
     '[data-test-org-about-company-module__industry]',
     '.org-top-card-summary-info-list__info-item',
   ]) || textAfterLabel(mainText, ["Setor", "Industry"]);
 
-  const city =
+  const locationCandidate =
     textAfterLabel(mainText, ["Sede", "Headquarters", "Localidade", "Location"]) ||
     firstNonEmptyText([
       '[data-test-org-about-company-module__headquarters]',
-      '.org-top-card-summary-info-list__info-item:nth-child(2)',
+      '.org-top-card-summary-info-list__info-item--location',
     ]);
+  const isAudienceCount = (text) => /seguidores|followers|funcion[aá]rios|employees|conexões|connections/i.test(text);
+  const locationSummary = Array.from(document.querySelectorAll('.org-top-card-summary-info-list__info-item'))
+    .map((element) => cleanText(element.innerText))
+    .find((text) => text !== sector && !isAudienceCount(text) && /^[^\d,]+,\s*[^\d,]+$/.test(text));
+  const city = locationCandidate && !isAudienceCount(locationCandidate)
+    ? locationCandidate
+    : locationSummary || "";
 
   const company_page_excerpt = sanitizeExcerpt(mainText.slice(0, 6000), 1500);
 

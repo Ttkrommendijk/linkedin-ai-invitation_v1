@@ -26,12 +26,20 @@
       "https://br.linkedin.com",
     );
 
-    return [...new Set([
+    const urlVariants = [
       withoutSlash,
       withSlash,
       regionalWithoutSlash,
       `${regionalWithoutSlash}/`,
-    ])];
+    ];
+    // Percent-escape hex case is equivalent in a URL, but not in a text equality
+    // filter. Older records contain lowercase escapes while browsers use uppercase.
+    // Preserve the slug's own case and the exact-match lookup (no LIKE wildcards).
+    return [...new Set(urlVariants.flatMap((url) => [
+      url,
+      url.replace(/%[0-9a-f]{2}/gi, (escape) => escape.toUpperCase()),
+      url.replace(/%[0-9a-f]{2}/gi, (escape) => escape.toLowerCase()),
+    ]))];
   }
 
   // paste invitation functions here
@@ -104,171 +112,78 @@
     }
   }
 
-  async function supabaseMarkStatus({ linkedin_url, status }) {
+  async function patchInvitationStatus({ id, linkedin_url }, patch) {
+    let targetId = normalizeProfileField(id);
+    if (!targetId) {
+      const existing = await supabaseGetInvitationByLinkedinUrl(linkedin_url);
+      targetId = normalizeProfileField(existing?.id);
+    }
+    if (!targetId) {
+      throw new Error("Person could not be found. Refresh or register the profile first.");
+    }
     const { supabaseUrl, supabaseAnonKey, accessToken } =
       await getSupabaseRequestContext();
-    const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
+    const url = `${supabaseUrl}/rest/v1/linkedin_invitations?id=eq.${encodeURIComponent(targetId)}&select=id`;
+    const res = await fetchWithTimeout(
+      url,
+      {
+        method: "PATCH",
+        headers: {
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          Prefer: "return=representation",
+        },
+        body: JSON.stringify(patch),
+      },
+      15000,
+      "Supabase request",
+    );
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      throw createProviderHttpError("supabase", res.status, txt);
+    }
+    const rows = await res.json();
+    if (!Array.isArray(rows) || rows.length !== 1 || rows[0]?.id !== targetId) {
+      throw new Error("Status was not updated. Refresh the profile and check your access before trying again.");
+    }
+  }
 
+  async function supabaseMarkStatus({ id, linkedin_url, status }) {
     const patch = { status };
     const nowIso = new Date().toISOString();
     if (status === "invited") patch.invited_at = nowIso;
     if (status === "accepted") patch.accepted_at = nowIso;
     if (status === "first message sent") patch.first_message_sent_at = nowIso;
-
-    const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
-
-    const res = await fetchWithTimeout(
-      url,
-      {
-        method: "PATCH",
-        headers: {
-          apikey: supabaseAnonKey,
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-          Prefer: "return=minimal",
-        },
-        body: JSON.stringify(patch),
-      },
-      15000,
-      "Supabase request",
-    );
-
-    if (!res.ok) {
-      const txt = await res.text().catch(() => "");
-      throw createProviderHttpError("supabase", res.status, txt);
-    }
+    await patchInvitationStatus({ id, linkedin_url }, patch);
   }
 
-  async function supabaseMarkFirstMessageSent({ linkedin_url }) {
-    const { supabaseUrl, supabaseAnonKey, accessToken } =
-      await getSupabaseRequestContext();
-    const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
-    if (!targetUrl) {
-      throw new Error("Missing linkedin_url.");
-    }
-    const patch = {
+  async function supabaseMarkFirstMessageSent({ id, linkedin_url }) {
+    await patchInvitationStatus({ id, linkedin_url }, {
       status: "first message sent",
       first_message_sent_at: new Date().toISOString(),
       message_count: 1,
-    };
-    const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
-    const res = await fetchWithTimeout(
-      url,
-      {
-        method: "PATCH",
-        headers: {
-          apikey: supabaseAnonKey,
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-          Prefer: "return=minimal",
-        },
-        body: JSON.stringify(patch),
-      },
-      15000,
-      "Supabase request",
-    );
-    if (!res.ok) {
-      const txt = await res.text().catch(() => "");
-      throw createProviderHttpError("supabase", res.status, txt);
-    }
+    });
   }
 
-  async function supabaseSetStatusOnly({ linkedin_url, status }) {
-    const { supabaseUrl, supabaseAnonKey, accessToken, userId } =
-      await getSupabaseRequestContext();
-    const url = `${supabaseUrl}/rest/v1/linkedin_invitations?on_conflict=linkedin_url`;
-    const row = {
-      linkedin_url: normalizeLinkedinInvitationUrl(linkedin_url),
-      status,
-      uuid: userId || null,
-    };
-
-    const res = await fetchWithTimeout(
-      url,
-      {
-        method: "POST",
-        headers: {
-          apikey: supabaseAnonKey,
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-          Prefer: "resolution=merge-duplicates,return=minimal",
-        },
-        body: JSON.stringify(row),
-      },
-      15000,
-      "Supabase request",
-    );
-
-    if (!res.ok) {
-      const txt = await res.text().catch(() => "");
-      throw createProviderHttpError("supabase", res.status, txt);
-    }
+  async function supabaseSetStatusOnly({ id, linkedin_url, status }) {
+    await patchInvitationStatus({ id, linkedin_url }, { status });
   }
 
-  async function supabaseSetAcceptedAtNow({ linkedin_url }) {
-    const { supabaseUrl, supabaseAnonKey, accessToken } =
-      await getSupabaseRequestContext();
-    const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
-    const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
-    const patch = {
+  async function supabaseSetAcceptedAtNow({ id, linkedin_url }) {
+    await patchInvitationStatus({ id, linkedin_url }, {
       accepted: true,
       accepted_at: new Date().toISOString(),
       status: "accepted",
-    };
-
-    const res = await fetchWithTimeout(
-      url,
-      {
-        method: "PATCH",
-        headers: {
-          apikey: supabaseAnonKey,
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-          Prefer: "return=minimal",
-        },
-        body: JSON.stringify(patch),
-      },
-      15000,
-      "Supabase request",
-    );
-
-    if (!res.ok) {
-      const txt = await res.text().catch(() => "");
-      throw createProviderHttpError("supabase", res.status, txt);
-    }
+    });
   }
 
-  async function supabaseClearAcceptedAt({ linkedin_url }) {
-    const { supabaseUrl, supabaseAnonKey, accessToken } =
-      await getSupabaseRequestContext();
-    const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
-    const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
-    const patch = {
+  async function supabaseClearAcceptedAt({ id, linkedin_url }) {
+    await patchInvitationStatus({ id, linkedin_url }, {
       accepted: false,
       accepted_at: null,
       status: "invited",
-    };
-
-    const res = await fetchWithTimeout(
-      url,
-      {
-        method: "PATCH",
-        headers: {
-          apikey: supabaseAnonKey,
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-          Prefer: "return=minimal",
-        },
-        body: JSON.stringify(patch),
-      },
-      15000,
-      "Supabase request",
-    );
-
-    if (!res.ok) {
-      const txt = await res.text().catch(() => "");
-      throw createProviderHttpError("supabase", res.status, txt);
-    }
+    });
   }
 
   async function supabaseUpdateProfileDetailsOnly({
@@ -313,6 +228,7 @@
   }
 
   async function supabaseUpdateProfileFields({
+    id,
     linkedin_url,
     full_name,
     company,
@@ -322,14 +238,19 @@
     phone,
     email,
   }) {
-    const targetUrl = normalizeLinkedinInvitationUrl(linkedin_url);
-    if (!targetUrl) {
-      throw new Error("Missing linkedin_url.");
+    let targetId = normalizeProfileField(id);
+    if (!targetId) {
+      // Keep URL-only callers compatible, including legacy URL variants.
+      const existing = await supabaseGetInvitationByLinkedinUrl(linkedin_url);
+      targetId = normalizeProfileField(existing?.id);
+    }
+    if (!targetId) {
+      throw new Error("Person could not be found. Refresh the profile and try again.");
     }
 
     const { supabaseUrl, supabaseAnonKey, accessToken } =
       await getSupabaseRequestContext();
-    const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
+    const url = `${supabaseUrl}/rest/v1/linkedin_invitations?id=eq.${encodeURIComponent(targetId)}&select=id`;
     const patch = {
       full_name: normalizeProfileField(full_name),
       company: normalizeProfileField(company),
@@ -349,7 +270,7 @@
           apikey: supabaseAnonKey,
           Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
-          Prefer: "return=minimal",
+          Prefer: "return=representation",
         },
         body: JSON.stringify(patch),
       },
@@ -360,6 +281,10 @@
     if (!res.ok) {
       const txt = await res.text().catch(() => "");
       throw createProviderHttpError("supabase", res.status, txt);
+    }
+    const updatedRows = await res.json();
+    if (!Array.isArray(updatedRows) || updatedRows.length !== 1 || updatedRows[0]?.id !== targetId) {
+      throw new Error("Person was not updated. Refresh the profile and check your access before trying again.");
     }
   }
 

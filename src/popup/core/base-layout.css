@@ -140,6 +140,35 @@ button:disabled {
     gap: 6px;
     flex: 0 0 auto;
 }
+.detail-contact-rows {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 28px;
+    align-items: center;
+    column-gap: 8px;
+}
+.detail-contact-phone {
+    grid-area: 1 / 1;
+}
+.detail-contact-rows #whatsappProfileBtn {
+    grid-area: 1 / 2;
+    justify-self: end;
+}
+.detail-contact-email {
+    grid-area: 2 / 1;
+}
+.detail-contact-rows #emailProfileBtn {
+    grid-area: 2 / 2;
+    justify-self: end;
+}
+.detail-contact-value {
+    min-width: 0;
+    font-size: 12px;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    user-select: text;
+}
 .detail-person-name,
 .detail-person-company,
 .detail-person-phone,

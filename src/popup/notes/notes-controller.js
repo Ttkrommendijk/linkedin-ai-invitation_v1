@@ -18,6 +18,7 @@
     expandedNoteId: null,
     isCreating: false,
     loadedContextKey: "",
+    renderedEditorKey: "",
   };
 
   function hasRequiredDom() {
@@ -498,6 +499,11 @@
         reminder_kind: reminderKindSelect?.value || "due",
         reminder_title: reminderTextInput?.value || titleInput.value,
       };
+      if (!safeTrim(payload.note_title) && !safeTrim(payload.note_description)) {
+        const setStatus = typeof statusSetter === "function" ? statusSetter : setNotesStatus;
+        setStatus("Enter a title or description before saving the note.");
+        return;
+      }
       if (payload.create_reminder && !payload.reminder_at) {
         const setStatus = typeof statusSetter === "function" ? statusSetter : setNotesStatus;
         setStatus("Choose when the reminder should return.");
@@ -639,6 +645,13 @@
   function renderNotes() {
     if (!dom.notesListEl) return;
     const ctx = getPersonContext();
+    const editorId = localState.isCreating ? "new" : localState.expandedNoteId;
+    const editorKey = editorId == null ? "" : `${getContextKey(ctx)}|${localState.filter}|${editorId}`;
+    // A background fetch must not replace inputs while the user is typing.
+    if (editorKey && localState.renderedEditorKey === editorKey && dom.notesListEl.querySelector(".note-editor")) {
+      return;
+    }
+    localState.renderedEditorKey = editorKey;
     dom.notesListEl.innerHTML = "";
 
     if (localState.isCreating) {

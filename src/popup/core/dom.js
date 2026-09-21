@@ -62,6 +62,8 @@
     detailPersonNameEl: document.getElementById("detailPersonName"),
     detailCompanyEl: document.getElementById("detailCompany"),
     detailPhoneEl: document.getElementById("detailPhone"),
+    detailPhoneDisplayEl: document.getElementById("detailPhoneDisplay"),
+    detailEmailDisplayEl: document.getElementById("detailEmailDisplay"),
     detailEmailEl: document.getElementById("detailEmail"),
     detailEmployeeNumberEl: document.getElementById("detailEmployeeNumber"),
     detailHeadlineEl: document.getElementById("detailHeadline"),

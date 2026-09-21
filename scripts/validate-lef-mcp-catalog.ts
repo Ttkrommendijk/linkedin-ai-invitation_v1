@@ -1,4 +1,5 @@
 import { teamsTools } from "../supabase/functions/lef-microsoft365-oauth/teams-channel-read.mjs";
+import { emailTools } from "../supabase/functions/lef-crm-mcp/email.mjs";
 import ts from "npm:typescript@5.7.3";
 import Ajv from "npm:ajv@8.17.1";
 import addFormats from "npm:ajv-formats@3.0.1";
@@ -69,6 +70,7 @@ function extractTools(path: string): Tool[] {
     }
     if (ts.isIdentifier(node)) {
       if (node.text === "undefined") return undefined;
+      if (node.text === "emailTools" && path === "supabase/functions/lef-crm-mcp/index.ts") return JSON.parse(JSON.stringify(emailTools)) as JsonValue;
       if (node.text === "teamsTools" && path === "supabase/functions/lef-microsoft365-oauth/index.ts") return JSON.parse(JSON.stringify(teamsTools)) as JsonValue;
       const initializer = declarations.get(node.text);
       if (!initializer) {

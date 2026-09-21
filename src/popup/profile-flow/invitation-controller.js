@@ -295,7 +295,7 @@
         return { ok: false };
       }
       const result = await globalObj.sendRuntimeMessage(messageTypes.DB_MARK_STATUS, {
-        payload: { linkedin_url, status: statusConstants.invited },
+        payload: { id: state.dbInvitationRow?.id, linkedin_url, status: statusConstants.invited },
       });
       const resp = result.data || {};
       globalObj.setFooterStatus(
@@ -331,7 +331,7 @@
         ? messageTypes.DB_CLEAR_ACCEPTED_AT
         : messageTypes.DB_SET_ACCEPTED_AT_NOW;
       const result = await globalObj.sendRuntimeMessage(messageType, {
-        payload: { linkedin_url },
+        payload: { id: state.dbInvitationRow?.id, linkedin_url },
       });
       const resp = result.data || {};
       const successText = hasAccepted ? "Accepted cleared" : "Marked as accepted";
