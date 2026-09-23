@@ -40,6 +40,7 @@
     if (!normalized) return "";
     if (normalized === "registered") return "registered";
     if (normalized === "invited") return "invited";
+    if (normalized === "accepted") return "accepted";
     if (normalized === "first message sent") return "first message sent";
     if (normalized === "message responded") return "message responded";
     return "";
@@ -82,7 +83,8 @@
     );
     params.set("limit", String(safePageSize));
     params.set("offset", String(offset));
-    params.set("order", `${safeSortField}.${safeSortDir}`);
+    // Equal dates/names need a unique tie-breaker across separate page requests.
+    params.set("order", `${safeSortField}.${safeSortDir},url.asc`);
 
     if (filters?.campaign) {
       const campaignName = String(filters.campaign).trim().replace(/\*/g, "");

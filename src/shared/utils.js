@@ -162,6 +162,7 @@
   }
 
   function getErrorMessage(error, fallback = "Unexpected error.") {
+    if (typeof error === "string" && error.trim()) return error;
     if (
       error &&
       typeof error === "object" &&
@@ -195,13 +196,12 @@
     return String(value).trim();
   }
 
-  function clampText(text, maxChars) {
+  function clampText(text, maxChars, preserveParagraphs = false) {
     let out = (text || "").trim();
-    out = out
-      .replace(/\r\n/g, "\n")
-      .replace(/\n+/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
+    out = preserveParagraphs
+      ? out.replace(/\r\n?/g, "\n").replace(/[^\S\n]+/g, " ")
+          .replace(/ *\n */g, "\n").replace(/\n{3,}/g, "\n\n").trim()
+      : out.replace(/\r\n/g, "\n").replace(/\n+/g, " ").replace(/\s+/g, " ").trim();
     if (out.length > maxChars) {
       out = out.slice(0, maxChars - 3).trim() + "...";
     }

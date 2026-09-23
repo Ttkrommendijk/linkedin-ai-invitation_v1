@@ -14,3 +14,9 @@ build/
 
 # Environment files
 .env
+
+# Local Windows launcher toolchain, browser and operational data
+.venv-launcher/
+.launcher-browsers/
+__pycache__/
+*.spec

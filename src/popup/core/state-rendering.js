@@ -542,13 +542,15 @@ function debugStatusEncoding(text) {
 
 function setFooterStatus(text) {
   if (!footerStatusEl) return;
-  const nextText = (text || "Ready").toString().trim() || "Ready";
+  const generationPending = globalThis.PopupFreePromptController?.isGenerationPending?.();
+  const nextText = generationPending ? 'Generating message...' : (text || "Ready").toString().trim() || "Ready";
   debugStatusEncoding(nextText);
   if (readyResetTimer) {
     clearTimeout(readyResetTimer);
     readyResetTimer = null;
   }
   footerStatusEl.textContent = nextText;
+  if (generationPending) return;
   if (nextText === "Ready") return;
   if (isInProgressFooterStatus(nextText)) return;
   readyResetTimer = setTimeout(() => {

@@ -49,3 +49,6 @@
 .whatsapp-sync-candidate small {
   display: block;
 }
+#openai-provider fieldset { display: flex; flex-wrap: wrap; gap: 12px 24px; padding: 12px; border: 1px solid #ccc; border-radius: 6px; }
+#openai-provider fieldset label { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+#openai-provider input[type="radio"] { width: auto; margin: 0; }

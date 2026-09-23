@@ -170,7 +170,21 @@
     await patchInvitationStatus({ id, linkedin_url }, { status });
   }
 
-  async function supabaseSetAcceptedAtNow({ id, linkedin_url }) {
+  async function supabaseSetAcceptedAtNow({ id, linkedin_url, reconcile_existing_connection = false }) {
+    if (reconcile_existing_connection === true) {
+      const row = id
+        ? await supabaseGetInvitationById(id)
+        : await supabaseGetInvitationByLinkedinUrl(linkedin_url);
+      if (!row?.id) throw new Error("Person could not be found. Register the profile first.");
+      const observedAt = new Date().toISOString();
+      await patchInvitationStatus({ id: row.id }, {
+        accepted: true,
+        accepted_at: row.accepted_at || observedAt,
+        invited_at: row.invited_at || observedAt,
+        status: ["first message sent", "message responded"].includes(row.status) ? row.status : "accepted",
+      });
+      return;
+    }
     await patchInvitationStatus({ id, linkedin_url }, {
       accepted: true,
       accepted_at: new Date().toISOString(),

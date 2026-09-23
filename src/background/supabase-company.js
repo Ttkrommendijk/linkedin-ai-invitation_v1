@@ -199,7 +199,11 @@
     const normalizedCompanyName = normalizeProfileField(company_name);
     if (!normalizedCompanyId) throw new Error("Missing company_id.");
     if (!normalizedCompanyName) throw new Error("Missing company_name.");
-    const url = `${supabaseUrl}/rest/v1/linkedin_invitations?linkedin_url=eq.${encodeURIComponent(targetUrl)}`;
+    // Use the existing URL-variant lookup, then update the exact person ID.
+    const person = await globalObj.LEFSupabaseInvitations.supabaseGetInvitationByLinkedinUrl(targetUrl);
+    const personId = normalizeProfileField(person?.id);
+    if (!personId) throw new Error("Person could not be found for company linking.");
+    const url = `${supabaseUrl}/rest/v1/linkedin_invitations?id=eq.${encodeURIComponent(personId)}&select=id,company_id`;
     const res = await fetchWithTimeout(
       url,
       {
@@ -208,7 +212,7 @@
           apikey: supabaseAnonKey,
           Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
-          Prefer: "return=minimal",
+          Prefer: "return=representation",
         },
         body: JSON.stringify({
           company_id: normalizedCompanyId,
@@ -221,6 +225,10 @@
     if (!res.ok) {
       const txt = await res.text().catch(() => "");
       throw createProviderHttpError("supabase", res.status, txt);
+    }
+    const updated = await res.json();
+    if (!Array.isArray(updated) || updated.length !== 1 || updated[0]?.id !== personId || updated[0]?.company_id !== normalizedCompanyId) {
+      throw new Error("Company link was not updated. Refresh the person and check your access.");
     }
   }
 

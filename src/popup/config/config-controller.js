@@ -147,6 +147,7 @@
     if (webhookSecretEl && webhookSecret) webhookSecretEl.value = webhookSecret;
 
     if (modelEl) modelEl.value = model || "gpt-4.1";
+    await globalObj.LEFOpenAIConnection?.loadSettings();
     if (strategyEl && strategyCore) strategyEl.value = strategyCore;
     if (webhookBaseUrlEl) {
       webhookBaseUrlEl.value = getEffectiveSupabaseUrl(
@@ -188,6 +189,7 @@
       [POPUP_STORAGE_KEYS.webhookBaseUrl]: webhookBaseUrl,
     });
 
+    await globalObj.LEFOpenAIConnection?.saveSettings();
     deps.setFooterStatus?.("Config saved.");
   }
 

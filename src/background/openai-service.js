@@ -50,6 +50,18 @@
     }
   }
   async function fetchOpenAIWithRetry(url, options) {
+    // Apply the API preference centrally so existing enrichment handlers retain
+    // their message contracts. A per-generation value takes precedence.
+    if (url === 'https://api.openai.com/v1/responses' && options?.body) {
+      const body=JSON.parse(options.body);
+      const saved=await globalObj.chrome?.storage?.sync?.get(['apiReasoning']) || {};
+      const effort=body.reasoning?.effort || saved.apiReasoning;
+      if(effort) body.reasoning={effort};
+      if (/^(gpt-[56]|o[134])/.test(body.model || '')) {
+        body.max_output_tokens=Math.max(body.max_output_tokens || 0,4096);
+      }
+      options={...options,body:JSON.stringify(body)};
+    }
     let attempt = 0;
     while (attempt < 2) {
       try {
@@ -97,67 +109,11 @@
       "";
     return normalizeProfileField(contentText);
   }
-  function buildPromptContextInput({
-    language,
-    profile,
-    strategyCore,
-    chatHistory,
-    contextLast10,
-    objective,
-    includeProfile,
-    includeStrategy,
-    include_profile,
-    include_strategy,
-  }) {
-    const requestedLanguage = normalizeProfileField(language) || "Portuguese";
-    const includeProfileFlag =
-      typeof include_profile === "boolean"
-        ? include_profile
-        : Boolean(includeProfile);
-    const includeStrategyFlag =
-      typeof include_strategy === "boolean"
-        ? include_strategy
-        : Boolean(includeStrategy);
-    const sections = [`Language:\n${requestedLanguage}`];
-    const normalizedObjective = normalizeProfileField(objective);
-    if (normalizedObjective) {
-      sections.push(`Objective:\n${normalizedObjective}`);
-    }
-    if (includeProfileFlag && profile) {
-      sections.push(`Profile context:\n${profileContextBlock(profile)}`);
-    }
-    if (includeStrategyFlag) {
-      sections.push(
-        `Strategy context:\n${normalizeProfileField(strategyCore) || "(none)"}`,
-      );
-    }
-    const normalizedChatHistory = normalizeProfileField(chatHistory);
-    if (normalizedChatHistory) {
-      sections.push(`Chat history:\n${normalizedChatHistory}`);
-    }
-    const contextBlock = (Array.isArray(contextLast10) ? contextLast10 : [])
-      .slice(-10)
-      .map((m) => {
-        const direction =
-          m?.direction === "them"
-            ? "them"
-            : m?.direction === "me"
-              ? "me"
-              : "unknown";
-        const text = normalizeProfileField(m?.text);
-        return text ? `- ${direction}: ${text}` : "";
-      })
-      .filter(Boolean)
-      .join("\n");
-    if (contextBlock) {
-      sections.push(`Last messages:\n${contextBlock}`);
-    }
-    sections.push("Return only the final message text.");
-    return sections.join("\n\n");
-  }
+  const buildPromptContextInput = LEF_PROMPTS.buildPromptContextInput;
   async function callOpenAIFromPrompt({
     apiKey,
     model,
+    reasoningEffort,
     prompt,
     language,
     profile,
@@ -171,6 +127,7 @@
     include_strategy,
     maxOutputTokens = 500,
     maxChars = 1200,
+    preserveParagraphs = false,
   }) {
     const dbPrompt = normalizeProfileField(prompt);
     if (!dbPrompt) {
@@ -186,6 +143,7 @@
         },
         body: JSON.stringify({
           model,
+          ...(reasoningEffort ? {reasoning:{effort:reasoningEffort}} : {}),
           max_output_tokens: maxOutputTokens,
           input: [
             {
@@ -211,6 +169,7 @@
                 {
                   type: "input_text",
                   text: buildPromptContextInput({
+                    paragraphs: preserveParagraphs,
                     language,
                     profile,
                     strategyCore,
@@ -242,7 +201,7 @@
     if (!text) {
       throw new Error("Model returned empty output.");
     }
-    return clampText(text, maxChars);
+    return clampText(text, maxChars, preserveParagraphs);
   }
   function parseProfileEnrichmentJson(rawText) {
     let parsed;
@@ -732,6 +691,7 @@
       ...payload,
       maxOutputTokens: 500,
       maxChars: 1200,
+      preserveParagraphs: true,
     });
   }
   globalObj.LEFOpenAIService = Object.freeze({

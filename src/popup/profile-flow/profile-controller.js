@@ -508,6 +508,7 @@
         globalObj.updatePhaseButtons();
         getFreshScrapeForPage(pageInfo, { source: "refresh", force: true })
           .then((profileContext) => {
+            if (globalObj.canonicalizeLinkedInUrl(globalObj.getLinkedinUrlFromContext(globalObj.PopupState.currentProfileContext) || "") !== pageInfo.linkedin_id) return;
             globalObj.PopupState.currentProfileContext = profileContext;
             globalObj.PopupState.lastProfileContextSent = profileContext;
             globalObj.renderDetailHeader();
@@ -549,6 +550,7 @@
         force: true,
       })
         .then(async (profileContext) => {
+          if (globalObj.canonicalizeLinkedInUrl(globalObj.getLinkedinUrlFromContext(globalObj.PopupState.currentProfileContext) || "") !== pageInfo.linkedin_id) return;
           globalObj.timingLog("extraction completed", {
             scraped_url: globalObj.getLinkedinUrlFromContext(profileContext) || "",
             is_company_profile: globalObj.isCompanyProfileMode(profileContext),
@@ -610,14 +612,14 @@
       chrome.storage.sync.get(["model"]),
     ]);
     let apiKey = (apiKeyLocal || "").trim();
-    if (!apiKey) {
+    if (!apiKey && !await globalObj.LEFOpenAIConnection?.usesCodex()) {
       const typed = (dom.apiKeyEl?.value || "").trim();
       if (typed) {
         apiKey = typed;
         await chrome.storage.local.set({ apiKey });
       }
     }
-    if (!apiKey) {
+    if (!apiKey && !await globalObj.LEFOpenAIConnection?.usesCodex()) {
       globalObj.setActiveTab("config");
       throw new Error(globalObj.UI_TEXT.setApiKeyInConfig);
     }
@@ -686,14 +688,14 @@
       chrome.storage.sync.get(["model"]),
     ]);
     let apiKey = (apiKeyLocal || "").trim();
-    if (!apiKey) {
+    if (!apiKey && !await globalObj.LEFOpenAIConnection?.usesCodex()) {
       const typed = (dom.apiKeyEl?.value || "").trim();
       if (typed) {
         apiKey = typed;
         await chrome.storage.local.set({ apiKey });
       }
     }
-    if (!apiKey) {
+    if (!apiKey && !await globalObj.LEFOpenAIConnection?.usesCodex()) {
       globalObj.setActiveTab("config");
       throw new Error(globalObj.UI_TEXT.setApiKeyInConfig);
     }

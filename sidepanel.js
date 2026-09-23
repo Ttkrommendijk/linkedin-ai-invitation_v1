@@ -81,7 +81,9 @@ const DEFAULT_NAV_PACING_CONFIG = Object.freeze({
   quiet_reset_ms: 12000,
 });
 let refreshTimer = null;
-let settledRefreshTimer = null;
+let refreshInFlight = false;
+let queuedRefreshReason = null;
+let lastCompletedProfileKey = "";
 let prevListUrl = "";
 let nextListUrl = "";
 let navListItems = [];
@@ -538,13 +540,16 @@ async function clearPreviewIfNotInDb(frameDocument, profile) {
 }
 
 async function refreshFromIframe(reason = "manual") {
+  if (refreshInFlight) {
+    if (queuedRefreshReason !== "manual") queuedRefreshReason = reason;
+    return;
+  }
+  refreshInFlight = true;
   try {
-    timingLog("UI refresh requested", { source: "sidepanel", reason });
-    setRefreshStatus(`Refreshing (${reason})...`);
-
     const { tabId, isProfileOpen, tabUrl } = await getActiveTabProfileState();
 
     if (!tabId) {
+      lastCompletedProfileKey = "";
       resetSideNavTargets();
       setNoProfileStateVisible(true);
       setRefreshStatus("No active tab.");
@@ -552,12 +557,20 @@ async function refreshFromIframe(reason = "manual") {
     }
 
     if (!isProfileOpen) {
+      lastCompletedProfileKey = "";
       resetSideNavTargets();
       setNoProfileStateVisible(true);
       setRefreshStatus("Open a LinkedIn profile/company page.");
       return;
     }
 
+    const normalizedUrl = isLinkedInProfileLikeUrl(tabUrl)
+      ? canonicalizeLinkedInUrl(tabUrl).replace(/%[0-9a-f]{2}/gi, (value) => value.toUpperCase())
+      : tabUrl;
+    const profileKey = `${tabId}:${normalizedUrl}`;
+    if (isLinkedInProfileLikeUrl(tabUrl) && reason !== "manual" && reason !== "frame-load" && profileKey === lastCompletedProfileKey) return;
+    timingLog("UI refresh requested", { source: "sidepanel", reason });
+    setRefreshStatus(`Refreshing (${reason})...`);
     setNoProfileStateVisible(false);
 
     const frameWindow = panelFrameEl?.contentWindow;
@@ -575,28 +588,9 @@ async function refreshFromIframe(reason = "manual") {
     resetIframeUiState(frameDocument, frameWindow);
     const pageInfo = detectLinkedInPageType(tabUrl || "");
     console.log("[LEF][page] detected", pageInfo);
-    const isCompanyUrl = pageInfo.page_type === "company";
-    let extractResp = { ok: false };
-    if (!isCompanyUrl) {
-      extractResp = await extractProfileWithInjectionFallback(
-        tabId,
-        "EXTRACT_PROFILE_CONTEXT",
-      );
-      if (!extractResp.ok) {
-        console.warn("[LEF][refresh] pre-extract failed, continuing", {
-          reason,
-          extractType: "EXTRACT_PROFILE_CONTEXT",
-          error: extractResp.error || "unknown",
-        });
-      }
-    }
-
-    await frameWindow.loadProfileContextOnOpen();
-    const profileForPreview =
-      !isCompanyUrl && extractResp.ok && extractResp.profile;
-    if (profileForPreview) {
-      await clearPreviewIfNotInDb(frameDocument, profileForPreview);
-    }
+    // The popup owns scraping, the person lookup, and preview rendering.
+    const loaded = await frameWindow.loadProfileContextOnOpen();
+    if (loaded !== false) lastCompletedProfileKey = profileKey;
     await computeSideNavTargets();
     setRefreshStatus(`Refreshed (${reason}).`);
   } catch (e) {
@@ -604,11 +598,18 @@ async function refreshFromIframe(reason = "manual") {
       e instanceof Error ? e.message : String(e || "Refresh failed."),
     );
     await computeSideNavTargets();
+  } finally {
+    refreshInFlight = false;
+    if (queuedRefreshReason) {
+      const nextReason = queuedRefreshReason;
+      queuedRefreshReason = null;
+      scheduleRefresh(nextReason);
+    }
   }
 }
 
 function scheduleRefresh(reason) {
-  timingLog("UI refresh requested", { source: "sidepanel.schedule", reason });
+  timingLog("UI refresh scheduled", { source: "sidepanel.schedule", reason });
   if (refreshTimer) clearTimeout(refreshTimer);
   refreshTimer = setTimeout(() => {
     refreshFromIframe(reason).catch((error) => {
@@ -620,13 +621,6 @@ function scheduleRefresh(reason) {
 
 function scheduleNavigationRefresh(reason) {
   scheduleRefresh(reason);
-  if (settledRefreshTimer) clearTimeout(settledRefreshTimer);
-  settledRefreshTimer = setTimeout(() => {
-    refreshFromIframe(`${reason}-settled`).catch((error) => {
-      const msg = error instanceof Error ? error.message : "Refresh failed.";
-      setRefreshStatus(msg || "Refresh failed.");
-    });
-  }, 1800);
 }
 
 let sidePanelInitErrorLogged = false;
@@ -672,6 +666,7 @@ function runSidePanelInit() {
 
   chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
     if (!tab?.active) return;
+    if (changeInfo.status === "loading") lastCompletedProfileKey = "";
     if (typeof changeInfo.url === "string") {
       scheduleNavigationRefresh("tabs-url");
       return;

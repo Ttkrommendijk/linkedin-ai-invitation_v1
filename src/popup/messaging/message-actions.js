@@ -28,14 +28,14 @@ async function extractCompanyDetailsFromLlm(scrapedProfileContext = null) {
     chrome.storage.sync.get(["model"]),
   ]);
   let apiKey = (apiKeyLocal || "").trim();
-  if (!apiKey) {
+  if (!apiKey && !await globalThis.LEFOpenAIConnection?.usesCodex()) {
     const typed = (apiKeyEl.value || "").trim();
     if (typed) {
       apiKey = typed;
       await chrome.storage.local.set({ apiKey });
     }
   }
-  if (!apiKey) {
+  if (!apiKey && !await globalThis.LEFOpenAIConnection?.usesCodex()) {
     setActiveTab("config");
     throw new Error(UI_TEXT.setApiKeyInConfig);
   }
@@ -115,7 +115,7 @@ async function extractProfileDetailsFromLlm(scrapedProfileContext = null) {
   ]);
 
   let apiKey = (apiKeyLocal || "").trim();
-  if (!apiKey) {
+  if (!apiKey && !await globalThis.LEFOpenAIConnection?.usesCodex()) {
     const typed = (apiKeyEl.value || "").trim();
     if (typed) {
       apiKey = typed;
@@ -123,7 +123,7 @@ async function extractProfileDetailsFromLlm(scrapedProfileContext = null) {
     }
   }
 
-  if (!apiKey) {
+  if (!apiKey && !await globalThis.LEFOpenAIConnection?.usesCodex()) {
     setActiveTab("config");
     throw new Error(UI_TEXT.setApiKeyInConfig);
   }
@@ -239,27 +239,10 @@ function bindProfileEditControls() {
           PopupCompanyController.getSelectedExistingCompanyForLink()
             ?.company_name,
         );
-        const isCreateFlow = !dbCompanyRow && !linkedExistingCompanyId;
-        let payload = buildCompanyProfileSavePayload();
-        if (isCreateFlow) {
-          const pageInfo = detectLinkedInPageType(targetUrl);
-          const companyContext = await getFreshScrapeForPage(pageInfo, {
-            source: "company_create",
-            force: true,
-          });
-          const enrichedPayload =
-            await extractCompanyDetailsFromLlm(companyContext);
-          payload = {
-            ...payload,
-            ...enrichedPayload,
-            company_name: safeTrim(
-              enrichedPayload.company_name || payload.company_name,
-            ),
-            employee_number: safeTrim(enrichedPayload.employee_number),
-            sector: safeTrim(enrichedPayload.sector || payload.sector),
-            city: safeTrim(enrichedPayload.city || payload.city),
-            it_members: safeTrim(enrichedPayload.it_members),
-          };
+        // Saving entered/scraped fields must not depend on optional AI enrichment.
+        const payload = buildCompanyProfileSavePayload();
+        if (!safeTrim(payload.company_name)) {
+          throw new Error("Enter a company name before saving.");
         }
         const result = linkedExistingCompanyId
           ? await sendRuntimeMessage("DB_UPDATE_COMPANY_BY_ID", {

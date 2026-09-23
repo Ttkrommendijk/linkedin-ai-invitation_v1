@@ -42,7 +42,7 @@
       ? LEF_UTILS.sanitizeHeadlineJobTitle
       : sanitizeHeadlineJobTitleFallback;
 
-  const sendRuntimeMessage =
+  const sendRuntimeMessageOriginal =
     typeof LEF_UTILS.sendRuntimeMessage === "function"
       ? LEF_UTILS.sendRuntimeMessage
       : (type, payload = {}, options = {}) => {
@@ -101,6 +101,11 @@
           });
         };
 
+  const sendRuntimeMessage = (type, payload = {}, options = {}) =>
+    globalObj.LEFOpenAIConnection
+      ? globalObj.LEFOpenAIConnection.request(type, payload, (updated = payload) => sendRuntimeMessageOriginal(type, updated, options))
+      : sendRuntimeMessageOriginal(type, payload, options);
+
   const debugLog =
     typeof LEF_UTILS.debugLog === "function" ? LEF_UTILS.debugLog : () => {};
 
@@ -108,7 +113,8 @@
     try {
       return (
         globalObj.location.pathname.includes("sidepanel.html") ||
-        globalObj.top.location.pathname.includes("sidepanel.html")
+        globalObj.top.location.pathname.includes("sidepanel.html") ||
+        globalObj.top.location.pathname === "/src/launcher/launcher.html"
       );
     } catch (_e) {
       return globalObj.location.pathname.includes("sidepanel.html");
@@ -116,6 +122,7 @@
   }
 
   function getErrorMessage(error, fallback = "Unexpected error.") {
+    if (typeof error === "string" && error.trim()) return error;
     if (typeof LEF_UTILS.getErrorMessage === "function") {
       return LEF_UTILS.getErrorMessage(error, fallback);
     }

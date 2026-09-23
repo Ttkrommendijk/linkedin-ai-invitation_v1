@@ -1,0 +1,10 @@
+﻿const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+let rows=[{id:'person',company_id:'company'}],calls=[];
+const c={URL,console,LEFSupabaseService:{getSupabaseRequestContext:async()=>({supabaseUrl:'https://example.test',supabaseAnonKey:'fixture',accessToken:'fixture'})},LEFSupabaseInvitations:{supabaseGetInvitationByLinkedinUrl:async url=>{assert.equal(url,'https://www.linkedin.com/in/person/');return {id:'person',linkedin_url:'https://www.linkedin.com/in/person'}}},LEFOpenAIService:{fetchWithTimeout:async(url,opts)=>{calls.push({url,opts});return {ok:true,json:async()=>rows}}}};
+vm.createContext(c);for(const f of ['src/shared/utils.js','src/background/supabase-company.js']) vm.runInContext(fs.readFileSync(f,'utf8'),c);
+(async()=>{const link=c.LEFSupabaseCompany.supabaseConfirmCompanyLink;
+await link({linkedin_url:'https://www.linkedin.com/in/person',company_id:'company',company_name:'Company'});
+assert.equal(new URL(calls[0].url).searchParams.get('id'),'eq.person');assert.equal(calls[0].opts.headers.Prefer,'return=representation');assert.deepEqual(JSON.parse(calls[0].opts.body),{company_id:'company',company:'Company'});
+rows=[];await assert.rejects(()=>link({linkedin_url:'https://www.linkedin.com/in/person/',company_id:'company',company_name:'Company'}),/not updated/);
+rows=[{id:'person',company_id:'wrong'}];await assert.rejects(()=>link({linkedin_url:'https://www.linkedin.com/in/person/',company_id:'company',company_name:'Company'}),/not updated/);
+console.log('PASS company linking by resolved person ID; zero-row and wrong-company updates rejected');})().catch(e=>{console.error(e);process.exitCode=1});

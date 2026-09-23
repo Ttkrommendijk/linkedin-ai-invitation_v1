@@ -2,6 +2,10 @@
 
 CRM email setup and deployment status: [Resend integration](docs/crm-email-resend.md).
 
+Local Windows executable: [LEF launcher, dry-run and invitation verification](docs/windows-launcher.md).
+
+Launcher interface: [action, recipients, results and settings](docs/launcher-gui.md).
+
 This repository contains the current working LEF browser client. It began as the LEF LinkedIn Invite Generator and has expanded to support CRM workflows, browser integrations, and contextual reminders.
 
 ## Current development direction

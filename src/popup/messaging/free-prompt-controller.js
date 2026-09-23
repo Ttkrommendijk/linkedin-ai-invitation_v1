@@ -52,6 +52,7 @@
   }
 
   async function handleGenerateFreePromptClick() {
+    if (generating) return;
     try {
       const prompt = (dom.freePromptInputEl?.value || "").trim();
       const includeProfile = dom.freePromptIncludeProfileEl
@@ -66,6 +67,12 @@
         messageController.updateFreePromptCopyButtonState?.();
         return;
       }
+      generating = true;
+      clearFreePromptPreview();
+      dom.generateFreePromptBtnEl.disabled = true;
+      dom.generateFreePromptBtnEl.textContent = 'Generating...';
+      generationStatus.textContent = 'Generating a new message...';
+      dom.freePromptPreviewEl?.setAttribute('aria-busy', 'true');
 
       let profileForGeneration = null;
       if (includeProfile) {
@@ -100,14 +107,14 @@
         chrome.storage.sync.get(["model"]),
       ]);
       let apiKey = (apiKeyLocal || "").trim();
-      if (!apiKey) {
+      if (!apiKey && !await globalObj.LEFOpenAIConnection?.usesCodex()) {
         const typed = (dom.apiKeyEl?.value || "").trim();
         if (typed) {
           apiKey = typed;
           await chrome.storage.local.set({ apiKey });
         }
       }
-      if (!apiKey) {
+      if (!apiKey && !await globalObj.LEFOpenAIConnection?.usesCodex()) {
         globalObj.setFooterStatus?.(globalObj.UI_TEXT.setApiKeyInConfig);
         return;
       }
@@ -116,6 +123,8 @@
       const payload = {
         apiKey,
         model: (model || "gpt-4.1").trim(),
+        modelOverride: document.getElementById("promptModelOverride")?.value.trim() || "",
+        reasoningOverride: document.getElementById("promptReasoningOverride")?.value || "",
         language: getFreePromptLanguage(),
         prompt,
         includeProfile,
@@ -130,11 +139,13 @@
         payload.strategyCore = strategyCoreRaw || "(none)";
       }
 
+      requestPending = true;
       globalObj.setFooterStatus?.(globalObj.UI_TEXT.callingOpenAI);
-      const send = utils.sendRuntimeMessage || globalObj.sendRuntimeMessage;
+      const send = globalObj.sendRuntimeMessage || utils.sendRuntimeMessage;
       const result = await send("GENERATE_FREE_PROMPT", {
         payload,
       });
+      requestPending = false;
       const resp = result.data || {};
       if (!result.ok || !resp?.ok) {
         throw new Error(globalObj.getErrorMessage(result.error || resp?.error));
@@ -145,10 +156,13 @@
         dom.freePromptPreviewEl.textContent = generatedText;
       }
       messageController.updateFreePromptCopyButtonState?.();
+      generationStatus.textContent = generatedText ? 'New message generated. Ready to copy.' : 'No message returned.';
       globalObj.setFooterStatus?.(
         generatedText ? "Ready" : globalObj.UI_TEXT.noMessageGenerated,
       );
     } catch (e) {
+      requestPending = false;
+      if (generationStatus) generationStatus.textContent = `Generation failed: ${globalObj.getErrorMessage(e)}`;
       if (dom.freePromptPreviewEl) {
         dom.freePromptPreviewEl.textContent = "";
       }
@@ -156,13 +170,31 @@
       globalObj.setFooterStatus?.(
         `${globalObj.UI_TEXT.errorPrefix} ${globalObj.getErrorMessage(e)}`,
       );
+    } finally {
+      requestPending = false;
+      generating = false;
+      if (generationStatus?.textContent === 'Generating a new message...') generationStatus.textContent = 'No message generated. Check the status below.';
+      if (dom.generateFreePromptBtnEl) {
+        dom.generateFreePromptBtnEl.disabled = false;
+        dom.generateFreePromptBtnEl.textContent = generateLabel;
+      }
+      dom.freePromptPreviewEl?.setAttribute('aria-busy', 'false');
     }
   }
 
+  let generating = false;
+  let requestPending = false;
+  let generationStatus;
+  let generateLabel = 'Generate';
   function bindGenerateFreePromptClickHandler() {
     if (!dom.generateFreePromptBtnEl) return;
     if (dom.generateFreePromptBtnEl.dataset.freePromptBound === "1") return;
     dom.generateFreePromptBtnEl.dataset.freePromptBound = "1";
+    generateLabel = dom.generateFreePromptBtnEl.textContent;
+    generationStatus = document.createElement('p');
+    generationStatus.id = 'freePromptGenerationStatus';
+    generationStatus.setAttribute('role', 'status');
+    dom.generateFreePromptBtnEl.closest('.row').after(generationStatus);
     dom.generateFreePromptBtnEl.addEventListener(
       "click",
       handleGenerateFreePromptClick,
@@ -198,6 +230,7 @@
   }
 
   globalObj.PopupFreePromptController = Object.freeze({
+    isGenerationPending: () => requestPending,
     bindFreePromptEvents,
     clearFreePromptPreview,
     getFreePromptLanguage,

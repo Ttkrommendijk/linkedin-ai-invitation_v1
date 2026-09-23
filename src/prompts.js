@@ -355,7 +355,69 @@ ${profileContextBlock(profileContext || {})}
 `;
   }
 
+  function buildPromptContextInput({
+    paragraphs = false,
+    language,
+    profile,
+    strategyCore,
+    chatHistory,
+    contextLast10,
+    objective,
+    includeProfile,
+    includeStrategy,
+    include_profile,
+    include_strategy,
+  }) {
+    const requestedLanguage = normalizeText(language) || "Portuguese";
+    const includeProfileFlag =
+      typeof include_profile === "boolean"
+        ? include_profile
+        : Boolean(includeProfile);
+    const includeStrategyFlag =
+      typeof include_strategy === "boolean"
+        ? include_strategy
+        : Boolean(includeStrategy);
+    const sections = [`Language:\n${requestedLanguage}`];
+    const normalizedObjective = normalizeText(objective);
+    if (normalizedObjective) {
+      sections.push(`Objective:\n${normalizedObjective}`);
+    }
+    if (includeProfileFlag && profile) {
+      sections.push(`Profile context:\n${buildFirstMessageUserInput({profile})}`);
+    }
+    if (includeStrategyFlag) {
+      sections.push(
+        `Strategy context:\n${normalizeText(strategyCore) || "(none)"}`,
+      );
+    }
+    const normalizedChatHistory = normalizeText(chatHistory);
+    if (normalizedChatHistory) {
+      sections.push(`Chat history:\n${normalizedChatHistory}`);
+    }
+    const contextBlock = (Array.isArray(contextLast10) ? contextLast10 : [])
+      .slice(-10)
+      .map((m) => {
+        const direction =
+          m?.direction === "them"
+            ? "them"
+            : m?.direction === "me"
+              ? "me"
+              : "unknown";
+        const text = normalizeText(m?.text);
+        return text ? `- ${direction}: ${text}` : "";
+      })
+      .filter(Boolean)
+      .join("\n");
+    if (contextBlock) {
+      sections.push(`Last messages:\n${contextBlock}`);
+    }
+    sections.push("Return only the final message text.");
+    if (paragraphs) sections.push('Format the message as short, natural paragraphs with a blank line between them. Separate the greeting/opening, main point, and closing or call to action when applicable. Keep short messages concise. Use real line breaks, plain text, and no HTML or Markdown formatting.');
+    return sections.join("\n\n");
+  }
+
   global.LEFPrompts = {
+    buildPromptContextInput,
     buildProfileExtractionPrompt,
     buildCompanyExtractionPrompt,
     buildInviteTextPrompt,
